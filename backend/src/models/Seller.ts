@@ -69,6 +69,9 @@ export interface ISeller extends Document {
 
   createdAt: Date;
   updatedAt: Date;
+  // FCM Push Notification Tokens
+  fcmTokens?: string[];        // Web push notification tokens
+  fcmTokenMobile?: string[];   // Mobile push notification tokens
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -278,6 +281,15 @@ const SellerSchema = new Schema<ISeller>(
     isShopOpen: {
       type: Boolean,
       default: true,
+    },
+    // FCM Push Notification Tokens
+    fcmTokens: {
+      type: [String],
+      default: []
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: []
     },
   },
   {

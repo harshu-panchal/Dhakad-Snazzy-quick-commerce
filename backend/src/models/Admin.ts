@@ -10,6 +10,9 @@ export interface IAdmin extends Document {
   password: string;
   createdAt: Date;
   updatedAt: Date;
+  // FCM Push Notification Tokens
+  fcmTokens?: string[];        // Web push notification tokens
+  fcmTokenMobile?: string[];   // Mobile push notification tokens
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -61,6 +64,15 @@ const AdminSchema = new Schema<IAdmin>(
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't return password by default
+    },
+    // FCM Push Notification Tokens
+    fcmTokens: {
+      type: [String],
+      default: []
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: []
     },
   },
   {

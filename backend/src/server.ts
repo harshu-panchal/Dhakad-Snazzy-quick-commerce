@@ -9,6 +9,8 @@ import { notFound } from "./middleware/notFound";
 import { ensureDefaultAdmin } from "./utils/ensureDefaultAdmin";
 import { seedHeaderCategories } from "./utils/seedHeaderCategories";
 import { initializeSocket } from "./socket/socketService";
+import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
+
 
 // Load environment variables
 dotenv.config();
@@ -100,6 +102,9 @@ async function startServer() {
   await connectDB();
   await ensureDefaultAdmin();
   await seedHeaderCategories();
+
+  // Initialize Firebase Admin SDK for push notifications
+  initializeFirebaseAdmin();
 
   httpServer.listen(PORT, () => {
     console.log("\n\x1b[32m✓\x1b[0m \x1b[1mdhakadsnazzy Server Started\x1b[0m");

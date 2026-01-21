@@ -43,3 +43,6 @@ Thumbs.db
 /fix-orders-index.js
 /check_sellers.ts
 /verify_location_fix.ts
+
+# Firebase credentials (development only - do not commit)
+config/firebase-service-account.json

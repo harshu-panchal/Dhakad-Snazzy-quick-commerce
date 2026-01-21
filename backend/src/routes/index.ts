@@ -30,6 +30,7 @@ import productReviewRoutes from "./productReviewRoutes";
 import adminRoutes from "./adminRoutes";
 import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
+import fcmTokenRoutes from "./fcmTokenRoutes";
 import {
   createOrder,
   getMyOrders,
@@ -54,6 +55,9 @@ router.use("/auth/admin", adminAuthRoutes);
 router.use("/auth/seller", sellerAuthRoutes);
 router.use("/auth/customer", customerAuthRoutes);
 router.use("/auth/delivery", deliveryAuthRoutes);
+
+// FCM Token routes (protected - requires authentication)
+router.use("/fcm-tokens", authenticate, fcmTokenRoutes);
 
 // Delivery routes (protected)
 router.use(

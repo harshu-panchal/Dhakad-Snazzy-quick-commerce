@@ -44,6 +44,9 @@ export interface IDelivery extends Document {
 
   createdAt: Date;
   updatedAt: Date;
+  // FCM Push Notification Tokens
+  fcmTokens?: string[];        // Web push notification tokens
+  fcmTokenMobile?: string[];   // Mobile push notification tokens
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -181,6 +184,15 @@ const DeliverySchema = new Schema<IDelivery>(
       notifications: { type: Boolean, default: true },
       location: { type: Boolean, default: true },
       sound: { type: Boolean, default: true }
+    },
+    // FCM Push Notification Tokens
+    fcmTokens: {
+      type: [String],
+      default: []
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: []
     },
   },
   {

@@ -34,6 +34,9 @@ export interface ICustomer extends Document {
   accountPrivacy?: {
     hideSensitiveItems: boolean;
   };
+  // FCM Push Notification Tokens
+  fcmTokens?: string[];        // Web push notification tokens
+  fcmTokenMobile?: string[];   // Mobile push notification tokens
 }
 
 
@@ -142,6 +145,15 @@ const CustomerSchema = new Schema<ICustomer>(
     },
     accountPrivacy: {
       hideSensitiveItems: { type: Boolean, default: false },
+    },
+    // FCM Push Notification Tokens
+    fcmTokens: {
+      type: [String],
+      default: []
+    },
+    fcmTokenMobile: {
+      type: [String],
+      default: []
     },
   },
 
