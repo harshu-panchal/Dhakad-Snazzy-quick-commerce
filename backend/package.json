@@ -28,7 +28,8 @@
     "migrate:subcategories": "tsx src/scripts/migrateSubCategoriesToCategories.ts",
     "seed:sub-subcategories": "tsx src/scripts/seedSubSubcategories.ts",
     "add:products-from-paths": "tsx src/scripts/addProductsFromImagePaths.ts",
-    "generate:delivery-otp": "tsx src/scripts/generateDeliveryOtpForCustomers.ts"
+    "generate:delivery-otp": "tsx src/scripts/generateDeliveryOtpForCustomers.ts",
+    "postinstall": "npm run build"
   },
   "keywords": [
     "express",
