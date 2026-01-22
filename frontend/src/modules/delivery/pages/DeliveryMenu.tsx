@@ -1,39 +1,119 @@
-import { useNavigate } from 'react-router-dom';
-import DeliveryHeader from '../components/DeliveryHeader';
-import DeliveryBottomNav from '../components/DeliveryBottomNav';
+import { useNavigate } from "react-router-dom";
+import DeliveryHeader from "../components/DeliveryHeader";
+import DeliveryBottomNav from "../components/DeliveryBottomNav";
 
 export default function DeliveryMenu() {
   const navigate = useNavigate();
 
   const menuItems = [
-    { id: 'menu-1', title: 'Profile', route: '/delivery/profile' },
-    { id: 'menu-2', title: 'Earnings', route: '/delivery/earnings' },
-    { id: 'menu-3', title: 'Settings', route: '/delivery/settings' },
-    { id: 'menu-4', title: 'Help & Support', route: '/delivery/help' },
-    { id: 'menu-5', title: 'About', route: '/delivery/about' },
-    { id: 'menu-6', title: 'Logout', route: '/delivery/login' },
+    { id: "menu-1", title: "Profile", route: "/delivery/profile" },
+    { id: "menu-w", title: "Wallet", route: "/delivery/wallet" },
+    { id: "menu-2", title: "Earnings", route: "/delivery/earnings" },
+    { id: "menu-3", title: "Settings", route: "/delivery/settings" },
+    { id: "menu-4", title: "Help & Support", route: "/delivery/help" },
+    { id: "menu-5", title: "About", route: "/delivery/about" },
+    { id: "menu-6", title: "Logout", route: "/delivery/login" },
   ];
 
   const getMenuIcon = (menuId: string) => {
     switch (menuId) {
-      case 'menu-1': // Profile
+      case "menu-1": // Profile
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" fill="none" />
-            <path d="M4 20c0-4 3.5-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <circle
+              cx="12"
+              cy="8"
+              r="4"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
+            <path
+              d="M4 20c0-4 3.5-7 8-7s8 3 8 7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
           </svg>
         );
-      case 'menu-2': // Earnings
+      case "menu-w": // Wallet
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="6" width="20" height="12" rx="2" stroke="currentColor" strokeWidth="2" fill="none" />
-            <path d="M6 10H18M6 14H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-            <circle cx="16" cy="12" r="2" stroke="currentColor" strokeWidth="2" fill="none" />
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <rect
+              x="2"
+              y="5"
+              width="20"
+              height="14"
+              rx="2"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
+            <line
+              x1="2"
+              y1="10"
+              x2="22"
+              y2="10"
+              stroke="currentColor"
+              strokeWidth="2"
+            />
+            <circle cx="12" cy="14.5" r="1.5" fill="currentColor" />
           </svg>
         );
-      case 'menu-3': // Settings
+      case "menu-2": // Earnings
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <rect
+              x="2"
+              y="6"
+              width="20"
+              height="12"
+              rx="2"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
+            <path
+              d="M6 10H18M6 14H14"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              fill="none"
+            />
+            <circle
+              cx="16"
+              cy="12"
+              r="2"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
+          </svg>
+        );
+      case "menu-3": // Settings
+        return (
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
             <path
               d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z"
               stroke="currentColor"
@@ -52,10 +132,22 @@ export default function DeliveryMenu() {
             />
           </svg>
         );
-      case 'menu-4': // Help & Support
+      case "menu-4": // Help & Support
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
             <path
               d="M9.09 9C9.3251 8.33167 9.78915 7.76811 10.4 7.40913C11.0108 7.05016 11.7289 6.91894 12.4272 7.03871C13.1255 7.15849 13.7588 7.52152 14.2151 8.06353C14.6713 8.60553 14.9211 9.29152 14.92 10C14.92 12 11.92 13 11.92 13"
               stroke="currentColor"
@@ -67,10 +159,22 @@ export default function DeliveryMenu() {
             <circle cx="12" cy="17" r="1" fill="currentColor" />
           </svg>
         );
-      case 'menu-5': // About
+      case "menu-5": // About
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" fill="none" />
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="2"
+              fill="none"
+            />
             <path
               d="M12 16V12M12 8H12.01"
               stroke="currentColor"
@@ -81,9 +185,14 @@ export default function DeliveryMenu() {
             />
           </svg>
         );
-      case 'menu-6': // Logout
+      case "menu-6": // Logout
         return (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
             <path
               d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9"
               stroke="currentColor"
@@ -116,10 +225,10 @@ export default function DeliveryMenu() {
   };
 
   const handleMenuClick = (route: string) => {
-    if (route === '/delivery/login') {
+    if (route === "/delivery/login") {
       // Handle logout logic here
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userData");
       navigate(route);
     } else {
       // Navigate to the selected route
@@ -138,16 +247,19 @@ export default function DeliveryMenu() {
               <button
                 key={item.id}
                 onClick={() => handleMenuClick(item.route)}
-                className={`w-full bg-white rounded-xl p-4 shadow-sm border border-neutral-200 flex items-center gap-3 hover:shadow-md transition-shadow ${item.id === 'menu-6' ? 'text-red-600 hover:bg-red-50' : 'hover:bg-neutral-50'
-                  }`}
-              >
-                <span className={`flex-shrink-0 ${item.id === 'menu-6' ? 'text-red-600' : 'text-neutral-600'}`}>
+                className={`w-full bg-white rounded-xl p-4 shadow-sm border border-neutral-200 flex items-center gap-3 hover:shadow-md transition-shadow ${
+                  item.id === "menu-6"
+                    ? "text-red-600 hover:bg-red-50"
+                    : "hover:bg-neutral-50"
+                }`}>
+                <span
+                  className={`flex-shrink-0 ${item.id === "menu-6" ? "text-red-600" : "text-neutral-600"}`}>
                   {getMenuIcon(item.id)}
                 </span>
                 <span
-                  className={`text-sm font-medium flex-1 text-left ${item.id === 'menu-6' ? 'text-red-600' : 'text-neutral-900'
-                    }`}
-                >
+                  className={`text-sm font-medium flex-1 text-left ${
+                    item.id === "menu-6" ? "text-red-600" : "text-neutral-900"
+                  }`}>
                   {item.title}
                 </span>
                 <svg
@@ -156,8 +268,9 @@ export default function DeliveryMenu() {
                   viewBox="0 0 24 24"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
-                  className={item.id === 'menu-6' ? 'text-red-600' : 'text-neutral-400'}
-                >
+                  className={
+                    item.id === "menu-6" ? "text-red-600" : "text-neutral-400"
+                  }>
                   <path
                     d="M9 18L15 12L9 6"
                     stroke="currentColor"

@@ -27,7 +27,7 @@ const getStatusColor = (status: string) => {
       return 'bg-blue-100 text-blue-700';
     case 'Accepted':
       return 'bg-yellow-100 text-yellow-700';
-    case 'Placed':
+    case 'Received':
       return 'bg-neutral-100 text-neutral-700';
     default:
       return 'bg-neutral-100 text-neutral-700';
@@ -80,20 +80,20 @@ export default function OrderAgain() {
       try {
         const response = await getProducts({ sort: 'popular', limit: 6 });
         if (response.success && response.data) {
-        const mapped = (response.data as any[]).map(p => {
-          // Clean product name - remove description suffixes
-          let productName = p.productName || p.name || '';
-          productName = productName.replace(/\s*-\s*(Fresh|Quality|Assured|Premium|Best|Top|Hygienic|Carefully|Selected).*$/i, '').trim();
+          const mapped = (response.data as any[]).map(p => {
+            // Clean product name - remove description suffixes
+            let productName = p.productName || p.name || '';
+            productName = productName.replace(/\s*-\s*(Fresh|Quality|Assured|Premium|Best|Top|Hygienic|Carefully|Selected).*$/i, '').trim();
 
-          return {
-            ...p,
-            id: p._id || p.id,
-            name: productName,
-            imageUrl: p.mainImage || p.imageUrl,
-            mrp: p.mrp || p.price,
-            pack: p.variations?.[0]?.title || p.smallDescription || 'Standard'
-          };
-        });
+            return {
+              ...p,
+              id: p._id || p.id,
+              name: productName,
+              imageUrl: p.mainImage || p.imageUrl,
+              mrp: p.mrp || p.price,
+              pack: p.variations?.[0]?.title || p.smallDescription || 'Standard'
+            };
+          });
           setBestsellerProducts(mapped);
         }
       } catch (error) {

@@ -11,7 +11,7 @@ export const processSellerCommission = async (
   commissionId: string
 ) => {
   const commission = await Commission.findById(commissionId);
-  if (!commission || commission.seller.toString() !== sellerId) {
+  if (!commission || !commission.seller || commission.seller.toString() !== sellerId) {
     throw new Error("Commission not found or does not belong to seller");
   }
 

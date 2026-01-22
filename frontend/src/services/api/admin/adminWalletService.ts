@@ -1,131 +1,128 @@
 import api from "../config";
-
-
 import { ApiResponse } from "./types";
 
+// TYPES
+
+export interface WalletStats {
+  totalEarnings: number;
+  paidEarnings: number;
+  pendingEarnings: number;
+  thisMonthEarnings: number;
+}
+
 export interface WalletTransaction {
-  id: string;
-  type: string;
+  _id: string; // Mongoose ID
+  type: string; // Credit/Debit
+  userType: string;
   amount: number;
-  transactionType: "credit" | "debit" | "pending";
   description: string;
+  status: string;
+  createdAt: string;
+  relatedOrder?: { orderNumber: string };
+}
+
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  amount: number;
+  requestDate: string;
+  status: "Pending" | "Approved" | "Rejected";
+  paymentMethod: string;
+  accountDetails: string;
+  remark?: string;
+}
+
+export interface AdminEarning {
+  id: string;
+  source: string;
+  amount: number;
   date: string;
   status: string;
-}
-
-export interface GetWalletTransactionsParams {
-  page?: number;
-  limit?: number;
-  type?: "seller" | "customer";
-  userId?: string;
-  transactionType?: "credit" | "debit";
-}
-
-export interface ProcessFundTransferData {
-  fromType: "seller" | "customer";
-  fromId: string;
-  toType: "seller" | "customer";
-  toId: string;
-  amount: number;
-  reason?: string;
-}
-
-export interface FundTransferResponse {
-  from: {
-    type: string;
-    id: string;
-    previousBalance: number;
-    newBalance: number;
-  };
-  to: {
-    type: string;
-    id: string;
-    previousBalance: number;
-    newBalance: number;
-  };
-  amount: number;
-  reason?: string;
+  description: string;
 }
 
 export interface SellerTransaction {
   id: string;
-  type: string;
   amount: number;
-  transactionType: "credit" | "pending";
-  description: string;
+  transactionType: string;
   date: string;
+  type: string;
   status: string;
+  description: string;
 }
 
-export interface ProcessWithdrawalData {
-  sellerId: string;
-  amount: number;
-  paymentReference?: string;
-  notes?: string;
-}
-
-export interface WithdrawalResponse {
-  seller: any;
-  transaction: {
-    amount: number;
-    paymentReference?: string;
-    notes?: string;
-    previousBalance: number;
-    newBalance: number;
-  };
-}
+// API METHODS
 
 /**
- * Get wallet transactions
+ * Get Financial Dashboard Stats
  */
-export const getWalletTransactions = async (
-  params?: GetWalletTransactionsParams
-): Promise<ApiResponse<WalletTransaction[]>> => {
-  const response = await api.get<ApiResponse<WalletTransaction[]>>(
-    "/admin/wallet/transactions",
-    {
-      params,
-    }
-  );
+export const getFinancialDashboard = async (): Promise<ApiResponse<WalletStats>> => {
+  const response = await api.get<ApiResponse<WalletStats>>("/admin/financial/dashboard");
   return response.data;
 };
 
 /**
- * Process fund transfer
+ * Get Admin Earnings (Commissions)
  */
-export const processFundTransfer = async (
-  data: ProcessFundTransferData
-): Promise<ApiResponse<FundTransferResponse>> => {
-  const response = await api.post<ApiResponse<FundTransferResponse>>(
-    "/admin/wallet/transfer",
-    data
-  );
-  return response.data;
-};
-
-/**
- * Get seller transactions
- */
-export const getSellerTransactions = async (
-  sellerId: string,
-  params?: { page?: number; limit?: number }
-): Promise<ApiResponse<SellerTransaction[]>> => {
-  const response = await api.get<ApiResponse<SellerTransaction[]>>(
-    `/admin/wallet/seller/${sellerId}`,
+export const getAdminEarnings = async (
+  params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string }
+): Promise<ApiResponse<AdminEarning[]>> => {
+  const response = await api.get<ApiResponse<AdminEarning[]>>(
+    "/admin/wallet/earnings",
     { params }
   );
   return response.data;
 };
 
 /**
- * Process withdrawal request
+ * Get Wallet Transactions (Platform Level)
+ */
+export const getWalletTransactions = async (
+  params?: { page?: number; limit?: number; type?: string; status?: string }
+): Promise<ApiResponse<WalletTransaction[]>> => {
+  const response = await api.get<ApiResponse<WalletTransaction[]>>(
+    "/admin/wallet/transactions",
+    { params }
+  );
+  return response.data;
+};
+
+/**
+ * Get Withdrawal Requests
+ */
+export const getWithdrawalRequests = async (
+  params?: { page?: number; limit?: number; status?: string }
+): Promise<ApiResponse<WithdrawalRequest[]>> => {
+  const response = await api.get<ApiResponse<WithdrawalRequest[]>>(
+    "/admin/wallet/withdrawals",
+    { params }
+  );
+  return response.data;
+};
+
+/**
+ * Process Withdrawal (Approve/Reject)
  */
 export const processWithdrawal = async (
-  data: ProcessWithdrawalData
-): Promise<ApiResponse<WithdrawalResponse>> => {
-  const response = await api.post<ApiResponse<WithdrawalResponse>>(
-    "/admin/wallet/withdrawal",
+  data: { requestId: string; action: "Approve" | "Reject"; remark?: string }
+): Promise<ApiResponse<any>> => {
+  const response = await api.post<ApiResponse<any>>(
+    "/admin/wallet/withdrawal/process",
     data
+  );
+  return response.data;
+};
+
+// Legacy / Other Helpers
+export const getSellerTransactions = async (
+  sellerId: string,
+  params?: { page?: number; limit?: number }
+): Promise<ApiResponse<any[]>> => {
+  const response = await api.get<ApiResponse<any[]>>(
+    `/admin/wallet/seller/${sellerId}`,
+    { params }
   );
   return response.data;
 };

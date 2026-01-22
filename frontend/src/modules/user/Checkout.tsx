@@ -21,6 +21,7 @@ import { getProducts } from '../../services/api/customerProductService';
 import { addToWishlist } from '../../services/api/customerWishlistService';
 import { updateProfile } from '../../services/api/customerService';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import RazorpayCheckout from '../../components/RazorpayCheckout';
 
 // const STORAGE_KEY = 'saved_address'; // Removed
 
@@ -63,9 +64,13 @@ export default function Checkout() {
 
   // Map Picker State
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [mapLocation, setMapLocation] = useState<{lat: number, lng: number, address?: any} | null>(null);
+  const [mapLocation, setMapLocation] = useState<{ lat: number, lng: number, address?: any } | null>(null);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [isMapSelected, setIsMapSelected] = useState(false);
+
+  // Razorpay Payment State
+  const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
 
   // Check if user has placeholder data (needs profile completion)
@@ -276,8 +281,8 @@ export default function Checkout() {
 
     try {
       if (!userLocation?.latitude || !userLocation?.longitude) {
-         showGlobalToast('Location is required to move items to wishlist', 'error');
-         return;
+        showGlobalToast('Location is required to move items to wishlist', 'error');
+        return;
       }
 
       // Add to wishlist
@@ -346,7 +351,7 @@ export default function Checkout() {
       },
       totalAmount: grandTotal,
       address: addressWithLocation,
-      status: 'Placed',
+      status: 'Pending', // Changed from 'Placed' to 'Pending' until payment is complete
       createdAt: new Date().toISOString(),
       tipAmount: finalTipAmount,
       gstin: gstin || undefined,
@@ -355,11 +360,14 @@ export default function Checkout() {
     };
 
     try {
+      // Create the order first (with Pending status)
       const placedId = await addOrder(order);
       if (placedId) {
-        setPlacedOrderId(placedId);
-        clearCart();
-        setShowOrderSuccess(true);
+        // Set the pending order ID and trigger Razorpay payment
+        setPendingOrderId(placedId);
+        setShowRazorpayCheckout(true);
+        // Note: Cart will be cleared and success shown only after successful payment
+        // See the RazorpayCheckout onSuccess handler (lines 1840-1846)
       }
     } catch (error: any) {
       console.error("Order placement failed", error);
@@ -380,49 +388,49 @@ export default function Checkout() {
   };
 
   const handleUpdateLocation = async () => {
-      if (!selectedAddress?.id || !mapLocation) return;
-      setIsUpdatingLocation(true);
-      try {
-          // Prepare update payload
-          const updatePayload: any = {
-             latitude: mapLocation.lat,
-             longitude: mapLocation.lng
-          };
+    if (!selectedAddress?.id || !mapLocation) return;
+    setIsUpdatingLocation(true);
+    try {
+      // Prepare update payload
+      const updatePayload: any = {
+        latitude: mapLocation.lat,
+        longitude: mapLocation.lng
+      };
 
-          // If address details are available from map, update them too
-          if (mapLocation.address) {
-             if (mapLocation.address.street) updatePayload.address = mapLocation.address.street;
-             if (mapLocation.address.city) updatePayload.city = mapLocation.address.city;
-             if (mapLocation.address.state) updatePayload.state = mapLocation.address.state;
-             if (mapLocation.address.pincode) updatePayload.pincode = mapLocation.address.pincode;
-             if (mapLocation.address.landmark) updatePayload.landmark = mapLocation.address.landmark;
-          }
-
-          // Update the address in backend
-          await updateAddress(selectedAddress.id, updatePayload);
-
-          // Update local state
-          const updated = {
-             ...selectedAddress,
-             latitude: mapLocation.lat,
-             longitude: mapLocation.lng,
-             street: mapLocation.address?.street || selectedAddress.street,
-             city: mapLocation.address?.city || selectedAddress.city,
-             state: mapLocation.address?.state || selectedAddress.state,
-             pincode: mapLocation.address?.pincode || selectedAddress.pincode,
-             landmark: mapLocation.address?.landmark || selectedAddress.landmark,
-          };
-          setSelectedAddress(updated);
-          setSavedAddress(updated); // Sync
-          setShowMapPicker(false);
-          setIsMapSelected(true); // Mark map as selected
-          showGlobalToast('Location and address updated successfully!');
-      } catch (err) {
-          console.error(err);
-          // showGlobalToast('Failed to update location');
-      } finally {
-          setIsUpdatingLocation(false);
+      // If address details are available from map, update them too
+      if (mapLocation.address) {
+        if (mapLocation.address.street) updatePayload.address = mapLocation.address.street;
+        if (mapLocation.address.city) updatePayload.city = mapLocation.address.city;
+        if (mapLocation.address.state) updatePayload.state = mapLocation.address.state;
+        if (mapLocation.address.pincode) updatePayload.pincode = mapLocation.address.pincode;
+        if (mapLocation.address.landmark) updatePayload.landmark = mapLocation.address.landmark;
       }
+
+      // Update the address in backend
+      await updateAddress(selectedAddress.id, updatePayload);
+
+      // Update local state
+      const updated = {
+        ...selectedAddress,
+        latitude: mapLocation.lat,
+        longitude: mapLocation.lng,
+        street: mapLocation.address?.street || selectedAddress.street,
+        city: mapLocation.address?.city || selectedAddress.city,
+        state: mapLocation.address?.state || selectedAddress.state,
+        pincode: mapLocation.address?.pincode || selectedAddress.pincode,
+        landmark: mapLocation.address?.landmark || selectedAddress.landmark,
+      };
+      setSelectedAddress(updated);
+      setSavedAddress(updated); // Sync
+      setShowMapPicker(false);
+      setIsMapSelected(true); // Mark map as selected
+      showGlobalToast('Location and address updated successfully!');
+    } catch (err) {
+      console.error(err);
+      // showGlobalToast('Failed to update location');
+    } finally {
+      setIsUpdatingLocation(false);
+    }
   };
 
   // Handle profile completion submission
@@ -545,11 +553,10 @@ export default function Checkout() {
                   <button
                     onClick={handleProfileSubmit}
                     disabled={isUpdatingProfile || !profileFormData.name.trim() || !profileFormData.email.trim()}
-                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                      isUpdatingProfile || !profileFormData.name.trim() || !profileFormData.email.trim()
-                        ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                    }`}
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${isUpdatingProfile || !profileFormData.name.trim() || !profileFormData.email.trim()
+                      ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
                   >
                     {isUpdatingProfile ? 'Saving...' : 'Save & Continue'}
                   </button>
@@ -577,37 +584,37 @@ export default function Checkout() {
               className="bg-white rounded-xl overflow-hidden w-full max-w-lg shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-               <div className="p-4 border-b flex justify-between items-center">
-                 <h3 className="font-bold text-neutral-900">Pin Delivery Location</h3>
-                 <button onClick={() => setShowMapPicker(false)}>
-                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                 </button>
-               </div>
+              <div className="p-4 border-b flex justify-between items-center">
+                <h3 className="font-bold text-neutral-900">Pin Delivery Location</h3>
+                <button onClick={() => setShowMapPicker(false)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
 
-               <GoogleMapsLocationPicker
-                 initialLat={mapLocation?.lat || userLocation?.latitude || selectedAddress?.latitude || 0}
-                 initialLng={mapLocation?.lng || userLocation?.longitude || selectedAddress?.longitude || 0}
-                 onLocationSelect={(lat, lng, address) => setMapLocation({lat, lng, address})}
-                 height="300px"
-               />
+              <GoogleMapsLocationPicker
+                initialLat={mapLocation?.lat || userLocation?.latitude || selectedAddress?.latitude || 0}
+                initialLng={mapLocation?.lng || userLocation?.longitude || selectedAddress?.longitude || 0}
+                onLocationSelect={(lat, lng, address) => setMapLocation({ lat, lng, address })}
+                height="300px"
+              />
 
-               <div className="p-4 bg-white border-t">
-                  <p className="text-xs text-neutral-500 mb-3 text-center">
-                    Move the map to set your exact delivery location
-                  </p>
-                  <button
-                    onClick={handleUpdateLocation}
-                    disabled={isUpdatingLocation}
-                    className="w-full py-3 bg-neutral-900 text-white font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
-                  >
-                    {isUpdatingLocation ? (
-                       <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Updating...
-                       </>
-                    ) : 'Confirm Location'}
-                  </button>
-               </div>
+              <div className="p-4 bg-white border-t">
+                <p className="text-xs text-neutral-500 mb-3 text-center">
+                  Move the map to set your exact delivery location
+                </p>
+                <button
+                  onClick={handleUpdateLocation}
+                  disabled={isUpdatingLocation}
+                  className="w-full py-3 bg-neutral-900 text-white font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
+                >
+                  {isUpdatingLocation ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      Updating...
+                    </>
+                  ) : 'Confirm Location'}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
@@ -773,8 +780,8 @@ export default function Checkout() {
             className={`border rounded-lg p-2.5 cursor-pointer transition-all ${selectedAddress && !isMapSelected ? 'border-green-600 bg-green-50' : 'border-neutral-300 bg-white'
               }`}
             onClick={() => {
-               setSelectedAddress(savedAddress);
-               setIsMapSelected(false);
+              setSelectedAddress(savedAddress);
+              setIsMapSelected(false);
             }}
           >
             <div className="flex items-start justify-between">
@@ -812,35 +819,34 @@ export default function Checkout() {
               </button>
             </div>
           </div>
-            {/* Set Location on Map Button */}
-            <div className="mt-2.5">
-               <button
-                 onClick={() => {
-                   // Prioritize current GPS location (matches homepage header), then saved address
-                   setMapLocation({
-                     lat: userLocation?.latitude || selectedAddress?.latitude || 0,
-                     lng: userLocation?.longitude || selectedAddress?.longitude || 0
-                   });
-                   setShowMapPicker(true);
-                 }}
+          {/* Set Location on Map Button */}
+          <div className="mt-2.5">
+            <button
+              onClick={() => {
+                // Prioritize current GPS location (matches homepage header), then saved address
+                setMapLocation({
+                  lat: userLocation?.latitude || selectedAddress?.latitude || 0,
+                  lng: userLocation?.longitude || selectedAddress?.longitude || 0
+                });
+                setShowMapPicker(true);
+              }}
 
-                 className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${
-                    isMapSelected
-                    ? 'text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600'
-                    : 'text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400'
-                 }`}
-               >
-                 {isMapSelected ? (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                 ) : (
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                 )}
-                 {isMapSelected ? 'Precise Location Selected' : (selectedAddress?.latitude ? 'Update Precise Location on Map' : 'Set Exact Location on Map')}
-               </button>
-            </div>
+              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${isMapSelected
+                ? 'text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600'
+                : 'text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400'
+                }`}
+            >
+              {isMapSelected ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              {isMapSelected ? 'Precise Location Selected' : (selectedAddress?.latitude ? 'Update Precise Location on Map' : 'Set Exact Location on Map')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -916,21 +922,21 @@ export default function Checkout() {
                     </div>
 
                     {/* Price */}
-                      {(() => {
-                        const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
-                        return (
-                          <div className="flex items-center gap-1.5">
-                            {hasDiscount && (
-                              <span className="text-[10px] text-neutral-500 line-through">
-                                ₹{mrp}
-                              </span>
-                            )}
-                            <span className="text-sm font-bold text-neutral-900">
-                              ₹{displayPrice}
+                    {(() => {
+                      const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          {hasDiscount && (
+                            <span className="text-[10px] text-neutral-500 line-through">
+                              ₹{mrp}
                             </span>
-                          </div>
-                        );
-                      })()}
+                          )}
+                          <span className="text-sm font-bold text-neutral-900">
+                            ₹{displayPrice}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1036,11 +1042,11 @@ export default function Checkout() {
                             >
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                updateQuantity(productId, inCartQty - 1);
-                              }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  updateQuantity(productId, inCartQty - 1);
+                                }}
                                 className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
                                 style={{ lineHeight: 1, fontSize: '14px' }}
                               >
@@ -1457,18 +1463,16 @@ export default function Checkout() {
       <div className="px-4 py-2 border-b border-neutral-200">
         <button
           onClick={() => setGiftPackaging(!giftPackaging)}
-          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${
-            giftPackaging
-              ? 'bg-green-50 border-2 border-green-600'
-              : 'bg-neutral-50 border-2 border-transparent hover:bg-neutral-100'
-          }`}
+          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${giftPackaging
+            ? 'bg-green-50 border-2 border-green-600'
+            : 'bg-neutral-50 border-2 border-transparent hover:bg-neutral-100'
+            }`}
         >
           <div className="flex items-center gap-2">
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-              giftPackaging
-                ? 'border-green-600 bg-green-600'
-                : 'border-neutral-400 bg-white'
-            }`}>
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${giftPackaging
+              ? 'border-green-600 bg-green-600'
+              : 'border-neutral-400 bg-white'
+              }`}>
               {giftPackaging && (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -1825,6 +1829,32 @@ export default function Checkout() {
           stroke-dashoffset: 0;
         }
       `}</style>
+
+      {/* Razorpay Checkout Modal */}
+      {showRazorpayCheckout && pendingOrderId && user && (
+        <RazorpayCheckout
+          orderId={pendingOrderId}
+          amount={grandTotal}
+          customerDetails={{
+            name: user.name || 'Customer',
+            email: user.email || '',
+            phone: user.phone || '',
+          }}
+          onSuccess={(paymentId) => {
+            setShowRazorpayCheckout(false);
+            setPlacedOrderId(pendingOrderId);
+            setPendingOrderId(null);
+            clearCart();
+            setShowOrderSuccess(true);
+            showGlobalToast('Payment successful!', 'success');
+          }}
+          onFailure={(error) => {
+            setShowRazorpayCheckout(false);
+            setPendingOrderId(null);
+            showGlobalToast(error || 'Payment failed. Please try again.', 'error');
+          }}
+        />
+      )}
     </div>
   );
 }

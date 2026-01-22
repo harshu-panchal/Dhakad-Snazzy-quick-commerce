@@ -84,7 +84,7 @@ export default function AdminPendingOrders() {
           };
           setError(
             axiosError.response?.data?.message ||
-              "Failed to load orders. Please try again."
+            "Failed to load orders. Please try again."
           );
         } else {
           setError("Failed to load orders. Please try again.");
@@ -142,7 +142,7 @@ export default function AdminPendingOrders() {
           order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "",
           order.status || "",
           order.deliveryBoyStatus || "Not Assigned",
-          `â‚¹${order.total?.toFixed(2) || "0.00"}`,
+          `₹${order.total?.toFixed(2) || "0.00"}`,
         ].join(",")
       ),
     ].join("\n");
@@ -780,8 +780,8 @@ export default function AdminPendingOrders() {
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                         {order.estimatedDeliveryDate
                           ? new Date(
-                              order.estimatedDeliveryDate
-                            ).toLocaleDateString()
+                            order.estimatedDeliveryDate
+                          ).toLocaleDateString()
                           : "-"}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
@@ -806,7 +806,7 @@ export default function AdminPendingOrders() {
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                        â‚¹{order.total?.toFixed(2) || "0.00"}
+                        ₹{order.total?.toFixed(2) || "0.00"}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <div className="flex items-center gap-2">
@@ -815,11 +815,10 @@ export default function AdminPendingOrders() {
                               setSelectedOrder(order);
                               setAssignModalOpen(true);
                             }}
-                            className={`px-2 py-1.5 text-xs font-medium rounded transition-colors ${
-                              order.deliveryBoyStatus === "Assigned"
+                            className={`px-2 py-1.5 text-xs font-medium rounded transition-colors ${order.deliveryBoyStatus === "Assigned"
                                 ? "bg-green-100 text-green-700 hover:bg-green-200"
                                 : "bg-blue-600 text-white hover:bg-blue-700"
-                            }`}
+                              }`}
                             title={
                               order.deliveryBoyStatus === "Assigned"
                                 ? "Re-assign delivery boy"
@@ -944,8 +943,8 @@ export default function AdminPendingOrders() {
               ? selectedOrder.deliveryBoy
               : selectedOrder.deliveryBoy &&
                 typeof selectedOrder.deliveryBoy === "object"
-              ? (selectedOrder.deliveryBoy as any)._id || undefined
-              : undefined
+                ? (selectedOrder.deliveryBoy as any)._id || undefined
+                : undefined
           }
           onAssignSuccess={async () => {
             // Refresh orders after successful assignment

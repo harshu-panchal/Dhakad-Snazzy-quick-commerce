@@ -169,11 +169,22 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
+
     // Trigger notification if status is "Processed" (Confirmed) or if paymentStatus changed to "Paid"
     if (status === "Processed" || order.paymentStatus === "Paid") {
       const io: SocketIOServer = req.app.get("io");
       if (io) {
         notifySellersOfOrderUpdate(io, order, "STATUS_UPDATE");
+      }
+    }
+
+    // Distribute commissions if order is delivered
+    if (status === "Delivered") {
+      const { distributeCommissions } = await import("../../../services/commissionService");
+      try {
+        await distributeCommissions(id);
+      } catch (error) {
+        console.error("Error distributing commissions:", error);
       }
     }
 

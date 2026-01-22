@@ -1,22 +1,30 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IWalletTransaction extends Document {
-    sellerId: mongoose.Types.ObjectId;
+    userId: mongoose.Types.ObjectId; // Generic user reference (seller or delivery boy)
+    userType: 'SELLER' | 'DELIVERY_BOY'; // Type of user
     amount: number;
     type: 'Credit' | 'Debit';
     description: string;
     status: 'Completed' | 'Pending' | 'Failed';
     reference: string;
+    relatedOrder?: mongoose.Types.ObjectId; // Reference to order (for commission credits)
+    relatedCommission?: mongoose.Types.ObjectId; // Reference to commission record
     createdAt: Date;
     updatedAt: Date;
 }
 
 const WalletTransactionSchema = new Schema<IWalletTransaction>(
     {
-        sellerId: {
+        userId: {
             type: Schema.Types.ObjectId,
-            ref: 'Seller',
-            required: [true, 'Seller ID is required'],
+            refPath: 'userType',
+            required: [true, 'User ID is required'],
+        },
+        userType: {
+            type: String,
+            enum: ['SELLER', 'DELIVERY_BOY'],
+            required: [true, 'User type is required'],
         },
         amount: {
             type: Number,
@@ -43,14 +51,23 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
             unique: true,
             required: [true, 'Reference ID is required'],
         },
+        relatedOrder: {
+            type: Schema.Types.ObjectId,
+            ref: 'Order',
+        },
+        relatedCommission: {
+            type: Schema.Types.ObjectId,
+            ref: 'Commission',
+        },
     },
     {
         timestamps: true,
     }
 );
 
-WalletTransactionSchema.index({ sellerId: 1 });
+WalletTransactionSchema.index({ userId: 1, userType: 1 });
 WalletTransactionSchema.index({ createdAt: -1 });
+WalletTransactionSchema.index({ relatedOrder: 1 });
 
 const WalletTransaction = mongoose.model<IWalletTransaction>('WalletTransaction', WalletTransactionSchema);
 

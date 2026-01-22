@@ -31,6 +31,11 @@ import adminRoutes from "./adminRoutes";
 import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
 import fcmTokenRoutes from "./fcmTokenRoutes";
+import paymentRoutes from "./paymentRoutes";
+import sellerWalletRoutes from "./sellerWalletRoutes";
+import deliveryWalletRoutes from "./deliveryWalletRoutes";
+import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
+import adminCommissionRoutes from "./adminCommissionRoutes";
 import {
   createOrder,
   getMyOrders,
@@ -142,6 +147,21 @@ router.use("/seller/wallet", walletRoutes);
 
 // Tax routes (protected, seller/admin)
 router.use("/seller/taxes", taxRoutes);
+
+// Payment routes (Razorpay integration)
+router.use("/payment", paymentRoutes);
+
+// Seller wallet routes (protected, seller only)
+router.use("/seller/wallet-new", authenticate, requireUserType("Seller"), sellerWalletRoutes);
+
+// Delivery wallet routes (protected, delivery only)
+router.use("/delivery/wallet", authenticate, requireUserType("Delivery"), deliveryWalletRoutes);
+
+// Admin withdrawal management routes (protected, admin only)
+router.use("/admin/withdrawals", authenticate, requireUserType("Admin"), adminWithdrawalRoutes);
+
+// Admin commission management routes (protected, admin only)
+router.use("/admin/commissions", authenticate, requireUserType("Admin"), adminCommissionRoutes);
 
 // Add more routes here
 // router.use('/users', userRoutes);

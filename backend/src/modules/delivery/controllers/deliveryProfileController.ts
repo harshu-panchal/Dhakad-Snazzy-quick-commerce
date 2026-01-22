@@ -17,7 +17,8 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
         vehicleType,
         bankName,
         accountNumber,
-        ifscCode
+        ifscCode,
+        accountName
     } = req.body;
 
     const delivery = await Delivery.findById(deliveryId);
@@ -41,6 +42,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response) =>
     if (bankName) delivery.bankName = bankName;
     if (accountNumber) delivery.accountNumber = accountNumber;
     if (ifscCode) delivery.ifscCode = ifscCode;
+    if (accountName) delivery.accountName = accountName;
 
     await delivery.save();
 

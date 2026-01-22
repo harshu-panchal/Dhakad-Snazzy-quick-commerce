@@ -214,11 +214,15 @@ export const updateOrderStatus = asyncHandler(async (req: Request, res: Response
             });
         }
 
-        // COMMISSION LOGIC (Fixed mock amount for now, should be dynamic in future)
-        const COMMISSION = 40;
-        await Delivery.findByIdAndUpdate(deliveryId, {
-            $inc: { balance: COMMISSION }
-        });
+        // COMMISSION DISTRIBUTION
+        // Import commission service dynamically
+        const { distributeCommissions } = await import('../../../services/commissionService');
+        try {
+            await distributeCommissions(id);
+        } catch (commError: any) {
+            console.error('Error distributing commissions:', commError);
+            // Continue even if commission distribution fails
+        }
     }
 
     await order.save();
@@ -436,11 +440,14 @@ export const verifyDeliveryOtpController = asyncHandler(async (req: Request, res
                 });
             }
 
-            // Update delivery boy commission
-            const COMMISSION = 40; // Fixed amount for now, should be dynamic in future
-            await Delivery.findByIdAndUpdate(deliveryId, {
-                $inc: { balance: COMMISSION }
-            });
+            // COMMISSION DISTRIBUTION
+            const { distributeCommissions } = await import('../../../services/commissionService');
+            try {
+                await distributeCommissions(id);
+            } catch (commError: any) {
+                console.error('Error distributing commissions:', commError);
+                // Continue even if commission distribution fails
+            }
 
             // Emit socket events for real-time status update
             const io = (req.app as any).get("io");

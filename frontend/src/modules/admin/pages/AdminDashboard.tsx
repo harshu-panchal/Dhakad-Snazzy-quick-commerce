@@ -114,7 +114,7 @@ export default function AdminDashboard() {
         console.error("Error fetching dashboard data:", err);
         setError(
           err.response?.data?.message ||
-            "Failed to load dashboard data. Please try again."
+          "Failed to load dashboard data. Please try again."
         );
       } finally {
         setLoading(false);
@@ -515,16 +515,16 @@ export default function AdminDashboard() {
           </h3>
           <div className="mb-4">
             <p className="text-3xl font-bold text-neutral-900">
-              â‚¹{salesToday.toFixed(2)}
+              ₹{salesToday.toFixed(2)}
             </p>
             {salesDifference >= 0 ? (
               <p className="text-sm text-green-600 mt-1">
-                â–² â‚¹{Math.abs(salesDifference).toFixed(2)} (+{salesPercentChange}%)
+                â–² ₹{Math.abs(salesDifference).toFixed(2)} (+{salesPercentChange}%)
                 vs same day last week
               </p>
             ) : (
               <p className="text-sm text-red-600 mt-1">
-                â–¼ â‚¹{Math.abs(salesDifference).toFixed(2)} ({salesPercentChange}%)
+                â–¼ ₹{Math.abs(salesDifference).toFixed(2)} ({salesPercentChange}%)
                 vs same day last week
               </p>
             )}
@@ -553,7 +553,7 @@ export default function AdminDashboard() {
                       {location.location}
                     </span>
                     <span className="text-sm font-semibold text-neutral-900">
-                      â‚¹{(location.amount / 1000).toFixed(1)}K
+                      ₹{(location.amount / 1000).toFixed(1)}K
                     </span>
                   </div>
                 ))
@@ -743,7 +743,7 @@ export default function AdminDashboard() {
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                        â‚¹ {order.amount.toFixed(2)}
+                        ₹ {order.amount.toFixed(2)}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <button
@@ -791,11 +791,10 @@ export default function AdminDashboard() {
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className={`p-2 border border-neutral-300 rounded ${
-                  currentPage === 1
+                className={`p-2 border border-neutral-300 rounded ${currentPage === 1
                     ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
                     : "text-neutral-700 hover:bg-neutral-50"
-                }`}
+                  }`}
                 aria-label="Previous page">
                 <svg
                   width="16"
@@ -819,11 +818,10 @@ export default function AdminDashboard() {
                   )
                 }
                 disabled={currentPage === totalPagesNewOrders}
-                className={`p-2 border border-neutral-300 rounded ${
-                  currentPage === totalPagesNewOrders
+                className={`p-2 border border-neutral-300 rounded ${currentPage === totalPagesNewOrders
                     ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
                     : "text-neutral-700 hover:bg-neutral-50"
-                }`}
+                  }`}
                 aria-label="Next page">
                 <svg
                   width="16"
@@ -946,7 +944,7 @@ export default function AdminDashboard() {
                         {seller.storeName}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                        â‚¹ {seller.totalRevenue.toFixed(2)}
+                        ₹ {seller.totalRevenue.toFixed(2)}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <button
@@ -994,11 +992,10 @@ export default function AdminDashboard() {
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className={`p-2 border border-neutral-300 rounded ${
-                  currentPage === 1
+                className={`p-2 border border-neutral-300 rounded ${currentPage === 1
                     ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
                     : "text-neutral-700 hover:bg-neutral-50"
-                }`}
+                  }`}
                 aria-label="Previous page">
                 <svg
                   width="16"
@@ -1025,11 +1022,10 @@ export default function AdminDashboard() {
                   )
                 }
                 disabled={currentPage === totalPagesTopSellers}
-                className={`p-2 border border-neutral-300 rounded ${
-                  currentPage === totalPagesTopSellers
+                className={`p-2 border border-neutral-300 rounded ${currentPage === totalPagesTopSellers
                     ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
                     : "text-neutral-700 hover:bg-neutral-50"
-                }`}
+                  }`}
                 aria-label="Next page">
                 <svg
                   width="16"

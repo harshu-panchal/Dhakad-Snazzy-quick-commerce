@@ -341,9 +341,9 @@ export default function AdminUsers() {
                                                 </span>
                                             </td>
                                             <td className="p-4 align-middle">{user.refCode || '-'}</td>
-                                            <td className="p-4 align-middle">â‚¹{user.walletAmount.toFixed(2)}</td>
+                                            <td className="p-4 align-middle">₹{user.walletAmount.toFixed(2)}</td>
                                             <td className="p-4 align-middle">{user.totalOrders}</td>
-                                            <td className="p-4 align-middle">â‚¹{user.totalSpent.toFixed(2)}</td>
+                                            <td className="p-4 align-middle">₹{user.totalSpent.toFixed(2)}</td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     <button

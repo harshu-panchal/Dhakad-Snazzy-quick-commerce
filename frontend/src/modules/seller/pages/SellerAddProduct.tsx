@@ -450,9 +450,9 @@ export default function SellerAddProduct() {
       // Prepare product data for API
       const tagsArray = formData.tags
         ? formData.tags
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
         : [];
 
       const productData = {
@@ -548,8 +548,8 @@ export default function SellerAddProduct() {
     } catch (error: any) {
       setUploadError(
         error.response?.data?.message ||
-          error.message ||
-          "Failed to upload images. Please try again."
+        error.message ||
+        "Failed to upload images. Please try again."
       );
     } finally {
       setUploading(false);
@@ -613,11 +613,10 @@ export default function SellerAddProduct() {
                     value={formData.category}
                     onChange={handleChange}
                     disabled={!formData.headerCategory}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.headerCategory
+                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.headerCategory
                         ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
                         : "bg-white"
-                    }`}>
+                      }`}>
                     <option value="">
                       {formData.headerCategory
                         ? "Select Category"
@@ -658,11 +657,10 @@ export default function SellerAddProduct() {
                     value={formData.subcategory}
                     onChange={handleChange}
                     disabled={!formData.category}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.category
+                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.category
                         ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
                         : "bg-white"
-                    }`}>
+                      }`}>
                     <option value="">
                       {formData.category
                         ? "Select Subcategory"
@@ -689,11 +687,10 @@ export default function SellerAddProduct() {
                     value={formData.subSubCategory}
                     onChange={handleChange}
                     disabled={!formData.subcategory}
-                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${
-                      !formData.subcategory
+                    className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.subcategory
                         ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
                         : "bg-white"
-                    }`}>
+                      }`}>
                     <option value="">Select Sub-SubCategory</option>
                     {subSubCategories.map((subSub) => (
                       <option key={subSub._id} value={subSub._id}>
@@ -968,10 +965,10 @@ export default function SellerAddProduct() {
                         className="flex items-center justify-between p-3 bg-white border border-neutral-200 rounded-lg">
                         <div className="flex-1">
                           <span className="font-medium">{variation.title}</span>{" "}
-                          - â‚¹{variation.price}
+                          - ₹{variation.price}
                           {variation.discPrice > 0 && (
                             <span className="text-green-600 ml-2">
-                              (â‚¹{variation.discPrice})
+                              (₹{variation.discPrice})
                             </span>
                           )}
                           <span className="ml-4 text-sm text-neutral-600">
@@ -1316,11 +1313,10 @@ export default function SellerAddProduct() {
             <button
               type="submit"
               disabled={uploading}
-              className={`px-8 py-3 rounded-lg font-medium text-lg transition-colors shadow-sm ${
-                uploading
+              className={`px-8 py-3 rounded-lg font-medium text-lg transition-colors shadow-sm ${uploading
                   ? "bg-neutral-400 cursor-not-allowed text-white"
                   : "bg-teal-600 hover:bg-teal-700 text-white"
-              }`}>
+                }`}>
               {uploading ? "Uploading Images..." : "Add Product"}
             </button>
           </div>

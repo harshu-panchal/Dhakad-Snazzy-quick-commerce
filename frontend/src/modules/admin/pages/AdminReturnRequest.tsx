@@ -659,16 +659,16 @@ export default function AdminReturnRequest() {
                       {request.variant || "-"}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                      â‚¹{request.price.toFixed(2)}
+                      ₹{request.price.toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                      â‚¹{(request.discountedPrice || request.price).toFixed(2)}
+                      ₹{(request.discountedPrice || request.price).toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                       {request.quantity}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                      â‚¹{request.total.toFixed(2)}
+                      ₹{request.total.toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3">
                       <span

@@ -100,7 +100,7 @@ export default function AdminReceivedOrders() {
           order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '',
           order.status || '',
           order.deliveryBoyStatus || 'Not Assigned',
-          `â‚¹${order.total?.toFixed(2) || '0.00'}`
+          `₹${order.total?.toFixed(2) || '0.00'}`
         ].join(',')
       )
     ].join('\n');
@@ -659,7 +659,7 @@ export default function AdminReceivedOrders() {
                           {order.deliveryBoyStatus || 'Not Assigned'}
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">â‚¹{order.total?.toFixed(2) || '0.00'}</td>
+                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">₹{order.total?.toFixed(2) || '0.00'}</td>
                       <td className="px-4 sm:px-6 py-3">
                         <Link to={`/admin/orders/${order._id}`}>
                           <button className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded transition-colors" aria-label="View order">

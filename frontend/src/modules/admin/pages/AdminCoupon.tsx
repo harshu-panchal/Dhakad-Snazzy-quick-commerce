@@ -533,8 +533,8 @@ export default function AdminCoupon() {
               type="submit"
               disabled={uploading}
               className={`w-full px-6 py-3 rounded font-medium transition-colors ${uploading
-                  ? "bg-neutral-400 cursor-not-allowed text-white"
-                  : "bg-green-600 hover:bg-green-700 text-white"
+                ? "bg-neutral-400 cursor-not-allowed text-white"
+                : "bg-green-600 hover:bg-green-700 text-white"
                 }`}>
               {uploading ? "Creating Coupon..." : "Add Coupon"}
             </button>
@@ -651,12 +651,12 @@ export default function AdminCoupon() {
                       <td className="p-4 align-middle">
                         {coupon.discountType === "Percentage"
                           ? `${coupon.discountValue}%`
-                          : `â‚¹${coupon.discountValue}`}
+                          : `₹${coupon.discountValue}`}
                       </td>
                       <td className="p-4 align-middle">{coupon.discountType}</td>
                       <td className="p-4 align-middle">
                         {coupon.minimumPurchase
-                          ? `â‚¹${coupon.minimumPurchase}`
+                          ? `₹${coupon.minimumPurchase}`
                           : "N/A"}
                       </td>
                       <td className="p-4 align-middle">
@@ -665,8 +665,8 @@ export default function AdminCoupon() {
                       <td className="p-4 align-middle">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${coupon.isActive
-                              ? "bg-teal-100 text-teal-800"
-                              : "bg-gray-100 text-gray-800"
+                            ? "bg-teal-100 text-teal-800"
+                            : "bg-gray-100 text-gray-800"
                             }`}>
                           {coupon.isActive ? "Active" : "Inactive"}
                         </span>
@@ -709,8 +709,8 @@ export default function AdminCoupon() {
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
                 className={`p-2 border border-teal-600 rounded ${currentPage === 1
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-teal-600 hover:bg-teal-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-teal-600 hover:bg-teal-50"
                   }`}
                 aria-label="Previous page">
                 <svg
@@ -737,8 +737,8 @@ export default function AdminCoupon() {
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
                 className={`p-2 border border-teal-600 rounded ${currentPage === totalPages || totalPages === 0
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-teal-600 hover:bg-teal-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-teal-600 hover:bg-teal-50"
                   }`}
                 aria-label="Next page">
                 <svg

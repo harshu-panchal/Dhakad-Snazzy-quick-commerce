@@ -193,46 +193,46 @@ export default function SellerOrderDetail() {
     doc.setFillColor(245, 245, 245);
     doc.rect(margin, yPos, contentWidth, 10, 'F');
 
-      const colWidths = [
-        contentWidth * 0.08,  // Sr. No.
-        contentWidth * 0.40,  // Product
-        contentWidth * 0.15,  // Price
-        contentWidth * 0.15,  // Tax
-        contentWidth * 0.10,  // Qty
-        contentWidth * 0.12,  // Subtotal
-      ];
+    const colWidths = [
+      contentWidth * 0.08,  // Sr. No.
+      contentWidth * 0.40,  // Product
+      contentWidth * 0.15,  // Price
+      contentWidth * 0.15,  // Tax
+      contentWidth * 0.10,  // Qty
+      contentWidth * 0.12,  // Subtotal
+    ];
 
-      let xPos = margin;
-      const headers = ['Sr. No.', 'Product', 'Price', 'Tax â‚¹ (%)', 'Qty', 'Subtotal'];
+    let xPos = margin;
+    const headers = ['Sr. No.', 'Product', 'Price', 'Tax ₹ (%)', 'Qty', 'Subtotal'];
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+
+    headers.forEach((header, index) => {
+      doc.text(header, xPos + 2, yPos + 7);
+      xPos += colWidths[index];
+    });
+
+    yPos += 12;
+
+    // Table Rows
+    orderDetail.items.forEach((item) => {
+      checkPageBreak(15);
 
       doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
 
-      headers.forEach((header, index) => {
-        doc.text(header, xPos + 2, yPos + 7);
-        xPos += colWidths[index];
-      });
-
-      yPos += 12;
-
-      // Table Rows
-      orderDetail.items.forEach((item) => {
-        checkPageBreak(15);
-
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(0, 0, 0);
-
-        xPos = margin;
-        const rowData = [
-          item.srNo.toString(),
-          item.product,
-          `â‚¹${item.price.toFixed(2)}`,
-          `${item.tax.toFixed(2)} (${item.taxPercent.toFixed(2)}%)`,
-          item.qty.toString(),
-          `â‚¹${item.subtotal.toFixed(2)}`,
-        ];
+      xPos = margin;
+      const rowData = [
+        item.srNo.toString(),
+        item.product,
+        `₹${item.price.toFixed(2)}`,
+        `${item.tax.toFixed(2)} (${item.taxPercent.toFixed(2)}%)`,
+        item.qty.toString(),
+        `₹${item.subtotal.toFixed(2)}`,
+      ];
 
       rowData.forEach((data, index) => {
         // Truncate long text
@@ -272,17 +272,17 @@ export default function SellerOrderDetail() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text('Subtotal:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`â‚¹${totalSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`₹${totalSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 7;
 
     doc.text('Tax:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`â‚¹${totalTax.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`₹${totalTax.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 7;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.text('Grand Total:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`â‚¹${grandTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    doc.text(`₹${grandTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
     yPos += 15;
 
     // Footer
@@ -341,9 +341,9 @@ export default function SellerOrderDetail() {
       const u = match[2];
       // check if val is a valid number
       if (!isNaN(val)) {
-          const total = val * qty;
-          // Format to remove trailing zeros if integer (e.g. 1.0 -> 1)
-          return `${parseFloat(total.toFixed(2))}${u}`;
+        const total = val * qty;
+        // Format to remove trailing zeros if integer (e.g. 1.0 -> 1)
+        return `${parseFloat(total.toFixed(2))}${u}`;
       }
     }
     return `${unit} x ${qty}`;
@@ -369,9 +369,9 @@ export default function SellerOrderDetail() {
                   </button>
                   <button
                     onClick={() => {
-                        if (window.confirm('Are you sure you want to reject this order? This cannot be undone.')) {
-                            handleStatusUpdate('Rejected');
-                        }
+                      if (window.confirm('Are you sure you want to reject this order? This cannot be undone.')) {
+                        handleStatusUpdate('Rejected');
+                      }
                     }}
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors font-medium shadow-sm"
                   >
@@ -490,7 +490,7 @@ export default function SellerOrderDetail() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Product</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Unit</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Price</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Tax â‚¹ (%)</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Tax ₹ (%)</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Qty</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Subtotal</th>
                 </tr>
@@ -501,12 +501,12 @@ export default function SellerOrderDetail() {
                     <td className="px-4 py-3 text-sm text-neutral-900">{item.srNo}</td>
                     <td className="px-4 py-3 text-sm text-neutral-900">{item.product}</td>
                     <td className="px-4 py-3 text-sm text-neutral-900">{formatUnit(item.unit, item.qty)}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-900">â‚¹{item.price.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-900">₹{item.price.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-neutral-600">
                       {item.tax.toFixed(2)} ({item.taxPercent.toFixed(2)}%)
                     </td>
                     <td className="px-4 py-3 text-sm text-neutral-900">{item.qty}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-900 font-medium">â‚¹{item.subtotal.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-900 font-medium">₹{item.subtotal.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

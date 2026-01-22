@@ -234,13 +234,15 @@ router.patch(
 ); // Legacy support
 
 // ==================== Wallet Routes ====================
-router.get("/wallet/transactions", walletController.getWalletTransactions);
-router.post("/wallet/transfer", walletController.processFundTransfer);
+router.get("/wallet/earnings", walletController.getAdminEarnings);
+router.get("/wallet/transactions", walletController.getWalletTransactions); // Platform Transactions
+router.get("/wallet/withdrawals", walletController.getWithdrawalRequests); // Withdrawal Requests List
+router.post("/wallet/withdrawal/process", walletController.processWithdrawal); // Approve/Reject
+router.post("/wallet/transfer", walletController.processFundTransfer); // Legacy/Future Use
 router.get("/wallet/seller/:sellerId", walletController.getSellerTransactions);
-router.post("/wallet/withdrawal", walletController.processWithdrawal);
 
 // ==================== Financial Dashboard Routes ====================
-router.get("/financial/dashboard", walletController.getFinancialDashboard);
+router.get("/financial/dashboard", walletController.getFinancialDashboard); // Stats Cards
 router.get("/financial/order-transactions", walletController.getAllOrderTransactions);
 router.get("/financial/delivery-charges", walletController.getDeliveryChargesReport);
 

@@ -43,5 +43,6 @@ router.post("/orders/:id/check-customer-proximity", deliveryOrderController.chec
 
 // Earnings
 router.get("/earnings", deliveryEarningController.getEarningsHistory);
+router.post("/withdraw", deliveryEarningController.requestWithdrawal);
 
 export default router;

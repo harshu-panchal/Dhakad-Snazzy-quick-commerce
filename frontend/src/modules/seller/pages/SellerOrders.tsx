@@ -502,7 +502,7 @@ export default function SellerOrders() {
                           </span>
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900 font-medium">
-                          â‚¹{order.amount.toFixed(2)}
+                          ₹{order.amount.toFixed(2)}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3">
                           <button

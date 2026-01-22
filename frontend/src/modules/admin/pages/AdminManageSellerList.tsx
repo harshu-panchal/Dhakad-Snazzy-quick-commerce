@@ -562,18 +562,18 @@ export default function AdminManageSellerList() {
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.status === 'Approved'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : seller.status === 'Pending'
-                                                            ? 'bg-yellow-100 text-yellow-800'
-                                                            : 'bg-red-100 text-red-800'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : seller.status === 'Pending'
+                                                        ? 'bg-yellow-100 text-yellow-800'
+                                                        : 'bg-red-100 text-red-800'
                                                     }`}>
                                                     {seller.status}
                                                 </span>
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.needApproval
-                                                        ? 'bg-pink-100 text-pink-800'
-                                                        : 'bg-pink-100 text-pink-800'
+                                                    ? 'bg-pink-100 text-pink-800'
+                                                    : 'bg-pink-100 text-pink-800'
                                                     }`}>
                                                     {seller.needApproval ? 'Yes' : 'No'}
                                                 </span>
@@ -627,8 +627,8 @@ export default function AdminManageSellerList() {
                                     onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
                                     className={`p-2 border border-teal-600 rounded ${currentPage === 1
-                                            ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                                            : 'text-teal-600 hover:bg-teal-50'
+                                        ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
+                                        : 'text-teal-600 hover:bg-teal-50'
                                         }`}
                                     aria-label="Previous page"
                                 >
@@ -657,8 +657,8 @@ export default function AdminManageSellerList() {
                                     onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
                                     className={`p-2 border border-teal-600 rounded ${currentPage === totalPages
-                                            ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                                            : 'text-teal-600 hover:bg-teal-50'
+                                        ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
+                                        : 'text-teal-600 hover:bg-teal-50'
                                         }`}
                                     aria-label="Next page"
                                 >
@@ -784,10 +784,10 @@ export default function AdminManageSellerList() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${editingSeller.status === 'Approved'
-                                                ? 'bg-green-100 text-green-800'
-                                                : editingSeller.status === 'Pending'
-                                                    ? 'bg-yellow-100 text-yellow-800'
-                                                    : 'bg-red-100 text-red-800'
+                                            ? 'bg-green-100 text-green-800'
+                                            : editingSeller.status === 'Pending'
+                                                ? 'bg-yellow-100 text-yellow-800'
+                                                : 'bg-red-100 text-red-800'
                                             }`}>
                                             Status: {editingSeller.status}
                                         </span>
@@ -1017,7 +1017,7 @@ export default function AdminManageSellerList() {
                                         </div>
                                         <div>
                                             <label className="text-xs text-neutral-500">Balance</label>
-                                            <p className="text-sm font-medium text-neutral-900">â‚¹{editingSeller.balance.toFixed(2)}</p>
+                                            <p className="text-sm font-medium text-neutral-900">₹{editingSeller.balance.toFixed(2)}</p>
                                         </div>
                                         <div>
                                             <label className="text-xs text-neutral-500">Categories Count</label>

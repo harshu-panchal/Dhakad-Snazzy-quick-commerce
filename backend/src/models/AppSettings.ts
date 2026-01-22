@@ -50,6 +50,9 @@ export interface IAppSettings extends Document {
 
   // Commission Settings
   defaultCommission: number;
+  sellerCommissionRate: number; // Percentage commission for sellers
+  deliveryBoyCommissionRate: number; // Percentage commission for delivery boys
+  minimumWithdrawalAmount: number; // Minimum amount required for withdrawal
 
   // Delivery Settings
   deliveryCharges: number;
@@ -229,6 +232,23 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       default: 10,
       min: [0, "Commission cannot be negative"],
       max: [100, "Commission cannot exceed 100%"],
+    },
+    sellerCommissionRate: {
+      type: Number,
+      default: 10,
+      min: [0, "Seller commission rate cannot be negative"],
+      max: [100, "Seller commission rate cannot exceed 100%"],
+    },
+    deliveryBoyCommissionRate: {
+      type: Number,
+      default: 5,
+      min: [0, "Delivery boy commission rate cannot be negative"],
+      max: [100, "Delivery boy commission rate cannot exceed 100%"],
+    },
+    minimumWithdrawalAmount: {
+      type: Number,
+      default: 100,
+      min: [0, "Minimum withdrawal amount cannot be negative"],
     },
 
     // Delivery Settings

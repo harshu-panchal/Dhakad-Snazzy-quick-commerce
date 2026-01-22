@@ -96,7 +96,7 @@ export default function AdminManageDeliveryBoy() {
             'available': 'available',
         };
         const backendColumn = columnMap[column] || column;
-        
+
         if (sortColumn === backendColumn) {
             setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
         } else {
@@ -279,7 +279,7 @@ export default function AdminManageDeliveryBoy() {
             'available': 'available',
         };
         const backendColumn = columnMap[column] || column;
-        
+
         return (
             <span className="text-neutral-400 text-xs ml-1">
                 {sortColumn === backendColumn ? (sortDirection === 'asc' ? 'â†‘' : 'â†“') : 'â‡…'}
@@ -541,8 +541,8 @@ export default function AdminManageDeliveryBoy() {
                                                     <span className="text-xs">Fixed</span>
                                                 )}
                                             </td>
-                                            <td className="p-4 align-middle">â‚¹{deliveryBoy.balance.toFixed(2)}</td>
-                                            <td className="p-4 align-middle">â‚¹{deliveryBoy.cashCollected.toFixed(2)}</td>
+                                            <td className="p-4 align-middle">₹{deliveryBoy.balance.toFixed(2)}</td>
+                                            <td className="p-4 align-middle">₹{deliveryBoy.cashCollected.toFixed(2)}</td>
                                             <td className="p-4 align-middle">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${deliveryBoy.status === 'Active'
                                                     ? 'bg-green-100 text-green-800'

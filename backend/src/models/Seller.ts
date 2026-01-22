@@ -59,6 +59,7 @@ export interface ISeller extends Document {
   requireProductApproval: boolean;
   viewCustomerDetails: boolean;
   commission: number;
+  commissionRate?: number; // Individual commission rate (overrides global setting)
 
   // Status
   status: 'Approved' | 'Pending' | 'Rejected';
@@ -257,6 +258,11 @@ const SellerSchema = new Schema<ISeller>(
       required: [true, 'Commission is required'],
       default: 0,
       min: [0, 'Commission cannot be negative'],
+    },
+    commissionRate: {
+      type: Number,
+      min: [0, 'Commission rate cannot be negative'],
+      max: [100, 'Commission rate cannot exceed 100%'],
     },
 
     // Status

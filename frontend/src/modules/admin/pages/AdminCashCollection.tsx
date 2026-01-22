@@ -559,10 +559,10 @@ export default function AdminCashCollection() {
                       {collection.orderId}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                      â‚¹{collection.total.toFixed(2)}
+                      ₹{collection.total.toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                      â‚¹{collection.amount.toFixed(2)}
+                      ₹{collection.amount.toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                       {collection.remark || '-'}

@@ -10,18 +10,23 @@ export interface IPayment extends Document {
   transactionId?: string;
   paymentId?: string;
 
+  // Razorpay Specific
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpaySignature?: string;
+
   // Amount
   amount: number;
   currency: string;
 
   // Status
   status:
-    | "Pending"
-    | "Processing"
-    | "Completed"
-    | "Failed"
-    | "Refunded"
-    | "Cancelled";
+  | "Pending"
+  | "Processing"
+  | "Completed"
+  | "Failed"
+  | "Refunded"
+  | "Cancelled";
 
   // Payment Details
   paymentDate?: Date;
@@ -76,6 +81,20 @@ const PaymentSchema = new Schema<IPayment>(
       sparse: true,
     },
     paymentId: {
+      type: String,
+      trim: true,
+    },
+
+    // Razorpay Specific
+    razorpayOrderId: {
+      type: String,
+      trim: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      trim: true,
+    },
+    razorpaySignature: {
       type: String,
       trim: true,
     },

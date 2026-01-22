@@ -20,6 +20,10 @@ export default function DeliveryProfile() {
     joinDate: '',
     totalDeliveries: 0,
     rating: 0,
+    accountName: '',
+    bankName: '',
+    accountNumber: '',
+    ifscCode: '',
   });
 
   // Fetch profile data on mount
@@ -37,6 +41,10 @@ export default function DeliveryProfile() {
           joinDate: new Date(data.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           totalDeliveries: data.totalDeliveredCount || 0, // Assuming backend sends this or we need to fetch dashboard stats
           rating: 4.8, // Mock for now
+          accountName: data.accountName || '',
+          bankName: data.bankName || '',
+          accountNumber: data.accountNumber || '',
+          ifscCode: data.ifscCode || '',
         });
         setUserName(data.name);
       } catch (error) {
@@ -62,7 +70,11 @@ export default function DeliveryProfile() {
         email: profileData.email,
         address: profileData.address,
         vehicleNumber: profileData.vehicleNumber,
-        vehicleType: profileData.vehicleType
+        vehicleType: profileData.vehicleType,
+        accountName: profileData.accountName,
+        bankName: profileData.bankName,
+        accountNumber: profileData.accountNumber,
+        ifscCode: profileData.ifscCode,
       });
       setUserName(profileData.name);
       setIsEditing(false);
@@ -203,6 +215,71 @@ export default function DeliveryProfile() {
                 </select>
               ) : (
                 <p className="text-neutral-900 text-sm">{profileData.vehicleType}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Bank Details */}
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden mt-4">
+          <div className="p-4 border-b border-neutral-200">
+            <h3 className="text-neutral-900 font-semibold">Bank Details</h3>
+          </div>
+          <div className="divide-y divide-neutral-200">
+            <div className="p-4">
+              <p className="text-neutral-500 text-xs mb-1">Account Holder Name</p>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={profileData.accountName}
+                  onChange={(e) => handleInputChange('accountName', e.target.value)}
+                  className="w-full text-neutral-900 text-sm px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Enter account holder name"
+                />
+              ) : (
+                <p className="text-neutral-900 text-sm">{profileData.accountName || 'Not Set'}</p>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="text-neutral-500 text-xs mb-1">Bank Name</p>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={profileData.bankName}
+                  onChange={(e) => handleInputChange('bankName', e.target.value)}
+                  className="w-full text-neutral-900 text-sm px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="e.g. HDFC Bank"
+                />
+              ) : (
+                <p className="text-neutral-900 text-sm">{profileData.bankName || 'Not Set'}</p>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="text-neutral-500 text-xs mb-1">Account Number</p>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={profileData.accountNumber}
+                  onChange={(e) => handleInputChange('accountNumber', e.target.value)}
+                  className="w-full text-neutral-900 text-sm px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="Enter account number"
+                />
+              ) : (
+                <p className="text-neutral-900 text-sm">{profileData.accountNumber ? `XXXX${profileData.accountNumber.slice(-4)}` : 'Not Set'}</p>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="text-neutral-500 text-xs mb-1">IFSC Code</p>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={profileData.ifscCode}
+                  onChange={(e) => handleInputChange('ifscCode', e.target.value)}
+                  className="w-full text-neutral-900 text-sm px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="e.g. HDFC0001234"
+                />
+              ) : (
+                <p className="text-neutral-900 text-sm">{profileData.ifscCode || 'Not Set'}</p>
               )}
             </div>
           </div>

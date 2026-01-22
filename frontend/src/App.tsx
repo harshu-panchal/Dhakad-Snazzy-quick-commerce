@@ -64,6 +64,7 @@ const DeliveryAllOrders = lazy(() => import("./modules/delivery/pages/DeliveryAl
 const DeliveryReturnOrders = lazy(() => import("./modules/delivery/pages/DeliveryReturnOrders"));
 const DeliveryProfile = lazy(() => import("./modules/delivery/pages/DeliveryProfile"));
 const DeliveryEarnings = lazy(() => import("./modules/delivery/pages/DeliveryEarnings"));
+const DeliveryWallet = lazy(() => import("./modules/delivery/pages/DeliveryWallet"));
 const DeliverySettings = lazy(() => import("./modules/delivery/pages/DeliverySettings"));
 const DeliveryHelp = lazy(() => import("./modules/delivery/pages/DeliveryHelp"));
 const DeliveryAbout = lazy(() => import("./modules/delivery/pages/DeliveryAbout"));
@@ -134,6 +135,9 @@ const AdminOrders = lazy(() => import("./modules/admin/pages/AdminOrders"));
 const AdminOrderDetail = lazy(() => import("./modules/admin/pages/AdminOrderDetail"));
 const AdminManageCustomer = lazy(() => import("./modules/admin/pages/AdminManageCustomer"));
 const AdminProfile = lazy(() => import("./modules/admin/pages/AdminProfile"));
+const AdminCommissionSettings = lazy(() => import("./modules/admin/pages/AdminCommissionSettings"));
+const AdminWithdrawals = lazy(() => import("./modules/admin/pages/AdminWithdrawals"));
+const AdminPayments = lazy(() => import("./modules/admin/pages/AdminPayments"));
 
 function App() {
   // Initialize push notifications on app load
@@ -247,6 +251,7 @@ function App() {
                                       <Route path="menu" element={<DeliveryMenu />} />
                                       <Route path="profile" element={<DeliveryProfile />} />
                                       <Route path="earnings" element={<DeliveryEarnings />} />
+                                      <Route path="wallet" element={<DeliveryWallet />} />
                                       <Route path="settings" element={<DeliverySettings />} />
                                       <Route path="help" element={<DeliveryHelp />} />
                                       <Route path="about" element={<DeliveryAbout />} />
@@ -339,6 +344,9 @@ function App() {
                                       <Route path="orders/delivered" element={<AdminDeliveredOrders />} />
                                       <Route path="orders/cancelled" element={<AdminCancelledOrders />} />
                                       <Route path="orders/:id" element={<AdminOrderDetail />} />
+                                      <Route path="commissions" element={<AdminCommissionSettings />} />
+                                      <Route path="withdrawals" element={<AdminWithdrawals />} />
+                                      <Route path="payments" element={<AdminPayments />} />
                                     </Routes>
                                   </AdminLayout>
                                 </Suspense>

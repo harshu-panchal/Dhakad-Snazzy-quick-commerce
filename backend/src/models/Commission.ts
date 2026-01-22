@@ -2,8 +2,12 @@ import mongoose, { Document, Schema } from "mongoose";
 
 export interface ICommission extends Document {
   order: mongoose.Types.ObjectId;
-  orderItem: mongoose.Types.ObjectId;
-  seller: mongoose.Types.ObjectId;
+  orderItem?: mongoose.Types.ObjectId; // Optional for delivery boy commissions
+  seller?: mongoose.Types.ObjectId; // For seller commissions
+  deliveryBoy?: mongoose.Types.ObjectId; // For delivery boy commissions
+
+  // Commission Type
+  type: "SELLER" | "DELIVERY_BOY";
 
   // Commission Info
   orderAmount: number;
@@ -31,12 +35,21 @@ const CommissionSchema = new Schema<ICommission>(
     orderItem: {
       type: Schema.Types.ObjectId,
       ref: "OrderItem",
-      required: [true, "Order item is required"],
     },
     seller: {
       type: Schema.Types.ObjectId,
       ref: "Seller",
-      required: [true, "Seller is required"],
+    },
+    deliveryBoy: {
+      type: Schema.Types.ObjectId,
+      ref: "Delivery",
+    },
+
+    // Commission Type
+    type: {
+      type: String,
+      enum: ["SELLER", "DELIVERY_BOY"],
+      required: [true, "Commission type is required"],
     },
 
     // Commission Info

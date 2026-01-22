@@ -188,33 +188,33 @@ export default function SellerReturnRequest() {
                             </div>
 
                             {/* Export Button */}
-                                    <button
-                                        onClick={() => {
-                                            const headers = ['Order Item Id', 'Product', 'Variant', 'Price', 'Disc Price', 'Quantity', 'Total', 'Status', 'Date'];
-                                            const csvContent = [
-                                                headers.join(','),
-                                                ...returnRequests.map(request => [
-                                                    request.orderItemId,
-                                                    `"${request.product}"`,
-                                                    `"${request.variant}"`,
-                                                    request.price,
-                                                    request.discPrice,
-                                                    request.quantity,
-                                                    request.total,
-                                                    `"${request.status}"`,
-                                                    request.date
-                                                ].join(','))
-                                            ].join('\n');
-                                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                                            const link = document.createElement('a');
-                                            const url = URL.createObjectURL(blob);
-                                            link.setAttribute('href', url);
-                                            link.setAttribute('download', `return_requests_${new Date().toISOString().split('T')[0]}.csv`);
-                                            link.style.visibility = 'hidden';
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            document.body.removeChild(link);
-                                        }}
+                            <button
+                                onClick={() => {
+                                    const headers = ['Order Item Id', 'Product', 'Variant', 'Price', 'Disc Price', 'Quantity', 'Total', 'Status', 'Date'];
+                                    const csvContent = [
+                                        headers.join(','),
+                                        ...returnRequests.map(request => [
+                                            request.orderItemId,
+                                            `"${request.product}"`,
+                                            `"${request.variant}"`,
+                                            request.price,
+                                            request.discPrice,
+                                            request.quantity,
+                                            request.total,
+                                            `"${request.status}"`,
+                                            request.date
+                                        ].join(','))
+                                    ].join('\n');
+                                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                    const link = document.createElement('a');
+                                    const url = URL.createObjectURL(blob);
+                                    link.setAttribute('href', url);
+                                    link.setAttribute('download', `return_requests_${new Date().toISOString().split('T')[0]}.csv`);
+                                    link.style.visibility = 'hidden';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                }}
                                 className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-sm font-medium flex items-center gap-1 transition-colors"
                             >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -256,133 +256,133 @@ export default function SellerReturnRequest() {
 
                     {/* Table */}
                     {!loading && !error && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse border border-neutral-200">
-                            <thead>
-                                <tr className="bg-neutral-50 text-xs font-bold text-neutral-800">
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('orderItemId')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Order Item Id
-                                            <SortIcon column="orderItemId" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('product')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Product
-                                            <SortIcon column="product" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('variant')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Variant
-                                            <SortIcon column="variant" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('price')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Price
-                                            <SortIcon column="price" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('discPrice')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Disc Price
-                                            <SortIcon column="discPrice" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('quantity')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Quantity
-                                            <SortIcon column="quantity" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('total')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Total
-                                            <SortIcon column="total" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('status')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Status
-                                            <SortIcon column="status" />
-                                        </div>
-                                    </th>
-                                    <th
-                                        className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
-                                        onClick={() => handleSort('date')}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            Date
-                                            <SortIcon column="date" />
-                                        </div>
-                                    </th>
-                                    <th className="p-4 border border-neutral-200">
-                                        <div className="flex items-center gap-1">
-                                            Action
-                                        </div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {displayedRequests.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={10} className="p-8 text-center text-neutral-500">
-                                            No data available in table
-                                        </td>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse border border-neutral-200">
+                                <thead>
+                                    <tr className="bg-neutral-50 text-xs font-bold text-neutral-800">
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('orderItemId')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Order Item Id
+                                                <SortIcon column="orderItemId" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('product')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Product
+                                                <SortIcon column="product" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('variant')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Variant
+                                                <SortIcon column="variant" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('price')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Price
+                                                <SortIcon column="price" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('discPrice')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Disc Price
+                                                <SortIcon column="discPrice" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('quantity')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Quantity
+                                                <SortIcon column="quantity" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('total')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Total
+                                                <SortIcon column="total" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('status')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Status
+                                                <SortIcon column="status" />
+                                            </div>
+                                        </th>
+                                        <th
+                                            className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
+                                            onClick={() => handleSort('date')}
+                                        >
+                                            <div className="flex items-center gap-1">
+                                                Date
+                                                <SortIcon column="date" />
+                                            </div>
+                                        </th>
+                                        <th className="p-4 border border-neutral-200">
+                                            <div className="flex items-center gap-1">
+                                                Action
+                                            </div>
+                                        </th>
                                     </tr>
-                                ) : (
-                                    displayedRequests.map((request, index) => (
-                                        <tr key={index} className="hover:bg-neutral-50">
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.orderItemId}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.product}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.variant}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">â‚¹{request.price.toFixed(2)}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">â‚¹{request.discPrice.toFixed(2)}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.quantity}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">â‚¹{request.total.toFixed(2)}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.status}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.date}</td>
-                                            <td className="p-4 border border-neutral-200 text-sm text-neutral-900">
-                                                <button
-                                                    onClick={() => {
-                                                        alert(`Return Request Details:\n\nOrder Item ID: ${request.orderItemId}\nProduct: ${request.product}\nVariant: ${request.variant}\nPrice: â‚¹${request.price.toFixed(2)}\nDiscounted Price: â‚¹${request.discPrice.toFixed(2)}\nQuantity: ${request.quantity}\nTotal: â‚¹${request.total.toFixed(2)}\nStatus: ${request.status}\nDate: ${request.date}`);
-                                                    }}
-                                                    className="text-green-600 hover:text-green-700 text-xs font-medium transition-colors"
-                                                >
-                                                    View
-                                                </button>
+                                </thead>
+                                <tbody>
+                                    {displayedRequests.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={10} className="p-8 text-center text-neutral-500">
+                                                No data available in table
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                    ) : (
+                                        displayedRequests.map((request, index) => (
+                                            <tr key={index} className="hover:bg-neutral-50">
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.orderItemId}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.product}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.variant}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">₹{request.price.toFixed(2)}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">₹{request.discPrice.toFixed(2)}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.quantity}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">₹{request.total.toFixed(2)}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.status}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">{request.date}</td>
+                                                <td className="p-4 border border-neutral-200 text-sm text-neutral-900">
+                                                    <button
+                                                        onClick={() => {
+                                                            alert(`Return Request Details:\n\nOrder Item ID: ${request.orderItemId}\nProduct: ${request.product}\nVariant: ${request.variant}\nPrice: ₹${request.price.toFixed(2)}\nDiscounted Price: ₹${request.discPrice.toFixed(2)}\nQuantity: ${request.quantity}\nTotal: ₹${request.total.toFixed(2)}\nStatus: ${request.status}\nDate: ${request.date}`);
+                                                        }}
+                                                        className="text-green-600 hover:text-green-700 text-xs font-medium transition-colors"
+                                                    >
+                                                        View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
 
                     {/* Pagination Footer */}

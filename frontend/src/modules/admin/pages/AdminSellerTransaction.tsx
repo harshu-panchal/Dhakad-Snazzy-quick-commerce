@@ -748,7 +748,7 @@ export default function AdminSellerTransaction() {
                       </span>
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                      â‚¹{transaction.amount.toFixed(2)}
+                      ₹{transaction.amount.toFixed(2)}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                       {transaction.remark || transaction.status}

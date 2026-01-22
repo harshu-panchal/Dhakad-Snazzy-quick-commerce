@@ -9,7 +9,7 @@ const getStatusColor = (status: string) => {
       return 'bg-blue-100 text-blue-700';
     case 'Accepted':
       return 'bg-yellow-100 text-yellow-700';
-    case 'Placed':
+    case 'Received':
       return 'bg-neutral-100 text-neutral-700';
     default:
       return 'bg-neutral-100 text-neutral-700';

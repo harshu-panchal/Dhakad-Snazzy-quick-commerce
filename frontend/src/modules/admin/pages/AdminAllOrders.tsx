@@ -81,7 +81,7 @@ export default function AdminAllOrders() {
         console.error("Error fetching orders:", err);
         setError(
           err.response?.data?.message ||
-            "Failed to load orders. Please try again."
+          "Failed to load orders. Please try again."
         );
       } finally {
         setLoading(false);
@@ -135,7 +135,7 @@ export default function AdminAllOrders() {
           order.orderDate || "",
           order.status || "",
           order.deliveryBoyStatus || "Not Assigned",
-          `â‚¹${order.total?.toFixed(2) || "0.00"}`,
+          `₹${order.total?.toFixed(2) || "0.00"}`,
         ].join(",")
       ),
     ].join("\n");
@@ -775,8 +775,8 @@ export default function AdminAllOrders() {
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                         {order.estimatedDeliveryDate
                           ? new Date(
-                              order.estimatedDeliveryDate
-                            ).toLocaleDateString()
+                            order.estimatedDeliveryDate
+                          ).toLocaleDateString()
                           : "-"}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
@@ -801,7 +801,7 @@ export default function AdminAllOrders() {
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                        â‚¹{order.total?.toFixed(2) || "0.00"}
+                        ₹{order.total?.toFixed(2) || "0.00"}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <Link to={`/admin/orders/${order._id}`}>
