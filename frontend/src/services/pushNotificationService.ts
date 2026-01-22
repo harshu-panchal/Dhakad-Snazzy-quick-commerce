@@ -1,8 +1,8 @@
 import { messaging, getToken, onMessage } from './firebase';
 import { getAuthToken } from './api/config';
 
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || 'BNtQ-yWzXEuz_T9O0xQeEGi52R4-8nNjVbBao1oT4VuASPq0uiLhfPk81_ULMXl3eTsmpMQDhzKDSk47fgohgVQ';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.dhakadsnazzy.com/api/v1';
 
 /**
  * Register service worker for Firebase messaging
