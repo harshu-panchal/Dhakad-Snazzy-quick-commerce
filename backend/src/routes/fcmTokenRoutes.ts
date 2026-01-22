@@ -1,5 +1,9 @@
 import { Router, Request, Response } from "express";
 import { sendPushNotification } from "../services/firebaseAdmin";
+import Customer from "../models/Customer";
+import Admin from "../models/Admin";
+import Seller from "../models/Seller";
+import Delivery from "../models/Delivery";
 
 const router = Router();
 
@@ -30,32 +34,20 @@ router.post("/save", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Use mongoose.models to avoid "Cannot overwrite model once compiled" error
+    // Determine the correct model based on user type
     let UserModel: any;
     switch (userType) {
       case "Customer":
-        if (!(await import("mongoose")).default.models.Customer) {
-          await import("../models/Customer");
-        }
-        UserModel = (await import("mongoose")).default.models.Customer;
+        UserModel = Customer;
         break;
       case "Admin":
-        if (!(await import("mongoose")).default.models.Admin) {
-          await import("../models/Admin");
-        }
-        UserModel = (await import("mongoose")).default.models.Admin;
+        UserModel = Admin;
         break;
       case "Seller":
-        if (!(await import("mongoose")).default.models.Seller) {
-          await import("../models/Seller");
-        }
-        UserModel = (await import("mongoose")).default.models.Seller;
+        UserModel = Seller;
         break;
       case "Delivery":
-        if (!(await import("mongoose")).default.models.Delivery) {
-          await import("../models/Delivery");
-        }
-        UserModel = (await import("mongoose")).default.models.Delivery;
+        UserModel = Delivery;
         break;
       default:
         res.status(400).json({

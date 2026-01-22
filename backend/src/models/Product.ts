@@ -386,6 +386,6 @@ ProductSchema.index({
   pack: "text",
 });
 
-const Product = mongoose.model<IProduct>("Product", ProductSchema);
+const Product = mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);
 
 export default Product;
