@@ -254,12 +254,10 @@ export const processWithdrawal = asyncHandler(
     const idToProcess = requestId || req.body.id;
 
     if (!idToProcess || !action) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Request ID and Action are required",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Request ID and Action are required",
+      });
     }
 
     const request = await WithdrawRequest.findById(idToProcess);
@@ -311,12 +309,10 @@ export const processWithdrawal = asyncHandler(
     } catch (error: any) {
       await session.abortTransaction();
       console.error("Error processing withdrawal:", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          message: error.message || "Processing failed",
-        });
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Processing failed",
+      });
     } finally {
       session.endSession();
     }

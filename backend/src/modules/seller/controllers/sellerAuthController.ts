@@ -115,16 +115,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   } = req.body;
 
   // Validation (password removed - sellers don't need password during signup)
-  if (
-    !sellerName ||
-    !mobile ||
-    !email ||
-    !storeName ||
-    !category
-  ) {
+  if (!sellerName || !mobile || !email || !storeName || !category) {
     return res.status(400).json({
       success: false,
-      message: "Required fields (Name, Mobile, Email, Store Name, Category) must be provided",
+      message:
+        "Required fields (Name, Mobile, Email, Store Name, Category) must be provided",
     });
   }
 
@@ -141,10 +136,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   // Parse and validate service radius
   let serviceRadiusKm = 10; // Default 10km
-  if (req.body.serviceRadiusKm !== undefined && req.body.serviceRadiusKm !== null && req.body.serviceRadiusKm !== '') {
-    const parsedRadius = typeof req.body.serviceRadiusKm === 'string'
-      ? parseFloat(req.body.serviceRadiusKm)
-      : Number(req.body.serviceRadiusKm);
+  if (
+    req.body.serviceRadiusKm !== undefined &&
+    req.body.serviceRadiusKm !== null &&
+    req.body.serviceRadiusKm !== ""
+  ) {
+    const parsedRadius =
+      typeof req.body.serviceRadiusKm === "string"
+        ? parseFloat(req.body.serviceRadiusKm)
+        : Number(req.body.serviceRadiusKm);
 
     if (!isNaN(parsedRadius) && parsedRadius >= 0.1 && parsedRadius <= 100) {
       serviceRadiusKm = parsedRadius;
@@ -162,7 +162,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Validate latitude and longitude ranges if provided
-  if (latitude && longitude && (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)) {
+  if (
+    latitude &&
+    longitude &&
+    (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+  ) {
     return res.status(400).json({
       success: false,
       message: "Invalid location coordinates",
@@ -182,10 +186,13 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Create GeoJSON location point [longitude, latitude] if provided
-  const location = (longitude && latitude) ? {
-    type: 'Point' as const,
-    coordinates: [longitude, latitude],
-  } : undefined;
+  const location =
+    longitude && latitude
+      ? {
+          type: "Point" as const,
+          coordinates: [longitude, latitude],
+        }
+      : undefined;
 
   // Create new seller with GeoJSON location (password not required during signup)
   const seller = await Seller.create({
@@ -256,68 +263,84 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 /**
  * Update seller's profile
  */
-export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
-  const sellerId = (req as any).user.userId;
-  const updates = req.body;
+export const updateProfile = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const updates = req.body;
 
-  // Prevent updating sensitive fields directly
-  const restrictedFields = ["password", "mobile", "email", "status", "balance"];
-  restrictedFields.forEach((field) => delete updates[field]);
+    // Prevent updating sensitive fields directly
+    const restrictedFields = [
+      "password",
+      "mobile",
+      "email",
+      "status",
+      "balance",
+    ];
+    restrictedFields.forEach((field) => delete updates[field]);
 
-  // Handle location update (convert lat/lng to GeoJSON)
-  if (updates.latitude && updates.longitude) {
-    const latitude = parseFloat(updates.latitude);
-    const longitude = parseFloat(updates.longitude);
+    // Handle location update (convert lat/lng to GeoJSON)
+    if (updates.latitude && updates.longitude) {
+      const latitude = parseFloat(updates.latitude);
+      const longitude = parseFloat(updates.longitude);
 
-    if (!isNaN(latitude) && !isNaN(longitude)) {
-      // Update GeoJSON location for geospatial queries
-      updates.location = {
-        type: 'Point',
-        coordinates: [longitude, latitude], // MongoDB GeoJSON: [longitude, latitude]
-      };
-      // Ensure string fields are also synchronized
-      updates.latitude = latitude.toString();
-      updates.longitude = longitude.toString();
+      if (!isNaN(latitude) && !isNaN(longitude)) {
+        // Update GeoJSON location for geospatial queries
+        updates.location = {
+          type: "Point",
+          coordinates: [longitude, latitude], // MongoDB GeoJSON: [longitude, latitude]
+        };
+        // Ensure string fields are also synchronized
+        updates.latitude = latitude.toString();
+        updates.longitude = longitude.toString();
+      }
     }
-  }
 
-  // Handle serviceRadiusKm update
-  if (updates.serviceRadiusKm !== undefined && updates.serviceRadiusKm !== null && updates.serviceRadiusKm !== '') {
-    const radius = typeof updates.serviceRadiusKm === 'string'
-      ? parseFloat(updates.serviceRadiusKm)
-      : Number(updates.serviceRadiusKm);
+    // Handle serviceRadiusKm update
+    if (
+      updates.serviceRadiusKm !== undefined &&
+      updates.serviceRadiusKm !== null &&
+      updates.serviceRadiusKm !== ""
+    ) {
+      const radius =
+        typeof updates.serviceRadiusKm === "string"
+          ? parseFloat(updates.serviceRadiusKm)
+          : Number(updates.serviceRadiusKm);
 
-    if (!isNaN(radius) && radius >= 0.1 && radius <= 100) {
-      updates.serviceRadiusKm = radius; // Ensure it's saved as a number
-    } else {
-      return res.status(400).json({
+      if (!isNaN(radius) && radius >= 0.1 && radius <= 100) {
+        updates.serviceRadiusKm = radius; // Ensure it's saved as a number
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Service radius must be between 0.1 and 100 kilometers",
+        });
+      }
+    } else if (
+      updates.serviceRadiusKm === "" ||
+      updates.serviceRadiusKm === null
+    ) {
+      // If empty string or null is sent, remove it from updates to keep existing value
+      delete updates.serviceRadiusKm;
+    }
+
+    const seller = await Seller.findByIdAndUpdate(sellerId, updates, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
+    if (!seller) {
+      return res.status(404).json({
         success: false,
-        message: "Service radius must be between 0.1 and 100 kilometers",
+        message: "Seller not found",
       });
     }
-  } else if (updates.serviceRadiusKm === '' || updates.serviceRadiusKm === null) {
-    // If empty string or null is sent, remove it from updates to keep existing value
-    delete updates.serviceRadiusKm;
-  }
 
-  const seller = await Seller.findByIdAndUpdate(sellerId, updates, {
-    new: true,
-    runValidators: true,
-  }).select("-password");
-
-  if (!seller) {
-    return res.status(404).json({
-      success: false,
-      message: "Seller not found",
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: seller,
     });
-  }
-
-  return res.status(200).json({
-    success: true,
-    message: "Profile updated successfully",
-    data: seller,
-  });
-});
+  },
+);
 
 /**
  * Toggle shop status (Open/Close)
@@ -345,8 +368,12 @@ export const toggleShopStatus = asyncHandler(
 
     // Fix invalid GeoJSON location objects
     // MongoDB requires that if location.type is "Point", coordinates must be a valid array
-    if (seller.location && seller.location.type === 'Point') {
-      if (!seller.location.coordinates || !Array.isArray(seller.location.coordinates) || seller.location.coordinates.length !== 2) {
+    if (seller.location && seller.location.type === "Point") {
+      if (
+        !seller.location.coordinates ||
+        !Array.isArray(seller.location.coordinates) ||
+        seller.location.coordinates.length !== 2
+      ) {
         // Invalid location object - remove it to prevent validation error
         seller.location = undefined;
       }
@@ -359,5 +386,5 @@ export const toggleShopStatus = asyncHandler(
       message: `Shop is now ${seller.isShopOpen ? "Open" : "Closed"}`,
       data: { isShopOpen: seller.isShopOpen },
     });
-  }
+  },
 );

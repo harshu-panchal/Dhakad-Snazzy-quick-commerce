@@ -26,12 +26,13 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
   if (!delivery) {
     return res.status(400).json({
       success: false,
-      message: "Delivery partner not found with this mobile number. Please register first.",
+      message:
+        "Delivery partner not found with this mobile number. Please register first.",
     });
   }
 
   // Send SMS OTP
-  const result = await sendSmsOtpService(mobile, 'Delivery');
+  const result = await sendSmsOtpService(mobile, "Delivery");
 
   return res.status(200).json({
     success: true,
@@ -43,69 +44,76 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
 /**
  * Verify SMS OTP and login delivery partner
  */
-export const verifySmsOtp = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile, otp, sessionId } = req.body;
+export const verifySmsOtp = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { mobile, otp, sessionId } = req.body;
 
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 10-digit mobile number is required",
-    });
-  }
+    if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid 10-digit mobile number is required",
+      });
+    }
 
-  if (!otp || !/^[0-9]{4}$/.test(otp)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 4-digit OTP is required",
-    });
-  }
+    if (!otp || !/^[0-9]{4}$/.test(otp)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid 4-digit OTP is required",
+      });
+    }
 
-  if (!sessionId) {
-    return res.status(400).json({
-      success: false,
-      message: "Session ID is required"
-    });
-  }
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "Session ID is required",
+      });
+    }
 
-  // Verify SMS OTP
-  const isValid = await verifySmsOtpService(sessionId, otp, mobile, 'Delivery');
+    // Verify SMS OTP
+    const isValid = await verifySmsOtpService(
+      sessionId,
+      otp,
+      mobile,
+      "Delivery",
+    );
 
-  if (!isValid) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired OTP",
-    });
-  }
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired OTP",
+      });
+    }
 
-  // Find delivery partner
-  const delivery = await Delivery.findOne({ mobile }).select("-password");
+    // Find delivery partner
+    const delivery = await Delivery.findOne({ mobile }).select("-password");
 
-  if (!delivery) {
-    return res.status(401).json({
-      success: false,
-      message: "Delivery partner not found. Please Register first.",
-    });
-  }
+    if (!delivery) {
+      return res.status(401).json({
+        success: false,
+        message: "Delivery partner not found. Please Register first.",
+      });
+    }
 
-  // Generate JWT token
-  const token = generateToken(delivery._id.toString(), "Delivery");
+    // Generate JWT token
+    const token = generateToken(delivery._id.toString(), "Delivery");
 
-  return res.status(200).json({
-    success: true,
-    message: "Login successful",
-    data: {
-      token,
-      user: {
-        id: delivery._id,
-        name: delivery.name,
-        mobile: delivery.mobile,
-        email: delivery.email,
-        city: delivery.city,
-        status: delivery.status,
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data: {
+        token,
+        user: {
+          id: delivery._id,
+          name: delivery.name,
+          mobile: delivery.mobile,
+          email: delivery.email,
+          city: delivery.city,
+          status: delivery.status,
+        },
       },
-    },
-  });
-});
+    });
+  },
+);
 
 /**
  * Register new delivery partner
@@ -196,7 +204,9 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const userId = (req.user as any).userId;
 
   if (!userId) {
-    return res.status(401).json({ success: false, message: "User not authenticated" });
+    return res
+      .status(401)
+      .json({ success: false, message: "User not authenticated" });
   }
 
   const delivery = await Delivery.findById(userId).select("-password");

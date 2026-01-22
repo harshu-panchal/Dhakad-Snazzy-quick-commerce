@@ -228,7 +228,7 @@ DeliverySchema.methods.comparePassword = async function (
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-const Delivery = mongoose.model<IDelivery>('Delivery', DeliverySchema);
+const Delivery = mongoose.models.Delivery || mongoose.model<IDelivery>('Delivery', DeliverySchema);
 
 export default Delivery;
 

@@ -25,7 +25,7 @@ export const sendNotification = async (
     actionLabel?: string;
     priority?: "Low" | "Medium" | "High" | "Urgent";
     expiresAt?: Date;
-  }
+  },
 ) => {
   const notification = await Notification.create({
     recipientType,
@@ -66,7 +66,7 @@ export const sendBroadcastNotification = async (
     actionLabel?: string;
     priority?: "Low" | "Medium" | "High" | "Urgent";
     expiresAt?: Date;
-  }
+  },
 ) => {
   // Get all users of the specified type
   let userIds: string[] = [];
@@ -104,8 +104,8 @@ export const sendBroadcastNotification = async (
         priority: options?.priority || "Medium",
         expiresAt: options?.expiresAt,
         isRead: false,
-      })
-    )
+      }),
+    ),
   );
 
   return notifications;
@@ -117,7 +117,7 @@ export const sendBroadcastNotification = async (
 export const sendOrderStatusNotification = async (
   orderId: string,
   customerId: string,
-  status: string
+  status: string,
 ) => {
   const statusMessages: Record<string, { title: string; message: string }> = {
     Processed: {
@@ -157,7 +157,7 @@ export const sendOrderStatusNotification = async (
       type: "Order",
       link: `/orders/${orderId}`,
       priority: status === "Cancelled" ? "High" : "Medium",
-    }
+    },
   );
 };
 
@@ -168,7 +168,7 @@ export const sendProductApprovalNotification = async (
   sellerId: string,
   productId: string,
   status: "Approved" | "Rejected",
-  rejectionReason?: string
+  rejectionReason?: string,
 ) => {
   const title = status === "Approved" ? "Product Approved" : "Product Rejected";
   const message =
