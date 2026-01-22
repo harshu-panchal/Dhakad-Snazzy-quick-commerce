@@ -14,7 +14,8 @@ const router = Router();
  */
 router.post("/save", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token, platform = "web" } = req.body;
+    const { platform = "web" } = req.body;
+    const token = req.body.token || req.body.fcmToken;
     const userId = req.user?.userId;
     const userType = req.user?.userType;
 
@@ -126,7 +127,8 @@ router.post("/save", async (req: Request, res: Response): Promise<void> => {
  */
 router.delete("/remove", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token, platform = "web" } = req.body;
+    const { platform = "web" } = req.body;
+    const token = req.body.token || req.body.fcmToken;
     const userId = req.user?.userId;
     const userType = req.user?.userType;
 

@@ -381,7 +381,7 @@ const AppSettingsSchema = new Schema<IAppSettings>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Ensure only one settings document exists
@@ -402,8 +402,7 @@ AppSettingsSchema.index({ appName: 1 });
 
 const AppSettings = mongoose.model<IAppSettings>(
   "AppSettings",
-  AppSettingsSchema
+  AppSettingsSchema,
 );
 
 export default AppSettings;
-
