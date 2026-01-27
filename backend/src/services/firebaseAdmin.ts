@@ -13,9 +13,11 @@ export function initializeFirebaseAdmin() {
         let credential;
 
         // Check if Firebase credentials are provided via environment variables (production)
-        if (process.env.FIREBASE_CREDENTIALS) {
+        const envCredentials = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_CREDENTIALS;
+        if (envCredentials) {
             console.log('🔧 Using Firebase credentials from environment variable (production mode)');
-            const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+            // Handle potential double quoting or escaping issues if they arise, but standard JSON.parse should work for valid JSON string
+            const serviceAccount = JSON.parse(envCredentials);
             credential = admin.credential.cert(serviceAccount);
         }
         // Fall back to service account file (development)

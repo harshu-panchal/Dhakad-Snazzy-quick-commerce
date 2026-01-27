@@ -350,9 +350,14 @@ export const createOrder = async (req: Request, res: Response) => {
         // --- Distance-Based Delivery Charge Calculation ---
         try {
             const settings = await AppSettings.getSettings();
+            const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
 
-            // Only recalculate if enabled in settings
-            if (settings && settings.deliveryConfig?.isDistanceBased === true) {
+            // Check for Free Delivery eligibility first
+            if (freeDeliveryThreshold > 0 && calculatedSubtotal >= freeDeliveryThreshold) {
+                deliveryFee = 0;
+            }
+            // Only recalculate if enabled in settings (and not free delivery)
+            else if (settings && settings.deliveryConfig?.isDistanceBased === true) {
                 const config = settings.deliveryConfig;
 
                 // Collect seller locations

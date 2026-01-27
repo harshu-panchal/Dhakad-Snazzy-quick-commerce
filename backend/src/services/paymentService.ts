@@ -150,6 +150,15 @@ export const capturePayment = async (
 
         await session.commitTransaction();
 
+        // Create Pending Commissions (Outside transaction as it has its own logic/logging and failure shouldn't rollback payment)
+        try {
+            const { createPendingCommissions } = await import('./commissionService');
+            await createPendingCommissions(orderId);
+        } catch (commError) {
+            console.error("Failed to create pending commissions after payment:", commError);
+            // Don't fail the request, just log it.
+        }
+
         return {
             success: true,
             message: 'Payment captured successfully',

@@ -90,129 +90,20 @@ const restoreInventory = async (items: IOrderItem[]) => {
  * Create commissions for sellers when order is delivered
  * Also updates seller balances and creates wallet transactions
  */
+/**
+ * Create commissions for sellers when order is delivered
+ * Now delegating to commissionService.distributeCommissions
+ */
 const createCommissions = async (items: IOrderItem[]) => {
-  // Group items by seller to aggregate earnings
-  const sellerEarningsMap = new Map<string, {
-    totalAmount: number;
-    commissionAmount: number;
-    netEarning: number;
-    items: IOrderItem[];
-  }>();
+  if (!items || items.length === 0) return;
 
-  // First pass: calculate commissions and aggregate by seller
-  for (const item of items) {
-    const sellerId = item.seller.toString();
-    const seller = await Seller.findById(item.seller);
-
-    if (!seller) continue;
-
-    // Determine Commission Rate Priority:
-    // 1. SubSubCategory (Category Model)
-    // 2. SubCategory (SubCategory Model)
-    // 3. Category (Category Model)
-    // 4. Seller specific rate
-    // 5. Global Default (10%)
-
-    let commissionRate = 0;
-    let rateSource = "Default";
-
-    const product = await Product.findById(item.product);
-
-    if (product) {
-      // 1. Check SubSubCategory
-      if (product.subSubCategory) {
-        const subSubCat = await Category.findById(product.subSubCategory);
-        if (subSubCat && subSubCat.commissionRate && subSubCat.commissionRate > 0) {
-          commissionRate = subSubCat.commissionRate;
-          rateSource = `SubSubCategory: ${subSubCat.name}`;
-        }
-      }
-
-      // 2. Check SubCategory (only if not found yet)
-      if (commissionRate === 0 && product.subcategory) {
-        const subCat = await SubCategory.findById(product.subcategory);
-        if (subCat && subCat.commissionRate && subCat.commissionRate > 0) {
-          commissionRate = subCat.commissionRate;
-          rateSource = `SubCategory: ${subCat.name}`;
-        }
-      }
-
-      // 3. Check Category (only if not found yet)
-      if (commissionRate === 0 && product.category) {
-        const cat = await Category.findById(product.category);
-        if (cat && cat.commissionRate && cat.commissionRate > 0) {
-          commissionRate = cat.commissionRate;
-          rateSource = `Category: ${cat.name}`;
-        }
-      }
-    }
-
-    // 4. Check Seller specifc rate
-    if (commissionRate === 0 && seller.commission !== undefined && seller.commission > 0) {
-      commissionRate = seller.commission;
-      rateSource = "Seller";
-    }
-
-    // 5. Global Default (fallback if everything else is 0)
-    if (commissionRate === 0) {
-      commissionRate = 10; // Default 10%
-      rateSource = "Global Default";
-    }
-
-    const commissionAmount = (item.total * commissionRate) / 100;
-    const netEarning = item.total - commissionAmount;
-
-    console.log(`[Commission] Item: ${product?.productName}, Rate: ${commissionRate}% (${rateSource}), Amount: ${commissionAmount}`);
-
-    // Create commission record
-    await Commission.create({
-      order: item.order,
-      orderItem: item._id,
-      seller: item.seller,
-      orderAmount: item.total,
-      commissionRate,
-      commissionAmount,
-      status: "Pending",
-    });
-
-    // Aggregate earnings by seller
-    if (!sellerEarningsMap.has(sellerId)) {
-      sellerEarningsMap.set(sellerId, {
-        totalAmount: 0,
-        commissionAmount: 0,
-        netEarning: 0,
-        items: [],
-      });
-    }
-
-    const sellerData = sellerEarningsMap.get(sellerId)!;
-    sellerData.totalAmount += item.total;
-    sellerData.commissionAmount += commissionAmount;
-    sellerData.netEarning += netEarning;
-    sellerData.items.push(item);
-  }
-
-  // Second pass: update seller balances and create wallet transactions
-  for (const [sellerId, earnings] of sellerEarningsMap.entries()) {
-    const seller = await Seller.findById(sellerId);
-    if (!seller) continue;
-
-    // Update seller balance
-    seller.balance = (seller.balance || 0) + earnings.netEarning;
-    await seller.save();
-
-    // Create wallet transaction
-    const order = await Order.findById(items[0].order);
-    const orderNumber = order?.orderNumber || `ORDER-${items[0].order}`;
-
-    await WalletTransaction.create({
-      sellerId: seller._id,
-      amount: earnings.netEarning,
-      type: 'Credit',
-      description: `Earnings from Order #${orderNumber}`,
-      reference: `ORD-${items[0].order}-${Date.now()}-${sellerId}`,
-      status: 'Completed',
-    });
+  try {
+    const orderId = items[0].order.toString();
+    const { distributeCommissions } = await import('./commissionService');
+    await distributeCommissions(orderId);
+  } catch (err) {
+    console.error("Error distributing commissions in orderService:", err);
+    throw err;
   }
 };
 
