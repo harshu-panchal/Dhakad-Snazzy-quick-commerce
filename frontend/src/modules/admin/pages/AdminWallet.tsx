@@ -161,7 +161,7 @@ export default function AdminWallet() {
                     bg="bg-blue-50"
                 />
                 <StatsCard
-                    title="Current Account Balance"
+                    title="Current Platform Balance"
                     value={`₹${stats?.currentAccountBalance?.toLocaleString('en-IN') || '0'}`}
                     icon={WalletIcon}
                     color="text-green-600"

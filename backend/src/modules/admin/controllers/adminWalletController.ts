@@ -51,8 +51,15 @@ export const getFinancialDashboard = asyncHandler(async (_req: Request, res: Res
     // This effectively gives: SellerComm + PlatformFee + (Shipping - DeliveryComm) -> where (Shipping-DeliveryComm) is Base Charge
     const totalAdminEarnings = sellerCommissions + orderFees - deliveryCommissions;
 
-    // Current Account Balance (Mapped to Admin Earnings as per instruction)
-    const currentAccountBalance = totalAdminEarnings;
+    // Calculate Total Completed Withdrawals (Outflow)
+    const withdrawalResult = await WithdrawRequest.aggregate([
+        { $match: { status: 'Completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+    ]);
+    const totalWithdrawals = withdrawalResult.length > 0 ? withdrawalResult[0].total : 0;
+
+    // Current Platform Balance = Total Inflow (GMV) - Total Outflow (Withdrawals)
+    const currentAccountBalance = totalGMV - totalWithdrawals;
 
     // 3. Total Seller Wallet Pending Payouts -> Sum of Seller Balances
     const sellerBalanceResult = await mongoose.model('Seller').aggregate([
