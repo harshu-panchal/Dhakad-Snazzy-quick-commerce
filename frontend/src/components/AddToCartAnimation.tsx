@@ -221,7 +221,7 @@ export default function AddToCartAnimation({
 
   // Enhanced GSAP pulse animation when cart changes (but not on removal or fly-to-cart)
   useEffect(() => {
-    if (cart.itemCount > 0 && linkRef.current && !removedProduct && !flyingProduct) {
+    if ((cart.itemCount || 0) > 0 && linkRef.current && !removedProduct && !flyingProduct) {
       // Kill any existing animations first
       gsap.killTweensOf(linkRef.current);
 
@@ -309,7 +309,7 @@ export default function AddToCartAnimation({
       )}
 
       <AnimatePresence>
-        {cart.itemCount > 0 && !shouldHidePill && (
+        {(cart.itemCount || 0) > 0 && !shouldHidePill && (
           <motion.div
             initial={{ y: 60, opacity: 0, scale: 0.8 }}
             animate={{

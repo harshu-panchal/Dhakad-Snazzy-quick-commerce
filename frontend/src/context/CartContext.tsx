@@ -160,7 +160,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       estimatedDeliveryFee: estimatedFee,
       platformFee,
       freeDeliveryThreshold,
-      freeDeliveryThreshold,
       debug_config: (items as any).debug_config,
       backendTotal: (items as any).backendTotal
     };

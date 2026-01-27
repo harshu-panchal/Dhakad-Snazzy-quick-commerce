@@ -358,7 +358,7 @@ export default function Checkout() {
     const order: Order = {
       id: orderId,
       items: cart.items,
-      totalItems: cart.itemCount,
+      totalItems: cart.itemCount || 0,
       subtotal: discountedTotal,
       fees: {
         platformFee: handlingCharge,
