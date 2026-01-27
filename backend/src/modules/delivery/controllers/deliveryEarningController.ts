@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import Order from "../../../models/Order";
+
 import mongoose from "mongoose";
 import WithdrawRequest from "../../../models/WithdrawRequest";
 import Delivery from "../../../models/Delivery";
@@ -14,22 +14,24 @@ export const getEarningsHistory = asyncHandler(async (req: Request, res: Respons
     const deliveryId = req.user?.userId;
     const objectId = new mongoose.Types.ObjectId(deliveryId);
 
+    const { default: Commission } = await import("../../../models/Commission");
+
     // Aggregation to group earnings by day
-    // Filtering for delivered orders assigned to this user
-    const earnings = await Order.aggregate([
+    // Use Commission Model
+    const earnings = await Commission.aggregate([
         {
             $match: {
                 deliveryBoy: objectId,
-                status: "Delivered",
-                deliveredAt: { $exists: true } // Ensure delivered date exists
+                type: "DELIVERY_BOY",
+                status: "Paid" // Only count paid commissions? Or all? Usually Paid.
             }
         },
         {
             $group: {
                 _id: {
-                    $dateToString: { format: "%Y-%m-%d", date: "$deliveredAt" }
+                    $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
                 },
-                amount: { $sum: 40 }, // Using mock commission of 40 per order. Replace with field if exists.
+                amount: { $sum: '$commissionAmount' },
                 deliveries: { $sum: 1 }
             }
         },

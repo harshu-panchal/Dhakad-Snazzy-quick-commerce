@@ -156,11 +156,45 @@ export const getDashboardStats = asyncHandler(
       totalDeliveredCount: 0,
     };
 
-    // Calculate Earnings (Mock logic: 40 per delivery)
-    // You should replace this with real commission logic stored in DB
-    const COMMISSION_PER_ORDER = 40;
-    const todayEarning = result.todayDeliveredCount * COMMISSION_PER_ORDER;
-    const totalEarning = result.totalDeliveredCount * COMMISSION_PER_ORDER;
+    // Calculate Earnings (Real Logic from Commission Collection)
+    const { default: Commission } = await import("../../../models/Commission");
+
+    const earningStats = await Commission.aggregate([
+      {
+        $match: {
+          deliveryBoy: objectId,
+          type: "DELIVERY_BOY",
+        },
+      },
+      {
+        $facet: {
+          today: [
+            {
+              $match: {
+                createdAt: { $gte: todayStart, $lte: todayEnd },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: "$commissionAmount" },
+              },
+            },
+          ],
+          total: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: "$commissionAmount" },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const todayEarning = earningStats[0]?.today[0]?.total || 0;
+    const totalEarning = earningStats[0]?.total[0]?.total || 0;
 
     // Fetch list of Pending Orders for the "Today's Pending Order" section
     const pendingOrdersList = await Order.find({
@@ -191,9 +225,9 @@ export const getDashboardStats = asyncHandler(
       totalAmount: order.total,
       estimatedDeliveryTime: order.estimatedDeliveryDate
         ? new Date(order.estimatedDeliveryDate).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
+          hour: "2-digit",
+          minute: "2-digit",
+        })
         : "N/A",
     }));
 

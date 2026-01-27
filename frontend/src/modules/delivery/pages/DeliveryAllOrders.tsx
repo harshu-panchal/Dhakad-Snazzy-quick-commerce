@@ -103,7 +103,12 @@ export default function DeliveryAllOrders() {
                     <p className="text-neutral-500 text-xs">
                       {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
                     </p>
-                    <p className="text-neutral-900 font-bold">₹ {order.totalAmount}</p>
+                    <div className="text-right">
+                      <p className="text-neutral-900 font-bold">₹ {order.totalAmount}</p>
+                      {order.deliveryEarning > 0 && (
+                        <p className="text-green-600 text-xs font-semibold">+ ₹{order.deliveryEarning}</p>
+                      )}
+                    </div>
                   </div>
                   {order.estimatedDeliveryTime && (
                     <p className="text-neutral-500 text-xs">

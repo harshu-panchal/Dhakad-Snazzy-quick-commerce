@@ -39,6 +39,19 @@ export const getAllOrdersHistory = asyncHandler(async (req: Request, res: Respon
 
     const total = await Order.countDocuments({ deliveryBoy: deliveryId });
 
+    // Batched Commission Fetch for Efficiency
+    const { default: Commission } = await import("../../../models/Commission");
+    const orderIds = orders.map(o => o._id);
+    const commissions = await Commission.find({
+        order: { $in: orderIds },
+        type: "DELIVERY_BOY"
+    });
+
+    const commissionMap = new Map();
+    commissions.forEach(c => {
+        commissionMap.set(c.order.toString(), c.commissionAmount);
+    });
+
     // Format orders for frontend
     const formattedOrders = orders.map(order => ({
         id: order._id,
@@ -50,6 +63,7 @@ export const getAllOrdersHistory = asyncHandler(async (req: Request, res: Respon
         address: `${order.deliveryAddress.address}, ${order.deliveryAddress.city}`,
         deliveryAddress: order.deliveryAddress,
         totalAmount: order.total,
+        deliveryEarning: commissionMap.get(order._id.toString()) || 0, // Add Earning
         items: mapOrderItems(order.items),
         createdAt: order.createdAt,
         estimatedDeliveryTime: order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'
@@ -157,6 +171,13 @@ export const getOrderDetails = asyncHandler(async (req: Request, res: Response) 
         return res.status(404).json({ success: false, message: "Order not found" });
     }
 
+    // Fetch Delivery Earning for this order
+    const { default: Commission } = await import("../../../models/Commission");
+    const commission = await Commission.findOne({
+        order: id,
+        type: "DELIVERY_BOY"
+    });
+
     const formattedOrder = {
         id: order._id,
         orderId: order.orderNumber,
@@ -168,7 +189,8 @@ export const getOrderDetails = asyncHandler(async (req: Request, res: Response) 
         items: mapOrderItems(order.items), // Real populated items
         totalAmount: order.total,
         createdAt: order.createdAt,
-        distance: null
+        distance: null,
+        deliveryEarning: commission ? commission.commissionAmount : 0
     };
 
     return res.status(200).json({

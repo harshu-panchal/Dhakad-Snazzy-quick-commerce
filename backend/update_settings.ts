@@ -6,11 +6,17 @@ import AppSettings from './src/models/AppSettings';
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const checkSettings = async () => {
+const updateSettings = async () => {
     try {
         await mongoose.connect(process.env.MONGODB_URI as string);
-        const settings = await AppSettings.findOne();
-        console.log('AppSettings:', JSON.stringify(settings, null, 2));
+
+        await AppSettings.updateOne({}, {
+            $set: {
+                "deliveryConfig.baseDistance": 0.5 // Reduce from 2km to 0.5km
+            }
+        });
+
+        console.log("Updated baseDistance to 0.5km");
 
     } catch (error) {
         console.error('Error:', error);
@@ -19,4 +25,4 @@ const checkSettings = async () => {
     }
 };
 
-checkSettings();
+updateSettings();

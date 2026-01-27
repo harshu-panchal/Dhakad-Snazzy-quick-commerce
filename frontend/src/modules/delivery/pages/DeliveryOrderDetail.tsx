@@ -443,7 +443,7 @@ export default function DeliveryOrderDetail() {
                     },
                     (error: GeolocationPositionError) => {
                         // ... error handling ...
-                         if (error.code === error.PERMISSION_DENIED) {
+                        if (error.code === error.PERMISSION_DENIED) {
                             if (!locationPermissionDeniedRef.current) {
                                 locationPermissionDeniedRef.current = true;
                                 console.warn('Location permission denied.');
@@ -661,10 +661,9 @@ export default function DeliveryOrderDetail() {
                                                 </div>
                                                 <p className="text-sm text-neutral-600">{seller.address}, {seller.city}</p>
                                                 {distance !== undefined && (
-                                                    <p className={`text-xs mt-1 font-medium ${
-                                                        withinRange ? 'text-green-600' :
-                                                        distance < 1000 ? 'text-yellow-600' : 'text-red-600'
-                                                    }`}>
+                                                    <p className={`text-xs mt-1 font-medium ${withinRange ? 'text-green-600' :
+                                                            distance < 1000 ? 'text-yellow-600' : 'text-red-600'
+                                                        }`}>
                                                         {distance < 1000 ? `${distance}m away` : `${(distance / 1000).toFixed(1)}km away`}
                                                     </p>
                                                 )}
@@ -675,11 +674,10 @@ export default function DeliveryOrderDetail() {
                                             <button
                                                 onClick={() => handleSellerPickup(seller.sellerId)}
                                                 disabled={!withinRange || isLoading}
-                                                className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                                                    withinRange && !isLoading
+                                                className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${withinRange && !isLoading
                                                         ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
                                                         : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                                                }`}
+                                                    }`}
                                             >
                                                 {isLoading ? 'Confirming...' : withinRange ? 'Confirm Pickup' : 'Move within 500m to pickup'}
                                             </button>
@@ -775,6 +773,23 @@ export default function DeliveryOrderDetail() {
                     </div>
                 </div>
 
+                {/* Delivery Earning Card - Show only if delivered or has earning */}
+                {(order.status === 'Delivered' || (order.deliveryEarning && order.deliveryEarning > 0)) && (
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-5 shadow-sm text-white mb-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <p className="text-green-100 text-xs font-medium mb-1">Your Earning</p>
+                                <h3 className="text-2xl font-bold">₹ {order.deliveryEarning?.toFixed(2) || '0.00'}</h3>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-lg">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Order Items */}
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-neutral-100">
                     <div className="flex justify-between items-center mb-4">
@@ -830,10 +845,9 @@ export default function DeliveryOrderDetail() {
 
                         {/* Distance indicator */}
                         {customerProximity && (
-                            <p className={`text-xs mb-2 font-medium ${
-                                customerProximity.withinRange ? 'text-green-600' :
-                                customerProximity.distance < 1000 ? 'text-yellow-600' : 'text-red-600'
-                            }`}>
+                            <p className={`text-xs mb-2 font-medium ${customerProximity.withinRange ? 'text-green-600' :
+                                    customerProximity.distance < 1000 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
                                 {customerProximity.distance < 1000
                                     ? `${customerProximity.distance}m from customer`
                                     : `${(customerProximity.distance / 1000).toFixed(1)}km from customer`}
@@ -847,9 +861,8 @@ export default function DeliveryOrderDetail() {
                             onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, '').slice(0, 4))}
                             placeholder="Enter 4-digit OTP"
                             disabled={!showOtpInput}
-                            className={`w-full px-4 py-3 border rounded-xl text-lg font-semibold text-center mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                showOtpInput ? 'border-neutral-300 bg-white' : 'border-neutral-200 bg-neutral-100 text-neutral-400'
-                            }`}
+                            className={`w-full px-4 py-3 border rounded-xl text-lg font-semibold text-center mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${showOtpInput ? 'border-neutral-300 bg-white' : 'border-neutral-200 bg-neutral-100 text-neutral-400'
+                                }`}
                             maxLength={4}
                         />
 
@@ -858,11 +871,10 @@ export default function DeliveryOrderDetail() {
                                 <button
                                     onClick={handleSendOtp}
                                     disabled={!getOtpEnabled || otpSending}
-                                    className={`flex-1 py-3 rounded-xl font-semibold transition-all ${
-                                        getOtpEnabled && !otpSending
+                                    className={`flex-1 py-3 rounded-xl font-semibold transition-all ${getOtpEnabled && !otpSending
                                             ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
                                             : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
-                                    }`}
+                                        }`}
                                 >
                                     {otpSending ? 'Sending...' : getOtpEnabled ? 'Get OTP' : 'Move within 500m to get OTP'}
                                 </button>

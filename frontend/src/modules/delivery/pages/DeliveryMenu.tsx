@@ -8,6 +8,7 @@ export default function DeliveryMenu() {
   const menuItems = [
     { id: "menu-1", title: "Profile", route: "/delivery/profile" },
     { id: "menu-w", title: "Wallet", route: "/delivery/wallet" },
+    { id: "menu-history", title: "Delivery History", route: "/delivery/orders/all" },
     { id: "menu-2", title: "Earnings", route: "/delivery/earnings" },
     { id: "menu-3", title: "Settings", route: "/delivery/settings" },
     { id: "menu-4", title: "Help & Support", route: "/delivery/help" },
@@ -69,6 +70,17 @@ export default function DeliveryMenu() {
               strokeWidth="2"
             />
             <circle cx="12" cy="14.5" r="1.5" fill="currentColor" />
+          </svg>
+        );
+      case "menu-history": // Delivery History
+        return (
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         );
       case "menu-2": // Earnings
@@ -247,19 +259,17 @@ export default function DeliveryMenu() {
               <button
                 key={item.id}
                 onClick={() => handleMenuClick(item.route)}
-                className={`w-full bg-white rounded-xl p-4 shadow-sm border border-neutral-200 flex items-center gap-3 hover:shadow-md transition-shadow ${
-                  item.id === "menu-6"
-                    ? "text-red-600 hover:bg-red-50"
-                    : "hover:bg-neutral-50"
-                }`}>
+                className={`w-full bg-white rounded-xl p-4 shadow-sm border border-neutral-200 flex items-center gap-3 hover:shadow-md transition-shadow ${item.id === "menu-6"
+                  ? "text-red-600 hover:bg-red-50"
+                  : "hover:bg-neutral-50"
+                  }`}>
                 <span
                   className={`flex-shrink-0 ${item.id === "menu-6" ? "text-red-600" : "text-neutral-600"}`}>
                   {getMenuIcon(item.id)}
                 </span>
                 <span
-                  className={`text-sm font-medium flex-1 text-left ${
-                    item.id === "menu-6" ? "text-red-600" : "text-neutral-900"
-                  }`}>
+                  className={`text-sm font-medium flex-1 text-left ${item.id === "menu-6" ? "text-red-600" : "text-neutral-900"
+                    }`}>
                   {item.title}
                 </span>
                 <svg

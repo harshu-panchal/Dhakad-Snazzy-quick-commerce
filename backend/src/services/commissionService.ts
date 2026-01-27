@@ -325,10 +325,7 @@ export const distributeCommissions = async (orderId: string) => {
         // If no pending commissions, maybe we missed creating them (e.g. legacy/error), try to create them now?
         // Or if they are already Paid?
 
-        const paidCommissions = await Commission.find({ order: orderId, status: 'Paid' }).session(session);
-        if (paidCommissions.length > 0) {
-            throw new Error('Commissions already distributed for this order');
-        }
+        // Do not block here. We will check specifically for each type later.
 
         let commissionsToProcess = pendingCommissions;
 
@@ -387,12 +384,90 @@ export const distributeCommissions = async (orderId: string) => {
             );
         }
 
-        // Handle Delivery Boy Commission (if any logic needed here, currently distinct)
-        // logic for delivery boy is typically separate or can be added here.
-        // The original code had delivery boy logic in calculateOrderCommissions. 
-        // If delivery boy commissions are also Pending, process them.
+        // Handle Delivery Boy Commission
+        // Check if commission exists for delivery boy
+        if (order.deliveryBoy) {
+            const deliveryBoyId = order.deliveryBoy.toString();
+            const existingDeliveryComm = await Commission.findOne({
+                order: orderId,
+                type: 'DELIVERY_BOY'
+            }).session(session);
 
-        // ... (Delivery Boy Logic Omitted for brevity as focus is Seller Wallet, but should be preserved if existing) ...
+            if (!existingDeliveryComm) {
+                console.log(`Creating missing commission for Delivery Boy ${deliveryBoyId}`);
+
+                // Calculate Commission Logic (Copied from calculateOrderCommissions)
+                let commissionAmount = 0;
+                let commissionRate = 0;
+                let usedDistanceBased = false;
+
+                try {
+                    // @ts-ignore
+                    const settings = await AppSettings.getSettings();
+                    if (settings &&
+                        settings.deliveryConfig?.isDistanceBased === true &&
+                        settings.deliveryConfig?.deliveryBoyKmRate &&
+                        order.deliveryDistanceKm &&
+                        order.deliveryDistanceKm > 0
+                    ) {
+                        commissionRate = settings.deliveryConfig.deliveryBoyKmRate;
+                        commissionAmount = order.deliveryDistanceKm * commissionRate;
+                        usedDistanceBased = true;
+                    }
+                } catch (err) {
+                    console.error("Error checking settings for commission:", err);
+                }
+
+                if (!usedDistanceBased) {
+                    // Fallback to percentage based logic
+                    const { getDeliveryBoyCommissionRate } = await import('./commissionService');
+                    commissionRate = await getDeliveryBoyCommissionRate(deliveryBoyId);
+                    commissionAmount = (order.subtotal * commissionRate) / 100;
+                }
+
+                // Create Commission Record
+                const newComm = await Commission.create([{
+                    order: order._id,
+                    deliveryBoy: order.deliveryBoy,
+                    type: 'DELIVERY_BOY',
+                    orderAmount: usedDistanceBased ? (order.deliveryDistanceKm || 0) : order.subtotal,
+                    commissionRate,
+                    commissionAmount: Math.round(commissionAmount * 100) / 100,
+                    status: 'Paid',
+                    paidAt: new Date()
+                }], { session });
+
+                const comm = newComm[0];
+                processedCommissions.push(comm);
+
+                // Credit Wallet Immediately
+                await creditWallet(
+                    deliveryBoyId,
+                    'DELIVERY_BOY',
+                    comm.commissionAmount,
+                    `Delivery earning for order ${order.orderNumber}`,
+                    orderId,
+                    comm._id.toString(),
+                    session
+                );
+            } else if (existingDeliveryComm.status === 'Pending') {
+                // If it existed as pending, mark as paid and credit
+                existingDeliveryComm.status = 'Paid';
+                existingDeliveryComm.paidAt = new Date();
+                await existingDeliveryComm.save({ session });
+                processedCommissions.push(existingDeliveryComm);
+
+                await creditWallet(
+                    deliveryBoyId,
+                    'DELIVERY_BOY',
+                    existingDeliveryComm.commissionAmount,
+                    `Delivery earning for order ${order.orderNumber}`,
+                    orderId,
+                    existingDeliveryComm._id.toString(),
+                    session
+                );
+            }
+        }
 
         await session.commitTransaction();
 
