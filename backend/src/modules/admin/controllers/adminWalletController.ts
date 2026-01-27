@@ -12,7 +12,7 @@ import { approveWithdrawal, rejectWithdrawal, completeWithdrawal } from './admin
 /**
  * Get Financial Dashboard Stats
  */
-export const getFinancialDashboard = asyncHandler(async (req: Request, res: Response) => {
+export const getFinancialDashboard = asyncHandler(async (_req: Request, res: Response) => {
     // 1. Total Platform Earnings (GMV - Gross Merchandise Value)
     // Sum of 'total' from Order collection (Successful orders only ideally, but 'Received'/'Pending' etc also count as revenue booked)
     // Excluding Cancelled/Rejected/Returned for net GMV? User didn't specify, but usually GMV excludes cancelled.
@@ -145,7 +145,7 @@ export const getAdminEarnings = asyncHandler(async (req: Request, res: Response)
  * Get All Wallet Transactions (Sellers & Delivery Boys)
  */
 export const getWalletTransactions = asyncHandler(async (req: Request, res: Response) => {
-    const { page = 1, limit = 20, type, userType, search } = req.query;
+    const { page = 1, limit = 20, type, userType, search: _search } = req.query;
 
     const query: any = {};
     if (type) query.type = type;

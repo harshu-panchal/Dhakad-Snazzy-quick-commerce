@@ -1,12 +1,6 @@
 import Order from "../models/Order";
 import { IOrderItem } from "../models/OrderItem";
 import Inventory from "../models/Inventory";
-import Category from "../models/Category";
-import SubCategory from "../models/SubCategory";
-import Product from "../models/Product";
-import Commission from "../models/Commission";
-import Seller from "../models/Seller";
-import WalletTransaction from "../models/WalletTransaction";
 import { clearOrderCache } from "../socket/socketService";
 
 /**

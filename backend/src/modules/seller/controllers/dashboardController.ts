@@ -51,7 +51,7 @@ export const getDashboardStats = asyncHandler(
             let isLowStock = false;
 
             if (product.variations && product.variations.length > 0) {
-                product.variations.forEach(v => {
+                product.variations.forEach((v: any) => {
                     if ((v.stock || 0) > 0) isSoldOut = false;
                     if ((v.stock || 0) > 0 && (v.stock || 0) < 5) isLowStock = true;
                     if (v.stock && v.stock > 0) isSoldOut = false;

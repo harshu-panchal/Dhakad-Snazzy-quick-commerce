@@ -131,6 +131,7 @@ export const calculateOrderCommissions = async (orderId: string) => {
             let usedDistanceBased = false;
 
             try {
+                // @ts-ignore - getSettings is static on model
                 const settings = await AppSettings.getSettings();
                 if (settings &&
                     settings.deliveryConfig?.isDistanceBased === true &&
@@ -200,7 +201,6 @@ export const createPendingCommissions = async (orderId: string) => {
             const item = await OrderItem.findById(itemId);
             if (!item) continue;
 
-            const sellerId = item.seller.toString();
             const seller = await Seller.findById(item.seller);
             if (!seller) continue;
 
@@ -342,7 +342,7 @@ export const distributeCommissions = async (orderId: string) => {
             processedCommissions.push(comm);
 
             // Group for wallet credit
-            if (comm.type === 'SELLER') {
+            if (comm.type === 'SELLER' && comm.seller) {
                 const sellerId = comm.seller.toString();
                 const netAmount = comm.orderAmount - comm.commissionAmount;
 

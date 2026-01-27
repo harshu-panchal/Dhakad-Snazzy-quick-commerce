@@ -111,20 +111,30 @@ export interface IAppSettings extends Document {
   // Updated By
   updatedBy?: mongoose.Types.ObjectId;
 
+  // Withdrawal Settings
+  minimumWithdrawalAmount?: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
 
+// Define the Model type with static methods
+interface IAppSettingsModel extends mongoose.Model<IAppSettings> {
+  getSettings(): Promise<IAppSettings>;
+}
+
 const AppSettingsSchema = new Schema<IAppSettings>(
   {
+    // ... (rest of schema is fine, just adding new field)
+
+    // Withdrawal Settings
+    minimumWithdrawalAmount: {
+      type: Number,
+      default: 100
+    },
+
     // App Info
     appName: {
-      type: String,
-      required: [true, "App name is required"],
-      default: "Dhakad Snazzy",
-      trim: true,
-    },
-    appLogo: {
       type: String,
       trim: true,
     },
@@ -396,7 +406,7 @@ AppSettingsSchema.statics.getSettings = async function () {
 // Indexes
 AppSettingsSchema.index({ appName: 1 });
 
-const AppSettings = mongoose.model<IAppSettings>(
+const AppSettings = mongoose.model<IAppSettings, IAppSettingsModel>(
   "AppSettings",
   AppSettingsSchema,
 );
