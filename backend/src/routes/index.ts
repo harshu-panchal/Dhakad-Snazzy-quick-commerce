@@ -35,7 +35,7 @@ import paymentRoutes from "./paymentRoutes";
 import sellerWalletRoutes from "./sellerWalletRoutes";
 import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
-import adminCommissionRoutes from "./adminCommissionRoutes";
+
 import {
   createOrder,
   getMyOrders,
@@ -161,7 +161,7 @@ router.use("/delivery/wallet", authenticate, requireUserType("Delivery"), delive
 router.use("/admin/withdrawals", authenticate, requireUserType("Admin"), adminWithdrawalRoutes);
 
 // Admin commission management routes (protected, admin only)
-router.use("/admin/commissions", authenticate, requireUserType("Admin"), adminCommissionRoutes);
+
 
 // Add more routes here
 // router.use('/users', userRoutes);

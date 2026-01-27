@@ -18,6 +18,10 @@ export interface Cart {
     _id: string;
     items: CartItem[];
     total: number;
+    estimatedDeliveryFee?: number;
+    platformFee?: number;
+    freeDeliveryThreshold?: number;
+    debug_config?: any;
 }
 
 export interface CartResponse {

@@ -72,6 +72,7 @@ export interface IOrder extends Document {
   deliveryOtpExpiresAt?: Date;
   deliveryOtpVerified?: boolean;
   invoiceEnabled?: boolean;
+  deliveryDistanceKm?: number;
 
   // Seller Pickups (for multi-seller orders)
   sellerPickups?: Array<{
@@ -284,6 +285,9 @@ const OrderSchema = new Schema<IOrder>(
     invoiceEnabled: {
       type: Boolean,
       default: false,
+    },
+    deliveryDistanceKm: {
+      type: Number,
     },
 
     // Seller Pickups (for multi-seller orders)

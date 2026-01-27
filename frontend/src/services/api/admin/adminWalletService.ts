@@ -4,10 +4,12 @@ import { ApiResponse } from "./types";
 // TYPES
 
 export interface WalletStats {
-  totalEarnings: number;
-  paidEarnings: number;
-  pendingEarnings: number;
-  thisMonthEarnings: number;
+  totalGMV: number;
+  currentAccountBalance: number;
+  totalAdminEarnings: number;
+  sellerPendingPayouts: number;
+  deliveryPendingPayouts: number;
+  pendingWithdrawalsCount?: number;
 }
 
 export interface WalletTransaction {
@@ -32,6 +34,7 @@ export interface WithdrawalRequest {
   paymentMethod: string;
   accountDetails: string;
   remark?: string;
+  transactionReference?: string;
 }
 
 export interface AdminEarning {
@@ -80,7 +83,7 @@ export const getAdminEarnings = async (
  * Get Wallet Transactions (Platform Level)
  */
 export const getWalletTransactions = async (
-  params?: { page?: number; limit?: number; type?: string; status?: string }
+  params?: { page?: number; limit?: number; type?: string; status?: string; userType?: string }
 ): Promise<ApiResponse<WalletTransaction[]>> => {
   const response = await api.get<ApiResponse<WalletTransaction[]>>(
     "/admin/wallet/transactions",
@@ -94,8 +97,8 @@ export const getWalletTransactions = async (
  */
 export const getWithdrawalRequests = async (
   params?: { page?: number; limit?: number; status?: string }
-): Promise<ApiResponse<WithdrawalRequest[]>> => {
-  const response = await api.get<ApiResponse<WithdrawalRequest[]>>(
+): Promise<ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>> => {
+  const response = await api.get<ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>>(
     "/admin/wallet/withdrawals",
     { params }
   );
@@ -103,10 +106,10 @@ export const getWithdrawalRequests = async (
 };
 
 /**
- * Process Withdrawal (Approve/Reject)
+ * Process Withdrawal (Approve/Reject/Complete)
  */
 export const processWithdrawal = async (
-  data: { requestId: string; action: "Approve" | "Reject"; remark?: string }
+  data: { requestId: string; action: "Approve" | "Reject" | "Complete"; remark?: string; transactionReference?: string }
 ): Promise<ApiResponse<any>> => {
   const response = await api.post<ApiResponse<any>>(
     "/admin/wallet/withdrawal/process",

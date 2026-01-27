@@ -9,6 +9,7 @@ export interface ICategory extends Document {
   hasWarning: boolean;
   groupCategory?: string;
   totalSubcategories?: number;
+  commissionRate?: number;
   status: "Active" | "Inactive";
   parentId?: mongoose.Types.ObjectId;
   headerCategoryId?: mongoose.Types.ObjectId;
@@ -63,6 +64,12 @@ const CategorySchema = new Schema<ICategory>(
       type: Number,
       default: 0,
       min: [0, "Total subcategories cannot be negative"],
+    },
+    commissionRate: {
+      type: Number,
+      default: 0,
+      min: [0, "Commission rate cannot be negative"],
+      max: [100, "Commission rate cannot exceed 100%"],
     },
     status: {
       type: String,

@@ -29,7 +29,7 @@ import RazorpayCheckout from '../../components/RazorpayCheckout';
 
 
 export default function Checkout() {
-  const { cart, updateQuantity, clearCart, addToCart, removeFromCart, loading: cartLoading } = useCart();
+  const { cart, updateQuantity, clearCart, addToCart, removeFromCart, refreshCart, loading: cartLoading } = useCart();
   const { addOrder } = useOrders();
   const { location: userLocation } = useLocationContext();
   const { showToast: showGlobalToast } = useToast();
@@ -45,6 +45,13 @@ export default function Checkout() {
   const [showPartyPopper, setShowPartyPopper] = useState(false);
   const [hasAppliedCouponBefore, setHasAppliedCouponBefore] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
+
+  // Refresh cart delivery fee when selected address changes
+  useEffect(() => {
+    if (selectedAddress?.latitude && selectedAddress?.longitude) {
+      refreshCart(selectedAddress.latitude, selectedAddress.longitude);
+    }
+  }, [selectedAddress]);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<ApiCoupon[]>([]);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -202,8 +209,12 @@ export default function Checkout() {
     }, 0)
   };
 
-  const amountNeededForFreeDelivery = Math.max(0, appConfig.freeDeliveryThreshold - (displayCart.total || 0));
+  const freeDeliveryThreshold = cart.freeDeliveryThreshold ?? appConfig.freeDeliveryThreshold;
+  const amountNeededForFreeDelivery = Math.max(0, freeDeliveryThreshold - (displayCart.total || 0));
   const cartItem = displayItems[0];
+
+  /* DEBUG: Display Backend Configuration */
+  const dbgConfig = (cart as any).debug_config;
 
   const itemsTotal = displayItems.reduce((sum, item) => {
     if (!item?.product) return sum;
@@ -213,8 +224,12 @@ export default function Checkout() {
 
   const discountedTotal = displayCart.total;
   const savedAmount = itemsTotal - discountedTotal;
-  const handlingCharge = appConfig.platformFee;
-  const deliveryCharge = displayCart.total >= appConfig.freeDeliveryThreshold ? 0 : appConfig.deliveryFee;
+  const handlingCharge = cart.platformFee ?? appConfig.platformFee;
+
+  // Use dynamic delivery fee if available (and valid), otherwise fallback to static config
+  const deliveryCharge = (displayCart.estimatedDeliveryFee !== undefined)
+    ? displayCart.estimatedDeliveryFee
+    : (displayCart.total >= freeDeliveryThreshold ? 0 : appConfig.deliveryFee);
 
   // Recalculate or use validated discount
   // If we have a selected coupon, we should re-validate if cart total changes,
@@ -484,6 +499,7 @@ export default function Checkout() {
       className="bg-white min-h-screen flex flex-col opacity-100"
       style={{ opacity: 1, height: '1250px' }}
     >
+
 
       {/* Party Popper Animation */}
       <PartyPopper
@@ -1285,9 +1301,7 @@ export default function Checkout() {
                 {deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}
               </span>
               {deliveryCharge > 0 && (
-                <span className="text-[10px] text-orange-600 mt-0.5">
-                  Shop for ₹{Math.max(0, appConfig.freeDeliveryThreshold - displayCart.total)} more to get FREE delivery
-                </span>
+                null
               )}
             </div>
           </div>

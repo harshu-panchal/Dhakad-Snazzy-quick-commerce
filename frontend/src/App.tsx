@@ -106,7 +106,7 @@ const AdminManageSellerList = lazy(() => import("./modules/admin/pages/AdminMana
 const AdminCoupon = lazy(() => import("./modules/admin/pages/AdminCoupon"));
 const AdminNotification = lazy(() => import("./modules/admin/pages/AdminNotification"));
 const AdminSellerLocation = lazy(() => import("./modules/admin/pages/AdminSellerLocation"));
-const AdminWallet = lazy(() => import("./modules/admin/pages/AdminWallet"));
+
 const AdminManageDeliveryBoy = lazy(() => import("./modules/admin/pages/AdminManageDeliveryBoy"));
 const AdminFundTransfer = lazy(() => import("./modules/admin/pages/AdminFundTransfer"));
 const AdminCashCollection = lazy(() => import("./modules/admin/pages/AdminCashCollection"));
@@ -135,9 +135,11 @@ const AdminOrders = lazy(() => import("./modules/admin/pages/AdminOrders"));
 const AdminOrderDetail = lazy(() => import("./modules/admin/pages/AdminOrderDetail"));
 const AdminManageCustomer = lazy(() => import("./modules/admin/pages/AdminManageCustomer"));
 const AdminProfile = lazy(() => import("./modules/admin/pages/AdminProfile"));
-const AdminCommissionSettings = lazy(() => import("./modules/admin/pages/AdminCommissionSettings"));
+
 const AdminWithdrawals = lazy(() => import("./modules/admin/pages/AdminWithdrawals"));
 const AdminPayments = lazy(() => import("./modules/admin/pages/AdminPayments"));
+const AdminWallet = lazy(() => import("./modules/admin/pages/AdminWallet"));
+const AdminBillingSettings = lazy(() => import("./modules/admin/pages/AdminBillingSettings"));
 
 function App() {
   // Initialize push notifications on app load
@@ -316,7 +318,7 @@ function App() {
                                       <Route path="delivery-boy/fund-transfer" element={<AdminFundTransfer />} />
                                       <Route path="delivery-boy/cash-collection" element={<AdminCashCollection />} />
                                       <Route path="manage-location/seller-location" element={<AdminSellerLocation />} />
-                                      <Route path="wallet" element={<AdminWallet />} />
+
                                       <Route path="coupon" element={<AdminCoupon />} />
                                       <Route path="return" element={<AdminReturnRequest />} />
                                       <Route path="notification" element={<AdminNotification />} />
@@ -344,9 +346,11 @@ function App() {
                                       <Route path="orders/delivered" element={<AdminDeliveredOrders />} />
                                       <Route path="orders/cancelled" element={<AdminCancelledOrders />} />
                                       <Route path="orders/:id" element={<AdminOrderDetail />} />
-                                      <Route path="commissions" element={<AdminCommissionSettings />} />
+
                                       <Route path="withdrawals" element={<AdminWithdrawals />} />
                                       <Route path="payments" element={<AdminPayments />} />
+                                      <Route path="wallet" element={<AdminWallet />} />
+                                      <Route path="billing-settings" element={<AdminBillingSettings />} />
                                     </Routes>
                                   </AdminLayout>
                                 </Suspense>

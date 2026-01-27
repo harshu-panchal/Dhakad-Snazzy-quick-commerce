@@ -25,6 +25,7 @@ export interface Category {
   };
   createdAt?: string;
   updatedAt?: string;
+  commissionRate?: number;
 }
 
 export interface CreateCategoryData {
@@ -37,9 +38,10 @@ export interface CreateCategoryData {
   parentId?: string | null;
   headerCategoryId?: string | null;
   status?: "Active" | "Inactive";
+  commissionRate?: number;
 }
 
-export interface UpdateCategoryData extends Partial<CreateCategoryData> {}
+export interface UpdateCategoryData extends Partial<CreateCategoryData> { }
 
 export interface BulkDeleteData {
   categoryIds: string[];
@@ -67,6 +69,7 @@ export interface SubCategory {
   totalProduct?: number; // Total products in this subcategory
   createdAt?: string;
   updatedAt?: string;
+  commissionRate?: number;
 }
 
 export interface CreateSubCategoryData {
@@ -74,6 +77,7 @@ export interface CreateSubCategoryData {
   category: string;
   image?: string;
   order?: number;
+  commissionRate?: number;
 }
 
 // ==================== Seller Interfaces ====================

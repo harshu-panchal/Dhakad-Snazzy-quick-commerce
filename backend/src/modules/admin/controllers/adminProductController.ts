@@ -125,6 +125,7 @@ export const createCategory = asyncHandler(
       groupCategory,
       parentId: parentId || null,
       headerCategoryId: finalHeaderCategoryId || null,
+      commissionRate: req.body.commissionRate || 0,
       status,
     });
 
@@ -570,6 +571,7 @@ export const createSubCategory = asyncHandler(
       category,
       image,
       order: order || 0,
+      commissionRate: req.body.commissionRate || 0,
     });
 
     // Update category subcategory count
@@ -1124,9 +1126,8 @@ export const approveProductRequest = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: `Product ${
-        status === "Active" ? "approved" : "rejected"
-      } successfully`,
+      message: `Product ${status === "Active" ? "approved" : "rejected"
+        } successfully`,
       data: product,
     });
   }

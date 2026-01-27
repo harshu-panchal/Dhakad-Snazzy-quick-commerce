@@ -332,5 +332,10 @@ SellerSchema.index({ status: 1 }); // Compound index for status + location queri
 
 const Seller = mongoose.models.Seller || mongoose.model<ISeller>('Seller', SellerSchema);
 
+// Register Alias for refPath 'SELLER'
+if (!mongoose.models.SELLER) {
+  mongoose.model('SELLER', SellerSchema, 'sellers');
+}
+
 export default Seller;
 

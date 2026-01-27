@@ -5,12 +5,45 @@ import CartItem from '../../../models/CartItem';
 import Product from '../../../models/Product';
 import { findSellersWithinRange } from '../../../utils/locationHelper';
 import mongoose from 'mongoose';
+import AppSettings from '../../../models/AppSettings';
+import { getRoadDistances } from '../../../services/mapService';
+import Seller from '../../../models/Seller';
+
+// Helper to calculate item price matching frontend logic
+const calculateItemPrice = (product: any, variationSelector: any) => {
+    let variation = null;
+    let variationId = variationSelector;
+
+    // Handle if variationSelector is an object (some implementations store it differently)
+    if (variationSelector && typeof variationSelector === 'object' && variationSelector._id) {
+        variationId = variationSelector._id;
+    }
+
+    if (variationId && product.variations?.length) {
+        variation = product.variations.find((v: any) =>
+            (v._id && v._id.toString() === variationId.toString()) ||
+            (v.id && v.id === variationId)
+        );
+    }
+
+    let finalPrice = variation?.price || product.price || 0;
+
+    // Priority: Variation Discount -> Product Discount -> Variation Price -> Product Price
+    if (variation?.discPrice && variation.discPrice > 0) {
+        finalPrice = variation.discPrice;
+    } else if (product.discPrice && product.discPrice > 0) {
+        finalPrice = product.discPrice;
+    }
+
+    console.log(`[DEBUG Price] VarId: ${variationId}, Found: ${!!variation}, ProdDisc: ${product.discPrice}, Final: ${finalPrice}`);
+    return finalPrice;
+};
 
 // Helper to calculate cart total with location filtering
 const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.ObjectId[] = []) => {
     const items = await CartItem.find({ cart: cartId }).populate({
         path: 'product',
-        select: 'price seller status publish'
+        select: 'price discPrice variations seller status publish productName'
     });
 
     let total = 0;
@@ -20,11 +53,89 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
             // Check if seller is in range
             const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
             if (isAvailable) {
-                total += product.price * item.quantity;
+                const price = calculateItemPrice(product, item.variation);
+                total += price * item.quantity;
             }
         }
     }
     return total;
+};
+
+// Helper to calculate delivery fee
+const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null) => {
+    let estimatedDeliveryFee = 0;
+    let platformFee = 0;
+    let freeDeliveryThreshold = 0;
+
+    try {
+        const settings = await AppSettings.getSettings();
+        platformFee = settings.platformFee || 0;
+        freeDeliveryThreshold = settings.freeDeliveryThreshold || 0;
+
+        // Check free delivery threshold
+        if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
+            estimatedDeliveryFee = 0;
+        } else if (settings) {
+            // If distance based is enabled
+            if (settings.deliveryConfig?.isDistanceBased === true) {
+                const config = settings.deliveryConfig;
+                // Default to base charge to ensure we don't accidentally give free delivery
+                estimatedDeliveryFee = config.baseCharge || 0;
+
+                if (userLat && userLng) {
+                    // Get all sellers involved in the cart
+                    const sellerIds = new Set<string>();
+                    items.forEach((item: any) => {
+                        if (item.product?.seller) {
+                            sellerIds.add(item.product.seller.toString());
+                        }
+                    });
+
+                    if (sellerIds.size > 0) {
+                        const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
+                        const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+
+                        const sellerLocations: { lat: number; lng: number }[] = [];
+                        sellers.forEach(seller => {
+                            let lat, lng;
+                            if (seller.location?.coordinates?.length === 2) {
+                                lng = seller.location.coordinates[0];
+                                lat = seller.location.coordinates[1];
+                            } else if (seller.latitude && seller.longitude) {
+                                lat = parseFloat(seller.latitude);
+                                lng = parseFloat(seller.longitude);
+                            }
+                            if (lat && lng) sellerLocations.push({ lat, lng });
+                        });
+
+                        if (sellerLocations.length > 0) {
+                            const distances = await getRoadDistances(
+                                sellerLocations,
+                                { lat: userLat, lng: userLng },
+                                config.googleMapsKey
+                            );
+
+                            if (distances && distances.length > 0) {
+                                const maxDistance = Math.max(...distances);
+                                const extraKm = Math.max(0, maxDistance - config.baseDistance);
+                                estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Fixed charge
+                estimatedDeliveryFee = settings.deliveryCharges || 0;
+            }
+        }
+    } catch (err) {
+        console.error("Error calculating delivery stuff:", err);
+    }
+    return {
+        estimatedDeliveryFee,
+        platformFee,
+        freeDeliveryThreshold
+    };
 };
 
 // Get current user's cart
@@ -71,7 +182,9 @@ export const getCart = async (req: Request, res: Response) => {
                 const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
                 if (isAvailable) {
                     filteredItems.push(item);
-                    total += product.price * item.quantity;
+                    const price = calculateItemPrice(product, item.variation);
+                    total += price * item.quantity;
+                    console.log(`[DEBUG CartLoop] Item: ${product.productName}, Price: ${price}, Qty: ${item.quantity}, RunningTotal: ${total}`);
                 }
             }
         }
@@ -82,12 +195,16 @@ export const getCart = async (req: Request, res: Response) => {
             await cart.save();
         }
 
+        // Calculate fees
+        const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng);
+
         return res.status(200).json({
             success: true,
             data: {
                 ...cart.toObject(),
                 items: filteredItems,
-                total
+                total,
+                ...fees
             }
         });
     } catch (error: any) {
@@ -130,7 +247,7 @@ export const addToCart = async (req: Request, res: Response) => {
         // Check if seller's shop is open
         const seller = product.seller as any;
         if (seller && seller.isShopOpen === false) {
-             return res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Seller is not available at this moment'
             });
@@ -192,16 +309,19 @@ export const addToCart = async (req: Request, res: Response) => {
             return prod && nearbySellerIds.some(id => id.toString() === prod.seller.toString());
         });
 
+        // Calculate fees
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+
         return res.status(200).json({
             success: true,
             message: 'Item added to cart',
             data: {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
-                total: cart.total
+                total: cart.total,
+                ...fees
             }
         });
-
     } catch (error: any) {
         return res.status(500).json({
             success: false,
@@ -276,13 +396,17 @@ export const updateCartItem = async (req: Request, res: Response) => {
             return prod && nearbySellerIds.some(id => id.toString() === prod.seller.toString());
         });
 
+        // Calculate fees
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+
         return res.status(200).json({
             success: true,
             message: 'Cart updated',
             data: {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
-                total: cart.total
+                total: cart.total,
+                ...fees
             }
         });
     } catch (error: any) {
@@ -340,13 +464,17 @@ export const removeFromCart = async (req: Request, res: Response) => {
             return true; // If no location provided for removal, just return all (though getCart will filter)
         });
 
+        // Calculate fees
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+
         return res.status(200).json({
             success: true,
             message: 'Item removed from cart',
             data: {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
-                total: cart.total
+                total: cart.total,
+                ...fees
             }
         });
     } catch (error: any) {

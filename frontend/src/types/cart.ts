@@ -8,7 +8,11 @@ export interface CartItem {
 
 export interface Cart {
   items: CartItem[];
+  totalItemCount?: number;
+  itemCount?: number;
   total: number;
-  itemCount: number;
+  estimatedDeliveryFee?: number;
+  platformFee?: number;
+  freeDeliveryThreshold?: number;
+  debug_config?: any;
 }
-

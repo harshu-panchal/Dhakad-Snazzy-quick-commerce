@@ -10,6 +10,9 @@ import mongoose from 'mongoose';
 /**
  * Get commission rate for a seller
  */
+/**
+ * Get commission rate for a seller
+ */
 export const getSellerCommissionRate = async (
     sellerId: string
 ): Promise<number> => {
@@ -19,13 +22,12 @@ export const getSellerCommissionRate = async (
             throw new Error('Seller not found');
         }
 
-        // Use individual rate if set, otherwise use global rate
+        // Use individual rate if set, otherwise use global default
         if (seller.commissionRate !== undefined && seller.commissionRate !== null) {
             return seller.commissionRate;
         }
 
-        const settings = await AppSettings.findOne();
-        return settings?.sellerCommissionRate || 10; // Default 10%
+        return 10; // Default 10%
     } catch (error) {
         console.error('Error getting seller commission rate:', error);
         return 10; // Default fallback
@@ -44,13 +46,12 @@ export const getDeliveryBoyCommissionRate = async (
             throw new Error('Delivery boy not found');
         }
 
-        // Use individual rate if set, otherwise use global rate
+        // Use individual rate if set, otherwise use global default
         if (deliveryBoy.commissionRate !== undefined && deliveryBoy.commissionRate !== null) {
             return deliveryBoy.commissionRate;
         }
 
-        const settings = await AppSettings.findOne();
-        return settings?.deliveryBoyCommissionRate || 5; // Default 5%
+        return 5; // Default 5%
     } catch (error) {
         console.error('Error getting delivery boy commission rate:', error);
         return 5; // Default fallback
@@ -117,17 +118,43 @@ export const calculateOrderCommissions = async (orderId: string) => {
             })
         );
 
-        // Calculate delivery boy commission (on order subtotal)
+        // Calculate delivery boy commission (on order subtotal OR distance based)
         if (order.deliveryBoy) {
             const deliveryBoyId = order.deliveryBoy.toString();
-            const commissionRate = await getDeliveryBoyCommissionRate(deliveryBoyId);
-            const commissionAmount = (order.subtotal * commissionRate) / 100;
+
+            // Check for distance based commission
+            let commissionAmount = 0;
+            let commissionRate = 0;
+            let usedDistanceBased = false;
+
+            try {
+                const settings = await AppSettings.getSettings();
+                if (settings &&
+                    settings.deliveryConfig?.isDistanceBased === true &&
+                    settings.deliveryConfig?.deliveryBoyKmRate &&
+                    order.deliveryDistanceKm &&
+                    order.deliveryDistanceKm > 0
+                ) {
+                    commissionRate = settings.deliveryConfig.deliveryBoyKmRate;
+                    commissionAmount = order.deliveryDistanceKm * commissionRate;
+                    usedDistanceBased = true;
+                    console.log(`DEBUG: Distance Commission: Dist=${order.deliveryDistanceKm}km, Rate=${commissionRate}/km, Amt=${commissionAmount}`);
+                }
+            } catch (err) {
+                console.error("Error checking settings for commission:", err);
+            }
+
+            if (!usedDistanceBased) {
+                // Fallback to percentage based logic
+                commissionRate = await getDeliveryBoyCommissionRate(deliveryBoyId);
+                commissionAmount = (order.subtotal * commissionRate) / 100;
+            }
 
             commissions.deliveryBoy = {
                 deliveryBoyId,
-                amount: commissionAmount,
+                amount: Math.round(commissionAmount * 100) / 100, // Round to 2 decimals
                 rate: commissionRate,
-                orderAmount: order.subtotal,
+                orderAmount: usedDistanceBased ? (order.deliveryDistanceKm || 0) : order.subtotal,
             };
         }
 

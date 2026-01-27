@@ -303,6 +303,7 @@ export default function AdminSubCategory() {
               />
             </div>
 
+            {/* Commission Rate - Input Removed as only SubSubCategory allows this now */}
             {/* SubCategory Image */}
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -363,8 +364,8 @@ export default function AdminSubCategory() {
               onClick={handleAddSubCategory}
               disabled={uploading}
               className={`w-full py-2.5 rounded text-sm font-medium transition-colors ${uploading
-                  ? "bg-neutral-400 cursor-not-allowed text-white"
-                  : "bg-teal-600 hover:bg-teal-700 text-white"
+                ? "bg-neutral-400 cursor-not-allowed text-white"
+                : "bg-teal-600 hover:bg-teal-700 text-white"
                 }`}>
               {uploading
                 ? "Saving..."
@@ -686,8 +687,8 @@ export default function AdminSubCategory() {
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === 1
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Previous page">
                 <svg
@@ -711,8 +712,8 @@ export default function AdminSubCategory() {
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     className={`px-3 py-1 border border-neutral-300 rounded text-sm ${currentPage === page
-                        ? "bg-teal-600 text-white border-teal-600"
-                        : "text-neutral-700 hover:bg-neutral-50"
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "text-neutral-700 hover:bg-neutral-50"
                       }`}>
                     {page}
                   </button>
@@ -724,8 +725,8 @@ export default function AdminSubCategory() {
                 }
                 disabled={currentPage === totalPages || totalPages === 0}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === totalPages || totalPages === 0
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Next page">
                 <svg

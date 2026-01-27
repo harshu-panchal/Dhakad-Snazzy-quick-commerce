@@ -48,15 +48,21 @@ export interface IAppSettings extends Document {
     enabled: boolean;
   };
 
-  // Commission Settings
-  defaultCommission: number;
-  sellerCommissionRate: number; // Percentage commission for sellers
-  deliveryBoyCommissionRate: number; // Percentage commission for delivery boys
-  minimumWithdrawalAmount: number; // Minimum amount required for withdrawal
+  // Commission Settings - REMOVED
+
 
   // Delivery Settings
+  platformFee?: number;
   deliveryCharges: number;
   freeDeliveryThreshold?: number;
+  deliveryConfig?: {
+    isDistanceBased: boolean;
+    googleMapsKey?: string;
+    baseCharge: number;
+    baseDistance: number;
+    kmRate: number;
+    deliveryBoyKmRate?: number;
+  };
 
   // Tax Settings
   gstEnabled: boolean;
@@ -226,32 +232,15 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       },
     },
 
-    // Commission Settings
-    defaultCommission: {
-      type: Number,
-      default: 10,
-      min: [0, "Commission cannot be negative"],
-      max: [100, "Commission cannot exceed 100%"],
-    },
-    sellerCommissionRate: {
-      type: Number,
-      default: 10,
-      min: [0, "Seller commission rate cannot be negative"],
-      max: [100, "Seller commission rate cannot exceed 100%"],
-    },
-    deliveryBoyCommissionRate: {
-      type: Number,
-      default: 5,
-      min: [0, "Delivery boy commission rate cannot be negative"],
-      max: [100, "Delivery boy commission rate cannot exceed 100%"],
-    },
-    minimumWithdrawalAmount: {
-      type: Number,
-      default: 100,
-      min: [0, "Minimum withdrawal amount cannot be negative"],
-    },
+    // Commission Settings - REMOVED
+
 
     // Delivery Settings
+    platformFee: {
+      type: Number,
+      default: 2,
+      min: [0, "Platform fee cannot be negative"],
+    },
     deliveryCharges: {
       type: Number,
       default: 0,
@@ -261,7 +250,14 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: Number,
       min: [0, "Free delivery threshold cannot be negative"],
     },
-
+    deliveryConfig: {
+      isDistanceBased: { type: Boolean, default: false },
+      googleMapsKey: { type: String, trim: true },
+      baseCharge: { type: Number, default: 0 },
+      baseDistance: { type: Number, default: 0 },
+      kmRate: { type: Number, default: 0 },
+      deliveryBoyKmRate: { type: Number, default: 0 },
+    },
     // Tax Settings
     gstEnabled: {
       type: Boolean,

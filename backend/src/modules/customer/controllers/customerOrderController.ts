@@ -8,6 +8,8 @@ import mongoose from "mongoose";
 import { calculateDistance } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
+import AppSettings from "../../../models/AppSettings";
+import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
 
 // Create a new order
@@ -210,7 +212,7 @@ export const createOrder = async (req: Request, res: Response) => {
                     // Product has variations, but we didn't match one.
                     // If a variation was provided, it means that specific variation is out of stock.
                     if (variationValue) {
-                         throw new Error(`Insufficient stock for variation: ${variationValue}`);
+                        throw new Error(`Insufficient stock for variation: ${variationValue}`);
                     }
 
                     // No variation was provided, but the product has them.
@@ -239,12 +241,12 @@ export const createOrder = async (req: Request, res: Response) => {
                             { _id: item.product.id, stock: { $gte: qty } },
                             { $inc: { stock: -qty } },
                             { session, new: true }
-                          )
+                        )
                         : await Product.findOneAndUpdate(
                             { _id: item.product.id, stock: { $gte: qty } },
                             { $inc: { stock: -qty } },
                             { new: true }
-                          );
+                        );
                 }
             }
 
@@ -260,23 +262,23 @@ export const createOrder = async (req: Request, res: Response) => {
             // Determine the price based on variation and discounts
             let selectedVariation;
             if (variationValue && product.variations) {
-                 selectedVariation = product.variations.find((v: any) =>
-                     (v._id && v._id.toString() === variationValue) ||
-                     v.value === variationValue ||
-                     v.title === variationValue ||
-                     v.pack === variationValue
-                 );
+                selectedVariation = product.variations.find((v: any) =>
+                    (v._id && v._id.toString() === variationValue) ||
+                    v.value === variationValue ||
+                    v.title === variationValue ||
+                    v.pack === variationValue
+                );
             }
             if (!selectedVariation && product.variations && product.variations.length > 0) {
-                 // Fallback to first if no variation spec or not found (consistent with stock fallback)
-                 selectedVariation = product.variations[0];
+                // Fallback to first if no variation spec or not found (consistent with stock fallback)
+                selectedVariation = product.variations[0];
             }
 
             const itemPrice = (selectedVariation?.discPrice && selectedVariation.discPrice > 0)
                 ? selectedVariation.discPrice
                 : (product.discPrice && product.discPrice > 0)
-                ? product.discPrice
-                : (selectedVariation?.price || product.price || 0);
+                    ? product.discPrice
+                    : (selectedVariation?.price || product.price || 0);
             const itemTotal = itemPrice * qty;
             calculatedSubtotal += itemTotal;
 
@@ -341,14 +343,73 @@ export const createOrder = async (req: Request, res: Response) => {
         }
 
         // Apply fees
-        const platformFee = Number(fees?.platformFee) || 0;
-        const deliveryFee = Number(fees?.deliveryFee) || 0;
+        let platformFee = Number(fees?.platformFee) || 0;
+        let deliveryFee = Number(fees?.deliveryFee) || 0;
+        let deliveryDistanceKm = 0;
+
+        // --- Distance-Based Delivery Charge Calculation ---
+        try {
+            const settings = await AppSettings.getSettings();
+
+            // Only recalculate if enabled in settings
+            if (settings && settings.deliveryConfig?.isDistanceBased === true) {
+                const config = settings.deliveryConfig;
+
+                // Collect seller locations
+                const sellerLocations: { lat: number; lng: number }[] = [];
+                const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
+                const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude storeName');
+
+                sellers.forEach(seller => {
+                    let lat, lng;
+                    if (seller.location?.coordinates?.length === 2) {
+                        lng = seller.location.coordinates[0];
+                        lat = seller.location.coordinates[1];
+                    } else if (seller.latitude && seller.longitude) {
+                        lat = parseFloat(seller.latitude);
+                        lng = parseFloat(seller.longitude);
+                    }
+
+                    if (lat && lng) {
+                        sellerLocations.push({ lat, lng });
+                    }
+                });
+
+                if (sellerLocations.length > 0 && deliveryLat && deliveryLng) {
+                    // Get distances (Road or Air based on API Key presence)
+                    const distances = await getRoadDistances(
+                        sellerLocations,
+                        { lat: deliveryLat, lng: deliveryLng },
+                        config.googleMapsKey
+                    );
+
+                    // Take the maximum distance (furthest seller)
+                    deliveryDistanceKm = Math.max(...distances);
+
+                    // Calculate Fee
+                    // Formula: BaseCharge + (Max(0, Distance - BaseDistance) * KmRate)
+                    const extraKm = Math.max(0, deliveryDistanceKm - config.baseDistance);
+                    const calculatedDeliveryFee = config.baseCharge + (extraKm * config.kmRate);
+
+                    // Override the delivery fee
+                    deliveryFee = Math.ceil(calculatedDeliveryFee);
+
+                    console.log(`DEBUG: Distance Calculation: MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`);
+                }
+            }
+        } catch (calcError) {
+            console.error("Error calculating distance-based delivery fee:", calcError);
+            // Fallback to provided fee or 0
+        }
+
         const finalTotal = calculatedSubtotal + platformFee + deliveryFee;
 
         // Update Order with calculated values and items
         newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
         newOrder.total = Number(finalTotal.toFixed(2));
         newOrder.items = orderItemIds;
+        newOrder.shipping = deliveryFee; // Update with calculated fee
+        newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
 
 
         if (session) {
@@ -610,8 +671,8 @@ export const cancelOrder = async (req: Request, res: Response) => {
             session = await mongoose.startSession();
             session.startTransaction();
         } catch (sessionError) {
-             console.warn("MongoDB Transactions not supported or failed to start. Proceeding without transaction.");
-             session = null;
+            console.warn("MongoDB Transactions not supported or failed to start. Proceeding without transaction.");
+            session = null;
         }
 
         const order = session
@@ -619,12 +680,12 @@ export const cancelOrder = async (req: Request, res: Response) => {
             : await Order.findOne({ _id: id, customer: userId });
 
         if (!order) {
-            if(session) await session.abortTransaction();
+            if (session) await session.abortTransaction();
             return res.status(404).json({ success: false, message: "Order not found" });
         }
 
         if (['Delivered', 'Cancelled', 'Returned', 'Rejected', 'Out for Delivery', 'Shipped'].includes(order.status)) {
-             if(session) await session.abortTransaction();
+            if (session) await session.abortTransaction();
             return res.status(400).json({
                 success: false,
                 message: `Order cannot be cancelled as it is already ${order.status}`
@@ -633,45 +694,45 @@ export const cancelOrder = async (req: Request, res: Response) => {
 
         // Restore stock
         for (const item of order.items) {
-             const orderItem = session
+            const orderItem = session
                 ? await OrderItem.findById(item).session(session)
                 : await OrderItem.findById(item);
 
-             if (orderItem) {
-                 const product = session
+            if (orderItem) {
+                const product = session
                     ? await Product.findById(orderItem.product).session(session)
                     : await Product.findById(orderItem.product);
 
-                 if (product) {
-                     // Check if it was a variation
-                     if (orderItem.variation) {
-                          // Try to find matching variation
-                          const variationIndex = product.variations?.findIndex((v: any) => v.value === orderItem.variation || v.title === orderItem.variation || v.pack === orderItem.variation);
+                if (product) {
+                    // Check if it was a variation
+                    if (orderItem.variation) {
+                        // Try to find matching variation
+                        const variationIndex = product.variations?.findIndex((v: any) => v.value === orderItem.variation || v.title === orderItem.variation || v.pack === orderItem.variation);
 
-                          if (variationIndex !== undefined && variationIndex !== -1 && product.variations) {
-                               product.variations[variationIndex].stock += orderItem.quantity;
-                          } else if (product.variations && product.variations.length > 0) {
-                               // Fallback to first variation if specific one not found (should be rare)
-                               product.variations[0].stock += orderItem.quantity;
-                          }
-                     }
+                        if (variationIndex !== undefined && variationIndex !== -1 && product.variations) {
+                            product.variations[variationIndex].stock += orderItem.quantity;
+                        } else if (product.variations && product.variations.length > 0) {
+                            // Fallback to first variation if specific one not found (should be rare)
+                            product.variations[0].stock += orderItem.quantity;
+                        }
+                    }
 
-                     // Helper: also increment main stock if variations are just attributes or if simple product
-                     product.stock += orderItem.quantity;
-                     if (session) {
+                    // Helper: also increment main stock if variations are just attributes or if simple product
+                    product.stock += orderItem.quantity;
+                    if (session) {
                         await product.save({ session });
-                     } else {
+                    } else {
                         await product.save();
-                     }
-                 }
+                    }
+                }
 
-                 orderItem.status = 'Cancelled';
-                 if (session) {
+                orderItem.status = 'Cancelled';
+                if (session) {
                     await orderItem.save({ session });
-                 } else {
+                } else {
                     await orderItem.save();
-                 }
-             }
+                }
+            }
         }
 
         order.status = 'Cancelled';
@@ -731,10 +792,10 @@ export const cancelOrder = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        if(session) {
+        if (session) {
             try {
                 await session.abortTransaction();
-            } catch (e) {}
+            } catch (e) { }
         }
         console.error('Error cancelling order:', error);
         return res.status(500).json({
@@ -781,7 +842,7 @@ export const updateOrderNotes = async (req: Request, res: Response) => {
             }
         });
     } catch (error: any) {
-         console.error('Error updating order notes:', error);
+        console.error('Error updating order notes:', error);
         return res.status(500).json({
             success: false,
             message: "Failed to update order notes",

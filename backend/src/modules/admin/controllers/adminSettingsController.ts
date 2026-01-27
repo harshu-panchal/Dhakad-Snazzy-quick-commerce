@@ -13,8 +13,8 @@ export const getAppSettings = asyncHandler(
     // Create default settings if none exist
     if (!settings) {
       settings = await AppSettings.create({
-          appName: "Dhakad Snazzy",
-          contactEmail: "contact@dhakadsnazzy.com",
+        appName: "Dhakad Snazzy",
+        contactEmail: "contact@dhakadsnazzy.com",
         contactPhone: "1234567890",
       });
     }
@@ -35,6 +35,8 @@ export const updateAppSettings = asyncHandler(
     const updateData = req.body;
     updateData.updatedBy = req.user?.userId;
 
+    console.log(`[DEBUG Settings] Incoming update payload:`, JSON.stringify(updateData.deliveryConfig, null, 2));
+
     let settings = await AppSettings.findOne();
 
     if (!settings) {
@@ -45,6 +47,8 @@ export const updateAppSettings = asyncHandler(
         runValidators: true,
       });
     }
+
+    console.log(`[DEBUG Settings] Updated settings:`, JSON.stringify(settings?.deliveryConfig, null, 2));
 
     return res.status(200).json({
       success: true,

@@ -1,6 +1,9 @@
 import Order from "../models/Order";
 import { IOrderItem } from "../models/OrderItem";
 import Inventory from "../models/Inventory";
+import Category from "../models/Category";
+import SubCategory from "../models/SubCategory";
+import Product from "../models/Product";
 import Commission from "../models/Commission";
 import Seller from "../models/Seller";
 import WalletTransaction from "../models/WalletTransaction";
@@ -103,9 +106,63 @@ const createCommissions = async (items: IOrderItem[]) => {
 
     if (!seller) continue;
 
-    const commissionRate = seller.commission || 0;
+    // Determine Commission Rate Priority:
+    // 1. SubSubCategory (Category Model)
+    // 2. SubCategory (SubCategory Model)
+    // 3. Category (Category Model)
+    // 4. Seller specific rate
+    // 5. Global Default (10%)
+
+    let commissionRate = 0;
+    let rateSource = "Default";
+
+    const product = await Product.findById(item.product);
+
+    if (product) {
+      // 1. Check SubSubCategory
+      if (product.subSubCategory) {
+        const subSubCat = await Category.findById(product.subSubCategory);
+        if (subSubCat && subSubCat.commissionRate && subSubCat.commissionRate > 0) {
+          commissionRate = subSubCat.commissionRate;
+          rateSource = `SubSubCategory: ${subSubCat.name}`;
+        }
+      }
+
+      // 2. Check SubCategory (only if not found yet)
+      if (commissionRate === 0 && product.subcategory) {
+        const subCat = await SubCategory.findById(product.subcategory);
+        if (subCat && subCat.commissionRate && subCat.commissionRate > 0) {
+          commissionRate = subCat.commissionRate;
+          rateSource = `SubCategory: ${subCat.name}`;
+        }
+      }
+
+      // 3. Check Category (only if not found yet)
+      if (commissionRate === 0 && product.category) {
+        const cat = await Category.findById(product.category);
+        if (cat && cat.commissionRate && cat.commissionRate > 0) {
+          commissionRate = cat.commissionRate;
+          rateSource = `Category: ${cat.name}`;
+        }
+      }
+    }
+
+    // 4. Check Seller specifc rate
+    if (commissionRate === 0 && seller.commission !== undefined && seller.commission > 0) {
+      commissionRate = seller.commission;
+      rateSource = "Seller";
+    }
+
+    // 5. Global Default (fallback if everything else is 0)
+    if (commissionRate === 0) {
+      commissionRate = 10; // Default 10%
+      rateSource = "Global Default";
+    }
+
     const commissionAmount = (item.total * commissionRate) / 100;
     const netEarning = item.total - commissionAmount;
+
+    console.log(`[Commission] Item: ${product?.productName}, Rate: ${commissionRate}% (${rateSource}), Amount: ${commissionAmount}`);
 
     // Create commission record
     await Commission.create({

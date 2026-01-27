@@ -27,6 +27,9 @@ import * as notificationController from "../modules/admin/controllers/adminNotif
 
 // Wallet Controllers
 import * as walletController from "../modules/admin/controllers/adminWalletController";
+import * as withdrawalController from "../modules/admin/controllers/adminWithdrawalController";
+
+
 
 // Tax Controllers
 import * as taxController from "../modules/admin/controllers/adminTaxController";
@@ -233,18 +236,19 @@ router.patch(
   notificationController.markMultipleAsRead
 ); // Legacy support
 
-// ==================== Wallet Routes ====================
+// ==================== Wallet & Withdrawal Routes ====================
+router.get("/financial/dashboard", walletController.getFinancialDashboard);
 router.get("/wallet/earnings", walletController.getAdminEarnings);
-router.get("/wallet/transactions", walletController.getWalletTransactions); // Platform Transactions
-router.get("/wallet/withdrawals", walletController.getWithdrawalRequests); // Withdrawal Requests List
-router.post("/wallet/withdrawal/process", walletController.processWithdrawal); // Approve/Reject
-router.post("/wallet/transfer", walletController.processFundTransfer); // Legacy/Future Use
-router.get("/wallet/seller/:sellerId", walletController.getSellerTransactions);
+router.get("/wallet/transactions", walletController.getWalletTransactions);
+router.get("/wallet/withdrawals", withdrawalController.getAllWithdrawals);
+router.post("/wallet/withdrawal/process", walletController.processWithdrawalWrapper);
 
-// ==================== Financial Dashboard Routes ====================
-router.get("/financial/dashboard", walletController.getFinancialDashboard); // Stats Cards
-router.get("/financial/order-transactions", walletController.getAllOrderTransactions);
-router.get("/financial/delivery-charges", walletController.getDeliveryChargesReport);
+// Direct withdrawal routes (if used elsewhere)
+router.put("/withdrawals/:id/approve", withdrawalController.approveWithdrawal);
+router.put("/withdrawals/:id/reject", withdrawalController.rejectWithdrawal);
+router.put("/withdrawals/:id/complete", withdrawalController.completeWithdrawal);
+
+
 
 // ==================== Tax Routes ====================
 router.get("/taxes", taxController.getTaxes);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Category,
   CreateCategoryData,
@@ -12,6 +12,7 @@ import {
 import {
   getAvailableParents,
   validateParentChange,
+  flattenCategoryTree,
 } from "../../../utils/categoryUtils";
 import {
   getHeaderCategoriesAdmin,
@@ -47,6 +48,7 @@ export default function CategoryFormModal({
     isBestseller: false,
     hasWarning: false,
     groupCategory: "",
+    commissionRate: 0,
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -61,10 +63,16 @@ export default function CategoryFormModal({
   const [loadingHeaderCategories, setLoadingHeaderCategories] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Flatten categories for search and parent selection
+  const flatCategories = useMemo(
+    () => flattenCategoryTree(allCategories),
+    [allCategories]
+  );
+
   // Get available parent categories
   const availableParents = getAvailableParents(
     category?._id || null,
-    allCategories
+    flatCategories
   );
 
   // Fetch header categories when modal opens
@@ -105,6 +113,7 @@ export default function CategoryFormModal({
           isBestseller: category.isBestseller || false,
           hasWarning: category.hasWarning || false,
           groupCategory: category.groupCategory || "",
+          commissionRate: category.commissionRate || 0,
         });
         if (category.image) {
           setImagePreview(category.image);
@@ -146,6 +155,7 @@ export default function CategoryFormModal({
           isBestseller: false,
           hasWarning: false,
           groupCategory: "",
+          commissionRate: 0,
         });
       } else {
         // Reset form for new category
@@ -159,6 +169,7 @@ export default function CategoryFormModal({
           isBestseller: false,
           hasWarning: false,
           groupCategory: "",
+          commissionRate: 0,
         });
       }
       setImageFile(null);
@@ -182,8 +193,8 @@ export default function CategoryFormModal({
         type === "checkbox"
           ? checked
           : type === "number"
-          ? parseInt(value) || 0
-          : value,
+            ? parseInt(value) || 0
+            : value,
     }));
 
     // Clear error for this field
@@ -308,7 +319,7 @@ export default function CategoryFormModal({
       const validation = validateParentChange(
         category._id,
         formData.parentId,
-        allCategories
+        flatCategories
       );
       if (!validation.valid) {
         newErrors.parentId = validation.error || "Invalid parent selection";
@@ -348,6 +359,7 @@ export default function CategoryFormModal({
         isBestseller: formData.isBestseller,
         hasWarning: formData.hasWarning,
         groupCategory: formData.groupCategory || undefined,
+        commissionRate: formData.commissionRate,
       };
 
       await onSubmit(submitData);
@@ -371,8 +383,8 @@ export default function CategoryFormModal({
     mode === "edit"
       ? "Edit Category"
       : mode === "create-subcategory"
-      ? "Create Subcategory"
-      : "Create Category";
+        ? "Create Subcategory"
+        : "Create Category";
 
   const isSubcategoryMode = mode === "create-subcategory";
   const isEditMode = mode === "edit";
@@ -441,9 +453,8 @@ export default function CategoryFormModal({
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-                errors.name ? "border-red-300" : "border-neutral-300"
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.name ? "border-red-300" : "border-neutral-300"
+                }`}
               placeholder="Enter category name"
               disabled={submitting}
             />
@@ -546,11 +557,10 @@ export default function CategoryFormModal({
                           headerCategoryId: e.target.value || null,
                         }))
                       }
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-                        errors.headerCategoryId
-                          ? "border-red-300"
-                          : "border-neutral-300"
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.headerCategoryId
+                        ? "border-red-300"
+                        : "border-neutral-300"
+                        }`}
                       disabled={submitting}>
                       <option value="">
                         {mode === "edit" && !category?.headerCategoryId
@@ -580,11 +590,10 @@ export default function CategoryFormModal({
               Category Image
             </label>
             <label
-              className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                isDragging
-                  ? "border-teal-500 bg-teal-50"
-                  : "border-neutral-300 hover:border-teal-500"
-              }`}
+              className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${isDragging
+                ? "border-teal-500 bg-teal-50"
+                : "border-neutral-300 hover:border-teal-500"
+                }`}
               onDragEnter={handleDragEnter}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
@@ -659,9 +668,8 @@ export default function CategoryFormModal({
                     parentId: e.target.value || null,
                   }))
                 }
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-                  errors.parentId ? "border-red-300" : "border-neutral-300"
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.parentId ? "border-red-300" : "border-neutral-300"
+                  }`}
                 disabled={submitting}>
                 <option value="">None (Root Category)</option>
                 {availableParents.map((parent) => (
@@ -687,15 +695,82 @@ export default function CategoryFormModal({
               value={formData.order}
               onChange={handleInputChange}
               min="0"
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${
-                errors.order ? "border-red-300" : "border-neutral-300"
-              }`}
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.order ? "border-red-300" : "border-neutral-300"
+                }`}
               disabled={submitting}
             />
             {errors.order && (
               <p className="mt-1 text-sm text-red-600">{errors.order}</p>
             )}
           </div>
+
+          {/* Commission Rate - Only for SubSubCategories (Level 3) */}
+          {(() => {
+            // Logic to determine if we should show commission rate (Level 3+ only)
+
+            // 1. If in subcategory creation mode
+            if (isSubcategoryMode && parentCategory) {
+              // Check if the parent ITSELF has a parent (meaning parent is L2, so new one is L3)
+              // We need to check parentCategory.parentId or similar
+              // parentCategory is type Category, so it has parentId
+              // If parentCategory.parentId is truthy, then parent is NOT root.
+              return parentCategory.parentId ? true : false;
+            }
+
+            // 2. If editing existing category
+            if (mode === 'edit' && category) {
+              // We need to know if category is L3.
+              // We can check if parent exists, and if that parent has a parent.
+              // However, we only have parentId string readily available in formData.
+              // We can try to find the parent in flatCategories (which contains all levels).
+              if (formData.parentId) {
+                const parent = flatCategories.find(c => c._id === formData.parentId);
+                // If parent exists and parent also has a parentId, then current is L3+
+                if (parent && parent.parentId) {
+                  return true;
+                }
+              }
+              return false;
+            }
+
+            // 3. creating new category (not sub mode) but with parent selected
+            if (mode === 'create' && formData.parentId) {
+              const parent = flatCategories.find(c => c._id === formData.parentId);
+              if (parent && parent.parentId) {
+                return true;
+              }
+            }
+
+            return false;
+          })() && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Commission Rate (%)
+                </label>
+                <input
+                  type="number"
+                  name="commissionRate"
+                  value={formData.commissionRate}
+                  onChange={handleInputChange}
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 ${errors.commissionRate
+                    ? "border-red-300"
+                    : "border-neutral-300"
+                    }`}
+                  disabled={submitting}
+                />
+                <p className="mt-1 text-xs text-neutral-500">
+                  Override default commission rate for this category (0 = use default)
+                </p>
+                {errors.commissionRate && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.commissionRate}
+                  </p>
+                )}
+              </div>
+            )}
 
           {/* Active Status */}
           <div className="mb-4">
@@ -731,9 +806,8 @@ export default function CategoryFormModal({
                 height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                className={`transform transition-transform ${
-                  showAdvanced ? "rotate-180" : ""
-                }`}>
+                className={`transform transition-transform ${showAdvanced ? "rotate-180" : ""
+                  }`}>
                 <path
                   d="M6 9l6 6 6-6"
                   stroke="currentColor"
@@ -811,18 +885,17 @@ export default function CategoryFormModal({
           <button
             onClick={handleSubmit}
             disabled={submitting || uploading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
-              submitting || uploading
-                ? "bg-neutral-400 cursor-not-allowed"
-                : "bg-teal-600 hover:bg-teal-700"
-            }`}>
+            className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${submitting || uploading
+              ? "bg-neutral-400 cursor-not-allowed"
+              : "bg-teal-600 hover:bg-teal-700"
+              }`}>
             {submitting
               ? "Saving..."
               : uploading
-              ? "Uploading..."
-              : isEditMode
-              ? "Update Category"
-              : "Create Category"}
+                ? "Uploading..."
+                : isEditMode
+                  ? "Update Category"
+                  : "Create Category"}
           </button>
         </div>
       </div>

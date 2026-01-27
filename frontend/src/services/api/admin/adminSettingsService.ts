@@ -74,7 +74,16 @@ export interface AppSettings {
   smsGateway?: SMSGatewaySettings;
   defaultCommission: number;
   deliveryCharges: number;
+  platformFee?: number;
   freeDeliveryThreshold?: number;
+  deliveryConfig?: {
+    isDistanceBased: boolean;
+    googleMapsKey?: string;
+    baseCharge: number;
+    baseDistance: number;
+    kmRate: number;
+    deliveryBoyKmRate?: number;
+  };
   gstEnabled: boolean;
   gstRate?: number;
   privacyPolicy?: string;

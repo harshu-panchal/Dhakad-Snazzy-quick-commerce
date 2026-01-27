@@ -5,6 +5,7 @@ export interface ISubCategory extends Document {
   category: mongoose.Types.ObjectId;
   image?: string;
   order: number;
+  commissionRate?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,12 @@ const SubCategorySchema = new Schema<ISubCategory>(
       type: Number,
       default: 0,
       min: [0, "Order cannot be negative"],
+    },
+    commissionRate: {
+      type: Number,
+      default: 0,
+      min: [0, "Commission rate cannot be negative"],
+      max: [100, "Commission rate cannot exceed 100%"],
     },
   },
   {

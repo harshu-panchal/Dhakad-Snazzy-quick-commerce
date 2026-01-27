@@ -417,25 +417,7 @@ const menuSections: MenuSection[] = [
   {
     title: "Miscellaneous",
     items: [
-      {
-        label: "Wallet",
-        path: "/admin/wallet",
-        icon: (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round">
-            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-            <line x1="1" y1="10" x2="23" y2="10"></line>
-            <path d="M7 14h.01M11 14h.01M15 14h.01M19 14h.01"></path>
-          </svg>
-        ),
-      },
+
       {
         label: "Users",
         path: "/admin/users",
@@ -475,24 +457,7 @@ const menuSections: MenuSection[] = [
           </svg>
         ),
       },
-      {
-        label: "Commission",
-        path: "/admin/commissions",
-        icon: (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round">
-            <line x1="12" y1="1" x2="12" y2="23"></line>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-        ),
-      },
+
 
       {
         label: "FAQ",
@@ -721,6 +686,30 @@ const menuSections: MenuSection[] = [
     ],
   },
   {
+    title: "Finance",
+    items: [
+      {
+        label: "Wallet & Earnings",
+        path: "/admin/wallet",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M20 7h-9a2 2 0 0 0-2 2v1m0 4v9a2 2 0 0 0 2 2h4" />
+            <path d="M19 13h1a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1" />
+            <path d="M6 7H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h15v4H6.5" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
     title: "Promotion",
     items: [
       {
@@ -821,6 +810,25 @@ const menuSections: MenuSection[] = [
   {
     title: "Setting",
     items: [
+      {
+        label: "Billing & Charges",
+        path: "/admin/billing-settings",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+            <line x1="2" y1="10" x2="22" y2="10"></line>
+            <line x1="12" y1="15" x2="12" y2="15"></line>
+          </svg>
+        ),
+      },
       {
         label: "Payment List",
         path: "/admin/payment-list",

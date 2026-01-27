@@ -230,5 +230,10 @@ DeliverySchema.methods.comparePassword = async function (
 
 const Delivery = mongoose.models.Delivery || mongoose.model<IDelivery>('Delivery', DeliverySchema);
 
+// Register Alias for refPath 'DELIVERY_BOY'
+if (!mongoose.models.DELIVERY_BOY) {
+  mongoose.model('DELIVERY_BOY', DeliverySchema, 'deliveries');
+}
+
 export default Delivery;
 

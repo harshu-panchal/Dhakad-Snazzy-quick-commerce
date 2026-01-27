@@ -26,6 +26,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshCart: (latitude?: number, longitude?: number) => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
 }
@@ -90,7 +91,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   // Helper to sync cart from API
-  const fetchCart = async () => {
+  const fetchCart = async (lat?: number, lng?: number) => {
     if (!isAuthenticated || user?.userType !== 'Customer') {
       // If we cleared it above but had things in localStorage, we keep them for guests?
       // For now, if logged out, we clear if it was an authenticated session.
@@ -101,14 +102,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      // Use provided coordinates or fallback to current location
+      const queryLat = lat !== undefined ? lat : location?.latitude;
+      const queryLng = lng !== undefined ? lng : location?.longitude;
+
       const response = await getCart({
-        latitude: location?.latitude,
-        longitude: location?.longitude
+        latitude: queryLat,
+        longitude: queryLng
       });
       if (response && response.data && response.data.items) {
         setItems(mapApiItemsToState(response.data.items));
+        setEstimatedFee(response.data.estimatedDeliveryFee);
+        setPlatformFee(response.data.platformFee);
+        setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+        (items as any).debug_config = response.data.debug_config; // Hack to pass it through
+        (items as any).backendTotal = response.data.backendTotal; // Hack to pass backend total
       } else {
         setItems([]);
+        setEstimatedFee(undefined);
+        setPlatformFee(undefined);
+        setFreeDeliveryThreshold(undefined);
       }
     } catch (error) {
       console.error("Failed to fetch cart:", error);
@@ -127,6 +140,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
 
+  // State for estimate delivery fee
+  const [estimatedFee, setEstimatedFee] = useState<number | undefined>(undefined);
+  const [platformFee, setPlatformFee] = useState<number | undefined>(undefined);
+  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | undefined>(undefined);
+
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
     const validItems = items.filter(item => item?.product);
@@ -135,8 +153,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return sum + displayPrice * (item.quantity || 0);
     }, 0);
     const itemCount = validItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
-    return { items: validItems, total, itemCount };
-  }, [items]);
+    return {
+      items: validItems,
+      total,
+      itemCount,
+      estimatedDeliveryFee: estimatedFee,
+      platformFee,
+      freeDeliveryThreshold,
+      freeDeliveryThreshold,
+      debug_config: (items as any).debug_config,
+      backendTotal: (items as any).backendTotal
+    };
+  }, [items, estimatedFee, platformFee, freeDeliveryThreshold]);
 
   const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
     // Get consistent product ID - MongoDB returns _id, frontend expects id
@@ -188,7 +216,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         // If both have variants, match by variant ID or title
         if (variantId || variantTitle) {
           return itemProductId === productId &&
-                 (itemVariantId === variantId || itemVariantTitle === variantTitle);
+            (itemVariantId === variantId || itemVariantTitle === variantTitle);
         }
         // If no variant, match by product ID only
         return itemProductId === productId && !itemVariantId && !itemVariantTitle;
@@ -228,6 +256,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (response && response.data && response.data.items) {
           // Atomic update from server response
           setItems(mapApiItemsToState(response.data.items));
+          setEstimatedFee(response.data.estimatedDeliveryFee);
+          setPlatformFee(response.data.platformFee);
+          setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         }
       } catch (error: any) {
         console.error("Add to cart failed", error);
@@ -269,6 +300,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
+          setEstimatedFee(response.data.estimatedDeliveryFee);
+          setPlatformFee(response.data.platformFee);
+          setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         }
       } catch (error) {
         console.error("Remove from cart failed", error);
@@ -353,6 +387,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
+          setEstimatedFee(response.data.estimatedDeliveryFee);
+          setPlatformFee(response.data.platformFee);
+          setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         }
       } catch (error) {
         console.error("Update quantity failed", error);
@@ -378,9 +415,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshCart = async (latitude?: number, longitude?: number) => {
+    await fetchCart(latitude, longitude);
+  };
+
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, lastAddEvent, loading }}
+      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, lastAddEvent, loading }}
     >
       {children}
     </CartContext.Provider>
