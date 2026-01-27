@@ -48,7 +48,8 @@ export interface IAppSettings extends Document {
     enabled: boolean;
   };
 
-  // Commission Settings - REMOVED
+  // Commission Settings
+  globalCommissionRate?: number;
 
 
   // Delivery Settings
@@ -242,7 +243,13 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       },
     },
 
-    // Commission Settings - REMOVED
+    // Commission Settings
+    globalCommissionRate: {
+      type: Number,
+      default: 10,
+      min: [0, "Commission rate cannot be negative"],
+      max: [100, "Commission rate cannot exceed 100%"],
+    },
 
 
     // Delivery Settings

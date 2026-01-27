@@ -30,7 +30,9 @@ export const getSellerCommissionRate = async (
             return seller.commissionRate;
         }
 
-        return 10; // Default 10%
+        const settings = await AppSettings.findOne();
+        // @ts-ignore
+        return (settings && settings.globalCommissionRate !== undefined) ? settings.globalCommissionRate : 10;
     } catch (error) {
         console.error('Error getting seller commission rate:', error);
         return 10; // Default fallback
@@ -253,31 +255,48 @@ export const createPendingCommissions = async (orderId: string) => {
 
             // 5. Global Default (fallback if everything else is 0)
             if (commissionRate === 0) {
-                commissionRate = 10; // Default 10%
-                rateSource = "Global Default";
+                // Fetch dynamic global rate from AppSettings
+                const settings = await AppSettings.findOne();
+                // @ts-ignore
+                commissionRate = (settings && settings.globalCommissionRate !== undefined) ? settings.globalCommissionRate : 10;
+                rateSource = "Global Default (Settings)";
             }
 
             const commissionAmount = (item.total * commissionRate) / 100;
+            const netEarning = item.total - commissionAmount;
 
-            console.log(`[Commission] Item: ${product?.productName}, Rate: ${commissionRate}% (${rateSource}), Amount: ${commissionAmount}`);
+            console.log(`[Commission] Item: ${product?.productName}, Rate: ${commissionRate}% (${rateSource}), Amount: ${commissionAmount}, Net: ${netEarning}`);
 
-            // Create commission record
-            await Commission.create({
+            // Create commission record as PAID immediately
+            const commission = await Commission.create({
                 order: item.order,
                 orderItem: item._id,
                 seller: item.seller,
-                type: 'SELLER', // Explicitly set type
+                type: 'SELLER',
                 orderAmount: item.total,
                 commissionRate,
                 commissionAmount,
-                status: "Pending", // Important: Pending
+                status: "Paid", // Set to Paid immediately
+                paidAt: new Date()
             });
+
+            // Credit Wallet Immediately
+            if (seller) {
+                await creditWallet(
+                    seller._id.toString(),
+                    'SELLER',
+                    netEarning,
+                    `Sale proceeds from Order #${order.orderNumber}`,
+                    item.order.toString(),
+                    commission._id.toString()
+                );
+            }
         }
 
-        console.log(`Pending commissions created for order ${orderId}`);
+        console.log(`Commissions processed and credited for order ${orderId}`);
 
     } catch (error) {
-        console.error("Error creating pending commissions:", error);
+        console.error("Error creating commissions:", error);
         throw error;
     }
 };
@@ -426,11 +445,17 @@ export const getCommissionSummary = async (
         };
 
         commissions.forEach((c) => {
-            summary.total += c.commissionAmount;
+            // For Sellers, earning is Order Amount - Commission Amount
+            // For Delivery Boys, earning is the Commission Amount itself
+            const earningAmount = userType === 'SELLER'
+                ? (c.orderAmount - c.commissionAmount)
+                : c.commissionAmount;
+
+            summary.total += earningAmount;
             if (c.status === 'Paid') {
-                summary.paid += c.commissionAmount;
+                summary.paid += earningAmount;
             } else if (c.status === 'Pending') {
-                summary.pending += c.commissionAmount;
+                summary.pending += earningAmount;
             }
         });
 
