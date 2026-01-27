@@ -18,7 +18,7 @@ export const getFinancialDashboard = asyncHandler(async (req: Request, res: Resp
     // Excluding Cancelled/Rejected/Returned for net GMV? User didn't specify, but usually GMV excludes cancelled.
     // User said "add 100rs... to total plateform earning" for a new order. So implies all new orders count.
     const totalGMVResult = await mongoose.model('Order').aggregate([
-        { $match: { status: { $ne: 'Cancelled' } } },
+        { $match: { status: { $ne: 'Cancelled' }, paymentStatus: 'Paid' } },
         { $group: { _id: null, total: { $sum: '$total' } } }
     ]);
     const totalGMV = totalGMVResult.length > 0 ? totalGMVResult[0].total : 0;
@@ -42,7 +42,7 @@ export const getFinancialDashboard = asyncHandler(async (req: Request, res: Resp
 
     // C. Order Fees (Platform Fee + Shipping Charge)
     const orderFeesResult = await mongoose.model('Order').aggregate([
-        { $match: { status: { $ne: 'Cancelled' } } },
+        { $match: { status: { $ne: 'Cancelled' }, paymentStatus: 'Paid' } },
         { $group: { _id: null, total: { $sum: { $add: ['$platformFee', '$shipping'] } } } }
     ]);
     const orderFees = orderFeesResult.length > 0 ? orderFeesResult[0].total : 0;
