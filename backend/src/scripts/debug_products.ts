@@ -4,10 +4,10 @@ import mongoose from "mongoose";
 dotenv.config();
 
 const ProductSchema = new mongoose.Schema({}, { strict: false });
-const Product = mongoose.model("Product", ProductSchema);
+const Product = mongoose.models.Product || mongoose.model("Product", ProductSchema);
 
 const SellerSchema = new mongoose.Schema({}, { strict: false });
-const Seller = mongoose.model("Seller", SellerSchema);
+const Seller = mongoose.models.Seller || mongoose.model("Seller", SellerSchema);
 
 const run = async () => {
   try {

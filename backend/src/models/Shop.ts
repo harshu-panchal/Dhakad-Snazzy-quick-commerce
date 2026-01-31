@@ -84,6 +84,6 @@ ShopSchema.pre('save', function (next) {
   next();
 });
 
-const Shop = mongoose.model<IShop>('Shop', ShopSchema);
+const Shop = (mongoose.models.Shop as mongoose.Model<IShop>) || mongoose.model<IShop>('Shop', ShopSchema);
 
 export default Shop;

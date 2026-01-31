@@ -37,7 +37,7 @@ LowestPricesProductSchema.index({ isActive: 1 });
 // Prevent duplicate products with unique index
 LowestPricesProductSchema.index({ product: 1 }, { unique: true });
 
-const LowestPricesProduct = mongoose.model<ILowestPricesProduct>("LowestPricesProduct", LowestPricesProductSchema);
+const LowestPricesProduct = (mongoose.models.LowestPricesProduct as mongoose.Model<ILowestPricesProduct>) || mongoose.model<ILowestPricesProduct>("LowestPricesProduct", LowestPricesProductSchema);
 
 export default LowestPricesProduct;
 

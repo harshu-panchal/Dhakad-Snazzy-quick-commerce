@@ -128,6 +128,6 @@ ReturnSchema.index({ order: 1 });
 ReturnSchema.index({ customer: 1 });
 ReturnSchema.index({ status: 1 });
 
-const Return = mongoose.models.Return || mongoose.model<IReturn>("Return", ReturnSchema);
+const Return = (mongoose.models.Return as mongoose.Model<IReturn>) || mongoose.model<IReturn>("Return", ReturnSchema);
 
 export default Return;

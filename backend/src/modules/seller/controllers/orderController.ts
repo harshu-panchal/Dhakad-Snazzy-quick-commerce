@@ -162,29 +162,29 @@ export const getOrderById = asyncHandler(
       if (product && product.variations && Array.isArray(product.variations)) {
         // 1. Try to match by ID or Value if validation is present
         if (item.variation) {
-            const variationById = product.variations.find((v: any) => v._id.toString() === item.variation);
-            if (variationById) {
-              unit = variationById.value;
+          const variationById = product.variations.find((v: any) => v._id.toString() === item.variation);
+          if (variationById) {
+            unit = variationById.value;
+            variationMatched = true;
+          } else {
+            const variationByValue = product.variations.find((v: any) => v.value === item.variation);
+            if (variationByValue) {
+              unit = variationByValue.value;
               variationMatched = true;
-            } else {
-                const variationByValue = product.variations.find((v: any) => v.value === item.variation);
-                if (variationByValue) {
-                    unit = variationByValue.value;
-                    variationMatched = true;
-                }
             }
+          }
         }
 
         // 2. Fallback: If not matched yet (even if we have a value like '250'), try to recover
         if (!variationMatched) {
-             const variationByPrice = product.variations.find((v: any) => v.price === item.unitPrice || v.discPrice === item.unitPrice);
-             if (variationByPrice) {
-                 unit = variationByPrice.value;
-                 variationMatched = true;
-             } else if (product.variations.length === 1) {
-                 // 3. Last Resort: If there is only one variation, assume it's that one
-                 unit = product.variations[0].value;
-             }
+          const variationByPrice = product.variations.find((v: any) => v.price === item.unitPrice || v.discPrice === item.unitPrice);
+          if (variationByPrice) {
+            unit = variationByPrice.value;
+            variationMatched = true;
+          } else if (product.variations.length === 1) {
+            // 3. Last Resort: If there is only one variation, assume it's that one
+            unit = product.variations[0].value;
+          }
         }
       }
 
@@ -282,29 +282,29 @@ export const updateOrderStatus = asyncHandler(
 
     // Trigger delivery notification if seller accepts the order
     if (status === 'Accepted' && previousStatus !== 'Accepted') {
-        try {
-            const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
-            if (io) {
-                // Need to fetch full order with details for the notification service
-                // Using lean() to get a plain JS object which is what the service expects mostly,
-                // but checking the service implementation, it uses .items mainly for seller location.
-                // We should ensure the passed order object has populated items with sellers.
-                const fullOrder = await Order.findById(order._id)
-                    .populate({
-                        path: 'items',
-                        populate: { path: 'seller' }
-                    })
-                    .lean();
+      try {
+        const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
+        if (io) {
+          // Need to fetch full order with details for the notification service
+          // Using lean() to get a plain JS object which is what the service expects mostly,
+          // but checking the service implementation, it uses .items mainly for seller location.
+          // We should ensure the passed order object has populated items with sellers.
+          const fullOrder = await Order.findById(order._id)
+            .populate({
+              path: 'items',
+              populate: { path: 'seller' }
+            })
+            .lean();
 
-                if (fullOrder) {
-                     await notifyDeliveryBoysOfNewOrder(io, fullOrder);
-                     console.log(`Delivery notification triggered for Accepted order ${order.orderNumber}`);
-                }
-            }
-        } catch (notifyError) {
-            console.error('Error notifying delivery boys on seller acceptance:', notifyError);
-            // Don't fail the request, just log
+          if (fullOrder) {
+            await notifyDeliveryBoysOfNewOrder(io, fullOrder);
+            console.log(`Delivery notification triggered for Accepted order ${order.orderNumber}`);
+          }
         }
+      } catch (notifyError) {
+        console.error('Error notifying delivery boys on seller acceptance:', notifyError);
+        // Don't fail the request, just log
+      }
     }
 
     // If order is delivered, credit seller's balance
@@ -314,8 +314,8 @@ export const updateOrderStatus = asyncHandler(
         // Calculate net earning (sale amount - commission)
         // Commission is stored in seller model
         const commissionRate = (seller.commission || 0) / 100;
-        const commissionAmount = order.grandTotal * commissionRate;
-        const netEarning = order.grandTotal - commissionAmount;
+        const commissionAmount = order.total * commissionRate;
+        const netEarning = order.total - commissionAmount;
 
         seller.balance = (seller.balance || 0) + netEarning;
         await seller.save();
@@ -325,8 +325,8 @@ export const updateOrderStatus = asyncHandler(
           sellerId,
           amount: netEarning,
           type: 'Credit',
-          description: `Earnings from Order #${order.orderId}`,
-          reference: `ORD-${order.orderId}-${Date.now()}`,
+          description: `Earnings from Order #${order.orderNumber}`,
+          reference: `ORD-${order.orderNumber}-${Date.now()}`,
           status: 'Completed'
         });
       }

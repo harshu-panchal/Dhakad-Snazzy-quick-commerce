@@ -52,7 +52,7 @@ const OtpSchema = new Schema<IOtp>(
 // Compound index for quick lookup
 OtpSchema.index({ mobile: 1, userType: 1 });
 
-const Otp = mongoose.models.Otp || mongoose.model<IOtp>('Otp', OtpSchema);
+const Otp = (mongoose.models.Otp as mongoose.Model<IOtp>) || mongoose.model<IOtp>('Otp', OtpSchema);
 
 export default Otp;
 

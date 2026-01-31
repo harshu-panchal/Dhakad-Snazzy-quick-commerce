@@ -56,8 +56,8 @@ export const getSalesReport = asyncHandler(
         // Get order items with populated order info
         const orderItems = await OrderItem.find(query)
             .populate({
-                path: "orderId",
-                select: "orderId createdAt"
+                path: "order",
+                select: "orderNumber createdAt"
             })
             .sort(sort)
             .skip(skip)
@@ -68,7 +68,7 @@ export const getSalesReport = asyncHandler(
 
         // Format response for frontend
         const reports = orderItems.map(item => ({
-            orderId: (item.orderId as any)?.orderId || '',
+            orderId: (item.order as any)?.orderNumber || '',
             orderItemId: item._id.toString().slice(-4), // SR No / Item ID shortcut
             product: item.productName,
             variant: item.variantTitle,

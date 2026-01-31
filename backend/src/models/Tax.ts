@@ -1,5 +1,5 @@
 
-import { Schema, model, Document } from "mongoose";
+import mongoose, { Schema, model, Document } from "mongoose";
 
 export interface ITax extends Document {
     name: string;
@@ -38,6 +38,6 @@ const taxSchema = new Schema<ITax>(
 taxSchema.index({ status: 1 });
 taxSchema.index({ name: 1 });
 
-const Tax = model<ITax>("Tax", taxSchema);
+const Tax = mongoose.models.Tax || model<ITax>("Tax", taxSchema);
 
 export default Tax;

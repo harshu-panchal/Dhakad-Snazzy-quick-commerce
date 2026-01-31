@@ -1,4 +1,4 @@
-import { Schema, model, Document, Types } from "mongoose";
+import mongoose, { Schema, model, Document, Types } from "mongoose";
 
 export interface ICashCollection extends Document {
     deliveryBoy: Types.ObjectId;
@@ -52,7 +52,7 @@ cashCollectionSchema.index({ deliveryBoy: 1, collectedAt: -1 });
 cashCollectionSchema.index({ order: 1 });
 cashCollectionSchema.index({ collectedAt: -1 });
 
-const CashCollection = model<ICashCollection>(
+const CashCollection = mongoose.models.CashCollection || model<ICashCollection>(
     "CashCollection",
     cashCollectionSchema
 );

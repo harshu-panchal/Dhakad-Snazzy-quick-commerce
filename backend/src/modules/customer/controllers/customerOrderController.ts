@@ -714,11 +714,13 @@ export const cancelOrder = async (req: Request, res: Response) => {
                         // Try to find matching variation
                         const variationIndex = product.variations?.findIndex((v: any) => v.value === orderItem.variation || v.title === orderItem.variation || v.pack === orderItem.variation);
 
-                        if (variationIndex !== undefined && variationIndex !== -1 && product.variations) {
-                            product.variations[variationIndex].stock += orderItem.quantity;
+                        if (variationIndex !== undefined && variationIndex !== -1 && product.variations && product.variations[variationIndex]) {
+                            const currentStock = product.variations[variationIndex].stock || 0;
+                            product.variations[variationIndex].stock = currentStock + orderItem.quantity;
                         } else if (product.variations && product.variations.length > 0) {
                             // Fallback to first variation if specific one not found (should be rare)
-                            product.variations[0].stock += orderItem.quantity;
+                            const currentStock = product.variations[0].stock || 0;
+                            product.variations[0].stock = currentStock + orderItem.quantity;
                         }
                     }
 

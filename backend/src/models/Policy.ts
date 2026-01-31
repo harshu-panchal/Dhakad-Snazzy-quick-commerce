@@ -45,6 +45,6 @@ const PolicySchema = new Schema<IPolicy>(
 // Or maybe unique compound index if we want unique versions?
 // Leaving standard for now.
 
-const Policy = mongoose.model<IPolicy>("Policy", PolicySchema);
+const Policy = mongoose.models.Policy || mongoose.model<IPolicy>("Policy", PolicySchema);
 
 export default Policy;

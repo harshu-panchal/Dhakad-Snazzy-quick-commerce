@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import mongoose, { Schema, model, Document } from "mongoose";
 
 export interface IRole extends Document {
   name: string;
@@ -36,6 +36,6 @@ const roleSchema = new Schema<IRole>(
   },
 );
 
-const Role = model<IRole>("Role", roleSchema);
+const Role = mongoose.models.Role || model<IRole>("Role", roleSchema);
 
 export default Role;

@@ -25,4 +25,5 @@ const HeaderCategorySchema: Schema = new Schema(
     { timestamps: true }
 );
 
-export default mongoose.model<IHeaderCategory>('HeaderCategory', HeaderCategorySchema);
+const HeaderCategory = (mongoose.models.HeaderCategory as mongoose.Model<IHeaderCategory>) || mongoose.model<IHeaderCategory>('HeaderCategory', HeaderCategorySchema);
+export default HeaderCategory;

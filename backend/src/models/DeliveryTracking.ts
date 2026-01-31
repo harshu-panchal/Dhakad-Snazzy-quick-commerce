@@ -135,7 +135,7 @@ DeliveryTrackingSchema.methods.calculateETA = function (distance: number): numbe
   return Math.ceil(distance / averageSpeedMs);
 };
 
-const DeliveryTracking = mongoose.models.DeliveryTracking || mongoose.model<IDeliveryTracking>(
+const DeliveryTracking = (mongoose.models.DeliveryTracking as mongoose.Model<IDeliveryTracking>) || mongoose.model<IDeliveryTracking>(
   "DeliveryTracking",
   DeliveryTrackingSchema
 );

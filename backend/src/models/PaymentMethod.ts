@@ -68,7 +68,7 @@ const PaymentMethodSchema = new Schema<IPaymentMethod>(
 // Indexes
 PaymentMethodSchema.index({ isActive: 1, order: 1 });
 
-const PaymentMethod = mongoose.models.PaymentMethod || mongoose.model<IPaymentMethod>(
+const PaymentMethod = (mongoose.models.PaymentMethod as mongoose.Model<IPaymentMethod>) || mongoose.model<IPaymentMethod>(
   "PaymentMethod",
   PaymentMethodSchema
 );

@@ -40,6 +40,6 @@ const CartItemSchema = new Schema<ICartItem>(
 CartItemSchema.index({ cart: 1 });
 CartItemSchema.index({ product: 1 });
 
-const CartItem = mongoose.models.CartItem || mongoose.model<ICartItem>("CartItem", CartItemSchema);
+const CartItem = (mongoose.models.CartItem as mongoose.Model<ICartItem>) || mongoose.model<ICartItem>("CartItem", CartItemSchema);
 
 export default CartItem;

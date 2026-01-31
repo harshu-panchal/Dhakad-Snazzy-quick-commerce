@@ -330,11 +330,11 @@ SellerSchema.methods.comparePassword = async function (
 SellerSchema.index({ location: '2dsphere' });
 SellerSchema.index({ status: 1 }); // Compound index for status + location queries
 
-const Seller = mongoose.models.Seller || mongoose.model<ISeller>('Seller', SellerSchema);
+const Seller = (mongoose.models.Seller as mongoose.Model<ISeller>) || mongoose.model<ISeller>('Seller', SellerSchema);
 
 // Register Alias for refPath 'SELLER'
-if (!mongoose.models.SELLER) {
-  mongoose.model('SELLER', SellerSchema, 'sellers');
+if (!(mongoose.models.SELLER as mongoose.Model<ISeller>)) {
+  mongoose.model<ISeller>('SELLER', SellerSchema, 'sellers');
 }
 
 export default Seller;

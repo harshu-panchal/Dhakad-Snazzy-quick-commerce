@@ -4,7 +4,9 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IOrder extends Document {
   // Order Info
   orderNumber: string;
+  invoiceNumber?: string;
   orderDate: Date;
+  timeSlot?: string;
 
   // Customer Info
   customer: mongoose.Types.ObjectId;
@@ -34,6 +36,7 @@ export interface IOrder extends Document {
   discount: number;
   couponCode?: string;
   total: number;
+  grandTotal?: number; // Alias or computed total used in some controllers
 
   // Payment
   paymentMethod: string;
@@ -43,9 +46,12 @@ export interface IOrder extends Document {
   // Order Status
   status:
   | "Received"
+  | "Accepted"
   | "Pending"
   | "Processed"
   | "Shipped"
+  | "Picked up"
+  | "On the way"
   | "Out for Delivery"
   | "Delivered"
   | "Cancelled"
@@ -107,9 +113,17 @@ const OrderSchema = new Schema<IOrder>(
       unique: true,
       trim: true,
     },
+    invoiceNumber: {
+      type: String,
+      trim: true,
+    },
     orderDate: {
       type: Date,
       default: Date.now,
+    },
+    timeSlot: {
+      type: String,
+      trim: true,
     },
 
     // Customer Info
@@ -210,6 +224,9 @@ const OrderSchema = new Schema<IOrder>(
       required: [true, "Total is required"],
       min: [0, "Total cannot be negative"],
     },
+    grandTotal: {
+      type: Number,
+    },
 
     // Payment
     paymentMethod: {
@@ -236,6 +253,8 @@ const OrderSchema = new Schema<IOrder>(
         "Pending",
         "Processed",
         "Shipped",
+        "Picked up",
+        "On the way",
         "Out for Delivery",
         "Delivered",
         "Cancelled",
@@ -369,6 +388,6 @@ OrderSchema.index({ orderDate: -1 });
 OrderSchema.index({ deliveryBoy: 1 });
 OrderSchema.index({ orderNumber: 1 });
 
-const Order = mongoose.models.Order || mongoose.model<IOrder>("Order", OrderSchema);
+const Order = (mongoose.models.Order as mongoose.Model<IOrder>) || mongoose.model<IOrder>("Order", OrderSchema);
 
 export default Order;

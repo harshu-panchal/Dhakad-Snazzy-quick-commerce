@@ -43,7 +43,7 @@ BestsellerCardSchema.index({ order: 1, isActive: 1 });
 BestsellerCardSchema.index({ category: 1 });
 BestsellerCardSchema.index({ isActive: 1 });
 
-const BestsellerCard = mongoose.model<IBestsellerCard>("BestsellerCard", BestsellerCardSchema);
+const BestsellerCard = (mongoose.models.BestsellerCard as mongoose.Model<IBestsellerCard>) || mongoose.model<IBestsellerCard>("BestsellerCard", BestsellerCardSchema);
 
 export default BestsellerCard;
 

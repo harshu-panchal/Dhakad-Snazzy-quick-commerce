@@ -172,6 +172,6 @@ PaymentSchema.index({ transactionId: 1 });
 PaymentSchema.index({ status: 1 });
 PaymentSchema.index({ paymentDate: -1 });
 
-const Payment = mongoose.models.Payment || mongoose.model<IPayment>("Payment", PaymentSchema);
+const Payment = (mongoose.models.Payment as mongoose.Model<IPayment>) || mongoose.model<IPayment>("Payment", PaymentSchema);
 
 export default Payment;

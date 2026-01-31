@@ -413,7 +413,7 @@ AppSettingsSchema.statics.getSettings = async function () {
 // Indexes
 AppSettingsSchema.index({ appName: 1 });
 
-const AppSettings = mongoose.models.AppSettings || mongoose.model<IAppSettings, IAppSettingsModel>(
+const AppSettings = (mongoose.models.AppSettings as IAppSettingsModel) || mongoose.model<IAppSettings, IAppSettingsModel>(
   "AppSettings",
   AppSettingsSchema,
 );

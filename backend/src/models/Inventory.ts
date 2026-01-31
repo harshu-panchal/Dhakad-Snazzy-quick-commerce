@@ -103,6 +103,6 @@ InventorySchema.index({ product: 1 });
 InventorySchema.index({ seller: 1 });
 InventorySchema.index({ currentStock: 1 });
 
-const Inventory = mongoose.models.Inventory || mongoose.model<IInventory>("Inventory", InventorySchema);
+const Inventory = (mongoose.models.Inventory as mongoose.Model<IInventory>) || mongoose.model<IInventory>("Inventory", InventorySchema);
 
 export default Inventory;

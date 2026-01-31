@@ -72,6 +72,6 @@ WithdrawRequestSchema.index({ userId: 1, userType: 1 });
 WithdrawRequestSchema.index({ status: 1 });
 WithdrawRequestSchema.index({ createdAt: -1 });
 
-const WithdrawRequest = mongoose.model<IWithdrawRequest>('WithdrawRequest', WithdrawRequestSchema);
+const WithdrawRequest = mongoose.models.WithdrawRequest || mongoose.model<IWithdrawRequest>('WithdrawRequest', WithdrawRequestSchema);
 
 export default WithdrawRequest;

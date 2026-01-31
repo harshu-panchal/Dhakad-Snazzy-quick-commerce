@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import mongoose, { Schema, model, Document } from "mongoose";
 
 export interface IFAQ extends Document {
     question: string;
@@ -46,6 +46,6 @@ const faqSchema = new Schema<IFAQ>(
 faqSchema.index({ status: 1, order: 1 });
 faqSchema.index({ category: 1 });
 
-const FAQ = model<IFAQ>("FAQ", faqSchema);
+const FAQ = mongoose.models.FAQ || model<IFAQ>("FAQ", faqSchema);
 
 export default FAQ;

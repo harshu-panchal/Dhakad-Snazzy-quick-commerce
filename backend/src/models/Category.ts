@@ -148,7 +148,7 @@ CategorySchema.methods.getAllDescendants = async function () {
   return descendants;
 };
 
-const Category = mongoose.models.Category || mongoose.model<ICategory, ICategoryModel>(
+const Category = (mongoose.models.Category as ICategoryModel) || mongoose.model<ICategory, ICategoryModel>(
   "Category",
   CategorySchema
 );
@@ -192,7 +192,7 @@ const Category = mongoose.models.Category || mongoose.model<ICategory, ICategory
   if (category) {
     const descendants = await category.getAllDescendants();
     const isDescendant = descendants.some(
-      (desc) => desc._id.toString() === newParentId
+      (desc: any) => desc._id.toString() === newParentId
     );
     if (isDescendant) {
       return {

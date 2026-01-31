@@ -83,6 +83,6 @@ HomeSectionSchema.index({ order: 1, isActive: 1 });
 HomeSectionSchema.index({ slug: 1 });
 HomeSectionSchema.index({ category: 1 });
 
-const HomeSection = mongoose.model<IHomeSection>("HomeSection", HomeSectionSchema);
+const HomeSection = (mongoose.models.HomeSection as mongoose.Model<IHomeSection>) || mongoose.model<IHomeSection>("HomeSection", HomeSectionSchema);
 
 export default HomeSection;

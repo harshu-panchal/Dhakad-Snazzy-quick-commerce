@@ -192,7 +192,7 @@ export const getSubcategories = asyncHandler(
     // Remove duplicates (in case same subcategory exists in both models)
     const uniqueSubcategories = Array.from(
       new Map(
-        allSubcategories.map((item) => [item._id.toString(), item])
+        allSubcategories.map((item: any) => [item._id.toString(), item])
       ).values()
     );
 

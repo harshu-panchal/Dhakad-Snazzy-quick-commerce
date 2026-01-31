@@ -228,11 +228,11 @@ DeliverySchema.methods.comparePassword = async function (
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-const Delivery = mongoose.models.Delivery || mongoose.model<IDelivery>('Delivery', DeliverySchema);
+const Delivery = (mongoose.models.Delivery as mongoose.Model<IDelivery>) || mongoose.model<IDelivery>('Delivery', DeliverySchema);
 
 // Register Alias for refPath 'DELIVERY_BOY'
-if (!mongoose.models.DELIVERY_BOY) {
-  mongoose.model('DELIVERY_BOY', DeliverySchema, 'deliveries');
+if (!(mongoose.models.DELIVERY_BOY as mongoose.Model<IDelivery>)) {
+  mongoose.model<IDelivery>('DELIVERY_BOY', DeliverySchema, 'deliveries');
 }
 
 export default Delivery;
