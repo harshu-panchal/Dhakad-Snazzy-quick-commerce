@@ -148,13 +148,13 @@ CategorySchema.methods.getAllDescendants = async function () {
   return descendants;
 };
 
-const Category = mongoose.model<ICategory, ICategoryModel>(
+const Category = mongoose.models.Category || mongoose.model<ICategory, ICategoryModel>(
   "Category",
   CategorySchema
 );
 
 // Static method to validate parent change (prevent circular references)
-Category.validateParentChange = async function (
+(Category as any).validateParentChange = async function (
   categoryId: string,
   newParentId: string | null
 ): Promise<{ valid: boolean; error?: string }> {

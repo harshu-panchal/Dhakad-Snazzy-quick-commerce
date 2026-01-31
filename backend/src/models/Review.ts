@@ -88,6 +88,6 @@ ReviewSchema.index({ product: 1, status: 1 });
 ReviewSchema.index({ customer: 1 });
 ReviewSchema.index({ order: 1 });
 
-const Review = mongoose.model<IReview>("Review", ReviewSchema);
+const Review = mongoose.models.Review || mongoose.model<IReview>("Review", ReviewSchema);
 
 export default Review;

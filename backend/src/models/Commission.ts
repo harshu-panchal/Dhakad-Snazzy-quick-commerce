@@ -95,6 +95,6 @@ const CommissionSchema = new Schema<ICommission>(
 CommissionSchema.index({ seller: 1, status: 1 });
 CommissionSchema.index({ order: 1 });
 
-const Commission = mongoose.model<ICommission>("Commission", CommissionSchema);
+const Commission = mongoose.models.Commission || mongoose.model<ICommission>("Commission", CommissionSchema);
 
 export default Commission;

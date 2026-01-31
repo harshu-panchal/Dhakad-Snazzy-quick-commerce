@@ -130,7 +130,7 @@ NotificationSchema.index({ recipientType: 1, recipientId: 1, isRead: 1 });
 NotificationSchema.index({ createdAt: -1 });
 NotificationSchema.index({ expiresAt: 1 });
 
-const Notification = mongoose.model<INotification>(
+const Notification = mongoose.models.Notification || mongoose.model<INotification>(
   "Notification",
   NotificationSchema
 );

@@ -90,6 +90,6 @@ RefundSchema.index({ order: 1 });
 RefundSchema.index({ customer: 1 });
 RefundSchema.index({ status: 1 });
 
-const Refund = mongoose.model<IRefund>("Refund", RefundSchema);
+const Refund = mongoose.models.Refund || mongoose.model<IRefund>("Refund", RefundSchema);
 
 export default Refund;

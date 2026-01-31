@@ -115,7 +115,7 @@ const PromoStripSchema = new Schema<IPromoStrip>(
 PromoStripSchema.index({ headerCategorySlug: 1, isActive: 1, startDate: 1, endDate: 1 });
 PromoStripSchema.index({ order: 1 });
 
-const PromoStrip = mongoose.model<IPromoStrip>("PromoStrip", PromoStripSchema);
+const PromoStrip = mongoose.models.PromoStrip || mongoose.model<IPromoStrip>("PromoStrip", PromoStripSchema);
 
 export default PromoStrip;
 

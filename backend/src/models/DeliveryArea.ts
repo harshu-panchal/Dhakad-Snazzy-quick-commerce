@@ -51,7 +51,7 @@ const DeliveryAreaSchema = new Schema<IDeliveryArea>(
 DeliveryAreaSchema.index({ city: 1 });
 DeliveryAreaSchema.index({ pincodes: 1 });
 
-const DeliveryArea = mongoose.model<IDeliveryArea>(
+const DeliveryArea = mongoose.models.DeliveryArea || mongoose.model<IDeliveryArea>(
   "DeliveryArea",
   DeliveryAreaSchema
 );

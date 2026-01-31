@@ -47,7 +47,7 @@ const SubCategorySchema = new Schema<ISubCategory>(
 SubCategorySchema.index({ category: 1, order: 1 });
 SubCategorySchema.index({ name: 1 });
 
-const SubCategory = mongoose.model<ISubCategory>(
+const SubCategory = mongoose.models.SubCategory || mongoose.model<ISubCategory>(
   "SubCategory",
   SubCategorySchema
 );

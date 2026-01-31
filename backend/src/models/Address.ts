@@ -82,6 +82,6 @@ const AddressSchema = new Schema<IAddress>(
 AddressSchema.index({ customer: 1 });
 AddressSchema.index({ isDefault: 1 });
 
-const Address = mongoose.model<IAddress>("Address", AddressSchema);
+const Address = mongoose.models.Address || mongoose.model<IAddress>("Address", AddressSchema);
 
 export default Address;
