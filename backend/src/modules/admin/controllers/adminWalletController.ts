@@ -166,31 +166,12 @@ export const getFinancialDashboard = asyncHandler(
     // Current Platform Balance = Total Inflow (GMV) - Total Outflow (Withdrawals)
     const currentAccountBalance = totalGMV - totalWithdrawals;
 
-    // 3. Total Seller Wallet Pending Payouts -> Sum of Seller Balances
-    const sellerBalanceResult = await mongoose.model("Seller").aggregate([
-      { $match: {} }, // All sellers
-      { $group: { _id: null, total: { $sum: "$balance" } } },
-    ]);
-    const sellerPendingPayouts =
-      sellerBalanceResult.length > 0 ? sellerBalanceResult[0].total : 0;
+    // 3. Reuse calculated Real-time Seller Pending Payouts
+    const sellerPendingPayouts = realTimeSellerPending;
 
-    // 4. Total Delivery Boy Wallet Pending Payouts -> Sum of Delivery Balances
-    const deliveryBalanceResult = await mongoose.model("Delivery").aggregate([
-      { $match: {} }, // All delivery boys
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$balance" },
-          pendingAdminPayout: { $sum: "$pendingAdminPayout" },
-        },
-      },
-    ]);
-    const deliveryPendingPayouts =
-      deliveryBalanceResult.length > 0 ? deliveryBalanceResult[0].total : 0;
-    const pendingAmountFromDeliveryBoy =
-      deliveryBalanceResult.length > 0
-        ? deliveryBalanceResult[0].pendingAdminPayout
-        : 0;
+    // 4. Reuse calculated Real-time Delivery Boy Pending Payouts
+    const deliveryPendingPayouts = realTimeDeliveryPendingPayouts;
+    const pendingAmountFromDeliveryBoy = realTimePendingFromDeliveryBoy;
 
     return res.status(200).json({
       success: true,
