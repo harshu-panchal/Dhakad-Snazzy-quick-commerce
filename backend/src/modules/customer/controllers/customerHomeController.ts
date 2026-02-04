@@ -21,30 +21,107 @@ async function fetchSectionData(
     const { categories, subCategories, displayType, limit } = section;
 
     // If displayType is "subcategories", fetch subcategories
-    if (
-      displayType === "subcategories" &&
-      categories &&
-      categories.length > 0
-    ) {
-      const categoryIds = categories.map((cat: any) => cat._id || cat);
+    // If displayType is "subcategories", fetch subcategories
+    // If displayType is "subcategories", fetch subcategories
+    if (displayType === "subcategories") {
+      let subcategoryQuery: any = {};
+      let specificIds: string[] = [];
+      let results: any[] = [];
+      let parentCategoryIds: string[] = [];
 
-      const subcategories = await SubCategory.find({
-        category: { $in: categoryIds },
-      })
-        .select("name image order category")
-        .sort({ order: 1 })
-        .limit(limit || 10)
-        .lean();
+      // If specific subcategories are selected, use them
+      if (subCategories && subCategories.length > 0) {
+        specificIds = subCategories
+          .map((sub: any) => (sub ? (sub._id || sub).toString() : null))
+          .filter((id: any) => id);
 
-      return subcategories.map((sub: any) => ({
-        id: sub._id.toString(),
-        subcategoryId: sub._id.toString(),
-        categoryId: sub.category?.toString() || "",
-        name: sub.name,
-        image: sub.image || "",
-        slug: sub.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-        type: "subcategory",
-      }));
+        if (specificIds.length > 0) {
+          subcategoryQuery._id = { $in: specificIds };
+        }
+      }
+
+      // If no specific subcategories selected, fallback to fetching by parent categories
+      if (specificIds.length === 0 && categories && categories.length > 0) {
+        parentCategoryIds = categories
+          .map((cat: any) => (cat ? (cat._id || cat).toString() : null))
+          .filter((id: any) => id);
+
+        if (parentCategoryIds.length > 0) {
+          subcategoryQuery.category = { $in: parentCategoryIds };
+        }
+      }
+
+      // 1. Fetch from SubCategory collection
+      if (Object.keys(subcategoryQuery).length > 0) {
+        const subcategories = await SubCategory.find(subcategoryQuery)
+          .select("name image order category")
+          .sort({ order: 1 })
+          .limit(limit || 10)
+          .lean();
+
+        const mappedSubs = subcategories.map((sub: any) => ({
+          id: sub._id.toString(),
+          subcategoryId: sub._id.toString(),
+          categoryId: sub.category?.toString() || "",
+          name: sub.name,
+          image: sub.image || "",
+          slug: sub.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          type: "subcategory",
+        }));
+
+        results.push(...mappedSubs);
+      }
+
+      // 2. Fallback or Specific ID check in Category Collection
+
+      // Case A: Specific IDs were provided but not found in SubCategory
+      if (specificIds.length > 0) {
+        const foundSubIds = results.map(r => r.id);
+        const missingIds = specificIds.filter(id => !foundSubIds.includes(id));
+
+        if (missingIds.length > 0) {
+          const foundCategories = await Category.find({ _id: { $in: missingIds }, status: "Active" })
+            .select("name image slug")
+            .lean();
+
+          const mappedCats = foundCategories.map((c: any) => ({
+            id: c._id.toString(),
+            categoryId: c.slug || c._id.toString(),
+            name: c.name,
+            image: c.image,
+            slug: c.slug,
+            type: "category",
+          }));
+
+          results.push(...mappedCats);
+        }
+      }
+      // Case B: No specific IDs, so we relied on parentCategoryIds. 
+      // We found SubCategories (maybe), but we ALSO need to check for child Categories (self-referenced).
+      else if (parentCategoryIds.length > 0) {
+        // Search Category collection where parentId matches
+        const childCategories = await Category.find({
+          parentId: { $in: parentCategoryIds },
+          status: "Active"
+        })
+          .select("name image slug parentId")
+          .sort({ order: 1 })
+          .limit(limit || 10)
+          .lean();
+
+        const mappedChildCats = childCategories.map((c: any) => ({
+          id: c._id.toString(),
+          categoryId: c.slug || c._id.toString(),
+          name: c.name,
+          image: c.image,
+          slug: c.slug,
+          type: "category", // navigate as category
+        }));
+
+        results.push(...mappedChildCats);
+      }
+
+      return results;
     }
 
     // If displayType is "products", fetch products
