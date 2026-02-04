@@ -1345,7 +1345,11 @@ export default function SellerAddProduct() {
                 ? "bg-neutral-400 cursor-not-allowed text-white"
                 : "bg-teal-600 hover:bg-teal-700 text-white"
                 }`}>
-              {uploading ? "Uploading Images..." : "Add Product"}
+              {uploading
+                ? "Processing..."
+                : id
+                  ? "Update Product"
+                  : "Add Product"}
             </button>
           </div>
         </form>

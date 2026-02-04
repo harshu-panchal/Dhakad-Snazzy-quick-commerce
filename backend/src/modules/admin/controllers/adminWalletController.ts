@@ -173,6 +173,8 @@ export const getFinancialDashboard = asyncHandler(
     ]);
     const sellerPendingPayouts =
       fallbackSellerBalanceResult.length > 0 ? fallbackSellerBalanceResult[0].total : 0;
+    // 3. Reuse calculated Real-time Seller Pending Payouts
+    const sellerPendingPayouts = realTimeSellerPending;
 
     // 4. Total Delivery Boy Wallet Pending Payouts -> Sum of Delivery Balances
     const fallbackDeliveryBalanceResult = await mongoose.model("Delivery").aggregate([
@@ -191,6 +193,9 @@ export const getFinancialDashboard = asyncHandler(
       fallbackDeliveryBalanceResult.length > 0
         ? fallbackDeliveryBalanceResult[0].pendingAdminPayout
         : 0;
+    // 4. Reuse calculated Real-time Delivery Boy Pending Payouts
+    const deliveryPendingPayouts = realTimeDeliveryPendingPayouts;
+    const pendingAmountFromDeliveryBoy = realTimePendingFromDeliveryBoy;
 
     return res.status(200).json({
       success: true,
