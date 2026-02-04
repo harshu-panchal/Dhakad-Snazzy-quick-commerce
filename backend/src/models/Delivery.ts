@@ -1,5 +1,5 @@
-import mongoose, { Document, Schema } from 'mongoose';
-import bcrypt from 'bcrypt';
+import mongoose, { Document, Schema } from "mongoose";
+import bcrypt from "bcrypt";
 
 export interface IDelivery extends Document {
   // Personal Information
@@ -29,7 +29,7 @@ export interface IDelivery extends Document {
   // Commission & Payment
   bonusType?: string; // 'Fixed' | 'Salaried' | 'Commission Based'
   commissionRate?: number; // Individual commission rate (overrides global setting)
-  status: 'Active' | 'Inactive';
+  status: "Active" | "Inactive";
   isOnline: boolean; // Availability status
   location?: {
     type: "Point";
@@ -37,6 +37,7 @@ export interface IDelivery extends Document {
   };
   balance: number;
   cashCollected: number;
+  pendingAdminPayout: number;
   settings: {
     notifications: boolean;
     location: boolean;
@@ -46,8 +47,8 @@ export interface IDelivery extends Document {
   createdAt: Date;
   updatedAt: Date;
   // FCM Push Notification Tokens
-  fcmTokens?: string[];        // Web push notification tokens
-  fcmTokenMobile?: string[];   // Mobile push notification tokens
+  fcmTokens?: string[]; // Web push notification tokens
+  fcmTokenMobile?: string[]; // Mobile push notification tokens
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
@@ -56,24 +57,24 @@ const DeliverySchema = new Schema<IDelivery>(
     // Personal Information
     name: {
       type: String,
-      required: [true, 'Name is required'],
+      required: [true, "Name is required"],
       trim: true,
     },
     mobile: {
       type: String,
-      required: [true, 'Mobile number is required'],
+      required: [true, "Mobile number is required"],
       unique: true,
       trim: true,
       validate: {
         validator: function (v: string) {
           return /^[0-9]{10}$/.test(v);
         },
-        message: 'Mobile number must be 10 digits',
+        message: "Mobile number must be 10 digits",
       },
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
@@ -81,7 +82,7 @@ const DeliverySchema = new Schema<IDelivery>(
         validator: function (v: string) {
           return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
         },
-        message: 'Please enter a valid email address',
+        message: "Please enter a valid email address",
       },
     },
     dateOfBirth: {
@@ -89,8 +90,8 @@ const DeliverySchema = new Schema<IDelivery>(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
       select: false, // Don't return password by default
     },
     address: {
@@ -153,13 +154,13 @@ const DeliverySchema = new Schema<IDelivery>(
     },
     commissionRate: {
       type: Number,
-      min: [0, 'Commission rate cannot be negative'],
-      max: [100, 'Commission rate cannot exceed 100%'],
+      min: [0, "Commission rate cannot be negative"],
+      max: [100, "Commission rate cannot exceed 100%"],
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive'],
-      default: 'Inactive', // New delivery partners start as Inactive until approved
+      enum: ["Active", "Inactive"],
+      default: "Inactive", // New delivery partners start as Inactive until approved
     },
     isOnline: {
       type: Boolean,
@@ -179,36 +180,41 @@ const DeliverySchema = new Schema<IDelivery>(
     balance: {
       type: Number,
       default: 0,
-      min: [0, 'Balance cannot be negative'],
+      min: [0, "Balance cannot be negative"],
     },
     cashCollected: {
       type: Number,
       default: 0,
-      min: [0, 'Cash collected cannot be negative'],
+      min: [0, "Cash collected cannot be negative"],
+    },
+    pendingAdminPayout: {
+      type: Number,
+      default: 0,
+      min: [0, "Pending admin payout cannot be negative"],
     },
     settings: {
       notifications: { type: Boolean, default: true },
       location: { type: Boolean, default: true },
-      sound: { type: Boolean, default: true }
+      sound: { type: Boolean, default: true },
     },
     // FCM Push Notification Tokens
     fcmTokens: {
       type: [String],
-      default: []
+      default: [],
     },
     fcmTokenMobile: {
       type: [String],
-      default: []
+      default: [],
     },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Hash password before saving
-DeliverySchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+DeliverySchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
     return next();
   }
 
@@ -223,17 +229,18 @@ DeliverySchema.pre('save', async function (next) {
 
 // Method to compare password
 DeliverySchema.methods.comparePassword = async function (
-  candidatePassword: string
+  candidatePassword: string,
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-const Delivery = (mongoose.models.Delivery as mongoose.Model<IDelivery>) || mongoose.model<IDelivery>('Delivery', DeliverySchema);
+const Delivery =
+  (mongoose.models.Delivery as mongoose.Model<IDelivery>) ||
+  mongoose.model<IDelivery>("Delivery", DeliverySchema);
 
 // Register Alias for refPath 'DELIVERY_BOY'
 if (!(mongoose.models.DELIVERY_BOY as mongoose.Model<IDelivery>)) {
-  mongoose.model<IDelivery>('DELIVERY_BOY', DeliverySchema, 'deliveries');
+  mongoose.model<IDelivery>("DELIVERY_BOY", DeliverySchema, "deliveries");
 }
 
 export default Delivery;
-

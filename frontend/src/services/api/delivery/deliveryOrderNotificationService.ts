@@ -15,6 +15,7 @@ export interface OrderNotificationData {
     total: number;
     subtotal: number;
     shipping: number;
+    deliveryBoyEarning: number; // Estimated earning for the delivery boy
     createdAt: string;
 }
 

@@ -3,8 +3,45 @@ import Delivery from '../models/Delivery';
 import Order from '../models/Order';
 import Seller from '../models/Seller';
 import DeliveryTracking from '../models/DeliveryTracking';
+import AppSettings from '../models/AppSettings';
 import mongoose from 'mongoose';
 import { notifySellersOfOrderUpdate } from './sellerNotificationService';
+
+/**
+ * Calculate estimated delivery boy earning for a new order
+ * Uses the same logic as commission distribution but provides an estimate
+ * before the order is assigned
+ */
+async function calculateEstimatedDeliveryBoyEarning(order: any): Promise<number> {
+    try {
+        // @ts-ignore - getSettings is a static method
+        const settings = await AppSettings.getSettings();
+
+        // Check if distance-based delivery is enabled
+        if (
+            settings?.deliveryConfig?.isDistanceBased === true &&
+            settings.deliveryConfig?.deliveryBoyKmRate &&
+            order.deliveryDistanceKm &&
+            order.deliveryDistanceKm > 0
+        ) {
+            // Distance-based calculation
+            const earning = order.deliveryDistanceKm * settings.deliveryConfig.deliveryBoyKmRate;
+            console.log(`📊 [Earning Calc] Distance-based: ${order.deliveryDistanceKm}km × ₹${settings.deliveryConfig.deliveryBoyKmRate}/km = ₹${earning.toFixed(2)}`);
+            return Math.round(earning * 100) / 100;
+        }
+
+        // Fallback to percentage-based on subtotal (default 5%)
+        // Since we don't know which delivery boy will accept, use default rate
+        const defaultCommissionRate = 5;
+        const earning = (order.subtotal * defaultCommissionRate) / 100;
+        console.log(`📊 [Earning Calc] Percentage-based: ${order.subtotal} × ${defaultCommissionRate}% = ₹${earning.toFixed(2)}`);
+        return Math.round(earning * 100) / 100;
+    } catch (error) {
+        console.error('Error calculating estimated delivery boy earning:', error);
+        // Return a safe default - 5% of subtotal
+        return Math.round((order.subtotal * 5) / 100 * 100) / 100;
+    }
+}
 
 // Track order notification state
 export interface OrderNotificationState {
@@ -306,6 +343,9 @@ export async function notifyDeliveryBoysOfNewOrder(
         }
         // ---------------------------------
 
+        // Calculate estimated delivery boy earning for this order
+        const deliveryBoyEarning = await calculateEstimatedDeliveryBoyEarning(order);
+
         // Prepare order data for notification
         const orderData = {
             orderId: order._id.toString(),
@@ -321,6 +361,7 @@ export async function notifyDeliveryBoysOfNewOrder(
             total: order.total,
             subtotal: order.subtotal,
             shipping: order.shipping,
+            deliveryBoyEarning: deliveryBoyEarning, // Estimated earning for delivery boy
             createdAt: order.createdAt,
         };
 
@@ -431,7 +472,7 @@ export async function handleOrderAcceptance(
 
         // Also emit to individual rooms (notifiedId is already a string from Set)
         if (state) {
-             for (const notifiedId of state.notifiedDeliveryBoys) {
+            for (const notifiedId of state.notifiedDeliveryBoys) {
                 const notifiedIdString = String(notifiedId).trim();
                 io.to(`delivery-${notifiedIdString}`).emit('order-accepted', {
                     orderId,
@@ -441,10 +482,10 @@ export async function handleOrderAcceptance(
             // Clean up notification state
             notificationStates.delete(orderId);
         } else {
-             // If no state, we can't emit to specific originally notified list,
-             // but 'delivery-notifications' room covers the general case.
-             // We can also try to emit to the accepting delivery boy just in case
-             io.to(`delivery-${normalizedDeliveryBoyId}`).emit('order-accepted', {
+            // If no state, we can't emit to specific originally notified list,
+            // but 'delivery-notifications' room covers the general case.
+            // We can also try to emit to the accepting delivery boy just in case
+            io.to(`delivery-${normalizedDeliveryBoyId}`).emit('order-accepted', {
                 orderId,
                 acceptedBy: normalizedDeliveryBoyId,
             });

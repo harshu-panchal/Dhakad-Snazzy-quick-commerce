@@ -11,6 +11,7 @@ import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
 import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
+import { getOrderItemCommissionRate } from "../../../services/commissionService";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -282,6 +283,10 @@ export const createOrder = async (req: Request, res: Response) => {
             const itemTotal = itemPrice * qty;
             calculatedSubtotal += itemTotal;
 
+            // Calculate commission rate snapshot
+            const commRate = await getOrderItemCommissionRate(product._id.toString(), product.seller.toString());
+            const commAmount = (itemTotal * commRate) / 100;
+
             // Create OrderItem
             const newOrderItemData = {
                 order: newOrder._id,
@@ -293,6 +298,8 @@ export const createOrder = async (req: Request, res: Response) => {
                 unitPrice: itemPrice,
                 quantity: qty,
                 total: itemTotal,
+                commissionRate: commRate,
+                commissionAmount: commAmount,
                 variation: variationValue,
                 status: 'Pending'
             };

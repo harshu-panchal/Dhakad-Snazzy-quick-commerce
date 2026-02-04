@@ -1,35 +1,55 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useCart } from '../../context/CartContext';
-import { useOrders } from '../../hooks/useOrders';
-import { useLocation as useLocationContext } from '../../hooks/useLocation';
-import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useCart } from "../../context/CartContext";
+import { useOrders } from "../../hooks/useOrders";
+import { useLocation as useLocationContext } from "../../hooks/useLocation";
+import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 
 // import { products } from '../../data/products'; // Removed
-import { OrderAddress, Order } from '../../types/order';
-import PartyPopper from './components/PartyPopper';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetClose } from '../../components/ui/sheet';
-import WishlistButton from '../../components/WishlistButton';
+import { OrderAddress, Order } from "../../types/order";
+import PartyPopper from "./components/PartyPopper";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetClose,
+} from "../../components/ui/sheet";
+import WishlistButton from "../../components/WishlistButton";
 
-import { getCoupons, validateCoupon, Coupon as ApiCoupon } from '../../services/api/customerCouponService';
-import { appConfig } from '../../services/configService';
-import { getAddresses, updateAddress } from '../../services/api/customerAddressService';
-import GoogleMapsLocationPicker from '../../components/GoogleMapsLocationPicker';
-import { getProducts } from '../../services/api/customerProductService';
-import { addToWishlist } from '../../services/api/customerWishlistService';
-import { updateProfile } from '../../services/api/customerService';
-import { calculateProductPrice } from '../../utils/priceUtils';
-import RazorpayCheckout from '../../components/RazorpayCheckout';
+import {
+  getCoupons,
+  validateCoupon,
+  Coupon as ApiCoupon,
+} from "../../services/api/customerCouponService";
+import { appConfig } from "../../services/configService";
+import {
+  getAddresses,
+  updateAddress,
+} from "../../services/api/customerAddressService";
+import GoogleMapsLocationPicker from "../../components/GoogleMapsLocationPicker";
+import { getProducts } from "../../services/api/customerProductService";
+import { addToWishlist } from "../../services/api/customerWishlistService";
+import { updateProfile } from "../../services/api/customerService";
+import { calculateProductPrice } from "../../utils/priceUtils";
+import RazorpayCheckout from "../../components/RazorpayCheckout";
 
 // const STORAGE_KEY = 'saved_address'; // Removed
 
 // Similar products helper removed - using API
 
-
 export default function Checkout() {
-  const { cart, updateQuantity, clearCart, addToCart, removeFromCart, refreshCart, loading: cartLoading } = useCart();
+  const {
+    cart,
+    updateQuantity,
+    clearCart,
+    addToCart,
+    removeFromCart,
+    refreshCart,
+    loading: cartLoading,
+  } = useCart();
   const { addOrder } = useOrders();
   const { location: userLocation } = useLocationContext();
   const { showToast: showGlobalToast } = useToast();
@@ -39,7 +59,9 @@ export default function Checkout() {
   const [customTipAmount, setCustomTipAmount] = useState<number>(0);
   const [showCustomTipInput, setShowCustomTipInput] = useState(false);
   const [savedAddress, setSavedAddress] = useState<OrderAddress | null>(null);
-  const [selectedAddress, setSelectedAddress] = useState<OrderAddress | null>(null);
+  const [selectedAddress, setSelectedAddress] = useState<OrderAddress | null>(
+    null,
+  );
   const [showCouponSheet, setShowCouponSheet] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState<ApiCoupon | null>(null);
   const [showPartyPopper, setShowPartyPopper] = useState(false);
@@ -59,34 +81,46 @@ export default function Checkout() {
   const [validatedDiscount, setValidatedDiscount] = useState<number>(0);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
   const [showGstinSheet, setShowGstinSheet] = useState(false);
-  const [gstin, setGstin] = useState<string>('');
+  const [gstin, setGstin] = useState<string>("");
   const [showCancellationPolicy, setShowCancellationPolicy] = useState(false);
   const [giftPackaging, setGiftPackaging] = useState<boolean>(false);
 
   // Profile completion modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileFormData, setProfileFormData] = useState({ name: '', email: '' });
+  const [profileFormData, setProfileFormData] = useState({
+    name: "",
+    email: "",
+  });
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   // Map Picker State
   const [showMapPicker, setShowMapPicker] = useState(false);
-  const [mapLocation, setMapLocation] = useState<{ lat: number, lng: number, address?: any } | null>(null);
+  const [mapLocation, setMapLocation] = useState<{
+    lat: number;
+    lng: number;
+    address?: any;
+  } | null>(null);
   const [isUpdatingLocation, setIsUpdatingLocation] = useState(false);
   const [isMapSelected, setIsMapSelected] = useState(false);
 
-  // Razorpay Payment State
-  const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
-  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // Payment Method State
+  const [paymentMethod, setPaymentMethod] = useState<"Online" | "COD">(
+    "Online",
+  );
 
+  // Razorpay Payment State
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
 
   // Check if user has placeholder data (needs profile completion)
-  const isPlaceholderUser = user?.name === 'User' || user?.email?.endsWith('@dhakadsnazzy.temp');
+  const isPlaceholderUser =
+    user?.name === "User" || user?.email?.endsWith("@dhakadsnazzy.temp");
 
   // Redirect if empty
   useEffect(() => {
     if (!cartLoading && cart.items.length === 0 && !showOrderSuccess) {
-      navigate('/');
+      navigate("/");
     }
   }, [cart.items.length, cartLoading, navigate, showOrderSuccess]);
 
@@ -96,24 +130,30 @@ export default function Checkout() {
       try {
         const [addressResponse, couponResponse] = await Promise.all([
           getAddresses(),
-          getCoupons()
+          getCoupons(),
         ]);
 
-        if (addressResponse.success && Array.isArray(addressResponse.data) && addressResponse.data.length > 0) {
-          const defaultAddr = addressResponse.data.find((a: any) => a.isDefault) || addressResponse.data[0];
+        if (
+          addressResponse.success &&
+          Array.isArray(addressResponse.data) &&
+          addressResponse.data.length > 0
+        ) {
+          const defaultAddr =
+            addressResponse.data.find((a: any) => a.isDefault) ||
+            addressResponse.data[0];
           const mappedAddress: OrderAddress = {
             name: defaultAddr.fullName,
             phone: defaultAddr.phone,
-            flat: '',
+            flat: "",
             street: defaultAddr.address,
             city: defaultAddr.city,
             state: defaultAddr.state,
             pincode: defaultAddr.pincode,
-            landmark: defaultAddr.landmark || '',
+            landmark: defaultAddr.landmark || "",
             latitude: defaultAddr.latitude,
             longitude: defaultAddr.longitude,
             id: defaultAddr._id,
-            _id: defaultAddr._id
+            _id: defaultAddr._id,
           };
           setSavedAddress(mappedAddress);
           setSelectedAddress(mappedAddress);
@@ -123,7 +163,7 @@ export default function Checkout() {
           setAvailableCoupons(couponResponse.data);
         }
       } catch (error) {
-        console.error('Error loading checkout data:', error);
+        console.error("Error loading checkout data:", error);
       }
     };
     fetchInitialData();
@@ -132,7 +172,7 @@ export default function Checkout() {
   // Fetch similar products dynamically
   useEffect(() => {
     const fetchSimilar = async () => {
-      const items = (cart?.items || []).filter(item => item && item.product);
+      const items = (cart?.items || []).filter((item) => item && item.product);
       if (items.length === 0) return;
 
       const cartItem = items[0];
@@ -140,27 +180,33 @@ export default function Checkout() {
         let response;
         if (cartItem && cartItem.product) {
           // Try to fetch by category of the first item
-          let catId = '';
+          let catId = "";
           const product = cartItem.product;
 
           if (product.categoryId) {
-            catId = typeof product.categoryId === 'string'
-              ? product.categoryId
-              : (product.categoryId as any)._id || (product.categoryId as any).id;
+            catId =
+              typeof product.categoryId === "string"
+                ? product.categoryId
+                : (product.categoryId as any)._id ||
+                  (product.categoryId as any).id;
           }
 
           if (catId) {
             response = await getProducts({ category: catId, limit: 10 });
           } else {
-            response = await getProducts({ limit: 10, sort: 'popular' });
+            response = await getProducts({ limit: 10, sort: "popular" });
           }
         } else {
-          response = await getProducts({ limit: 10, sort: 'popular' });
+          response = await getProducts({ limit: 10, sort: "popular" });
         }
 
         if (response && response.data) {
           // Filter out items already in cart
-          const itemsInCartIds = new Set((cart?.items || []).map(i => i.product?.id || i.product?._id).filter(Boolean));
+          const itemsInCartIds = new Set(
+            (cart?.items || [])
+              .map((i) => i.product?.id || i.product?._id)
+              .filter(Boolean),
+          );
           const filtered = response.data
             .filter((p: any) => !itemsInCartIds.has(p.id || p._id))
             .map((p: any) => {
@@ -168,11 +214,15 @@ export default function Checkout() {
               return {
                 ...p,
                 id: p._id || p.id,
-                name: p.productName || p.name || 'Product',
-                imageUrl: p.mainImage || p.imageUrl || p.mainImageUrl || '',
+                name: p.productName || p.name || "Product",
+                imageUrl: p.mainImage || p.imageUrl || p.mainImageUrl || "",
                 price: displayPrice,
                 mrp: mrp,
-                pack: p.pack || p.variations?.[0]?.title || p.variations?.[0]?.name || 'Standard',
+                pack:
+                  p.pack ||
+                  p.variations?.[0]?.title ||
+                  p.variations?.[0]?.name ||
+                  "Standard",
               };
             })
             .slice(0, 6);
@@ -191,26 +241,38 @@ export default function Checkout() {
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-sm font-medium text-neutral-600">
-            {cartLoading ? 'Loading checkout...' : 'Redirecting...'}
+            {cartLoading ? "Loading checkout..." : "Redirecting..."}
           </p>
         </div>
       </div>
     );
   }
 
-  const displayItems = (cart?.items || []).filter(item => item && item.product);
+  const displayItems = (cart?.items || []).filter(
+    (item) => item && item.product,
+  );
   const displayCart = {
     ...cart,
     items: displayItems,
-    itemCount: displayItems.reduce((sum, item) => sum + (item.quantity || 0), 0),
+    itemCount: displayItems.reduce(
+      (sum, item) => sum + (item.quantity || 0),
+      0,
+    ),
     total: displayItems.reduce((sum, item) => {
-      const { displayPrice } = calculateProductPrice(item.product, item.variant);
+      const { displayPrice } = calculateProductPrice(
+        item.product,
+        item.variant,
+      );
       return sum + displayPrice * (item.quantity || 0);
-    }, 0)
+    }, 0),
   };
 
-  const freeDeliveryThreshold = cart.freeDeliveryThreshold ?? appConfig.freeDeliveryThreshold;
-  const amountNeededForFreeDelivery = Math.max(0, freeDeliveryThreshold - (displayCart.total || 0));
+  const freeDeliveryThreshold =
+    cart.freeDeliveryThreshold ?? appConfig.freeDeliveryThreshold;
+  const amountNeededForFreeDelivery = Math.max(
+    0,
+    freeDeliveryThreshold - (displayCart.total || 0),
+  );
   const cartItem = displayItems[0];
 
   /* DEBUG: Display Backend Configuration */
@@ -219,7 +281,7 @@ export default function Checkout() {
   const itemsTotal = displayItems.reduce((sum, item) => {
     if (!item?.product) return sum;
     const { mrp } = calculateProductPrice(item.product, item.variant);
-    return sum + (mrp * (item.quantity || 0));
+    return sum + mrp * (item.quantity || 0);
   }, 0);
 
   const discountedTotal = displayCart.total;
@@ -227,25 +289,37 @@ export default function Checkout() {
   const handlingCharge = cart.platformFee ?? appConfig.platformFee;
 
   // Use dynamic delivery fee if available (and valid), otherwise fallback to static config
-  const deliveryCharge = (displayCart.estimatedDeliveryFee !== undefined)
-    ? displayCart.estimatedDeliveryFee
-    : (displayCart.total >= freeDeliveryThreshold ? 0 : appConfig.deliveryFee);
+  const deliveryCharge =
+    displayCart.estimatedDeliveryFee !== undefined
+      ? displayCart.estimatedDeliveryFee
+      : displayCart.total >= freeDeliveryThreshold
+        ? 0
+        : appConfig.deliveryFee;
 
   // Recalculate or use validated discount
   // If we have a selected coupon, we should re-validate if cart total changes,
   // but for simplicity, we'll re-calculate locally if possible or trust the previous validation if acceptable (better to re-validate)
-  const subtotalBeforeCoupon = discountedTotal + handlingCharge + deliveryCharge;
+  const subtotalBeforeCoupon =
+    discountedTotal + handlingCharge + deliveryCharge;
 
   // Local calculation for immediate feedback, relying on backend validation on Apply
   let currentCouponDiscount = 0;
   if (selectedCoupon) {
     // Logic mirrors backend for UI update purposes
-    if (selectedCoupon.minOrderValue && subtotalBeforeCoupon < selectedCoupon.minOrderValue) {
+    if (
+      selectedCoupon.minOrderValue &&
+      subtotalBeforeCoupon < selectedCoupon.minOrderValue
+    ) {
       // Invalid now
     } else {
-      if (selectedCoupon.discountType === 'percentage') {
-        currentCouponDiscount = Math.round((subtotalBeforeCoupon * selectedCoupon.discountValue) / 100);
-        if (selectedCoupon.maxDiscountAmount && currentCouponDiscount > selectedCoupon.maxDiscountAmount) {
+      if (selectedCoupon.discountType === "percentage") {
+        currentCouponDiscount = Math.round(
+          (subtotalBeforeCoupon * selectedCoupon.discountValue) / 100,
+        );
+        if (
+          selectedCoupon.maxDiscountAmount &&
+          currentCouponDiscount > selectedCoupon.maxDiscountAmount
+        ) {
           currentCouponDiscount = selectedCoupon.maxDiscountAmount;
         }
       } else {
@@ -255,9 +329,17 @@ export default function Checkout() {
   }
 
   // Calculate tip amount (use custom tip if custom tip input is shown, otherwise use selected tip)
-  const finalTipAmount = showCustomTipInput ? customTipAmount : (tipAmount || 0);
+  const finalTipAmount = showCustomTipInput ? customTipAmount : tipAmount || 0;
   const giftPackagingFee = giftPackaging ? 30 : 0;
-  const grandTotal = Math.max(0, discountedTotal + handlingCharge + deliveryCharge + finalTipAmount + giftPackagingFee - currentCouponDiscount);
+  const grandTotal = Math.max(
+    0,
+    discountedTotal +
+      handlingCharge +
+      deliveryCharge +
+      finalTipAmount +
+      giftPackagingFee -
+      currentCouponDiscount,
+  );
 
   const handleApplyCoupon = async (coupon: ApiCoupon) => {
     setIsValidatingCoupon(true);
@@ -274,10 +356,10 @@ export default function Checkout() {
           setShowPartyPopper(true);
         }
       } else {
-        setCouponError(result.message || 'Invalid coupon');
+        setCouponError(result.message || "Invalid coupon");
       }
     } catch (err: any) {
-      setCouponError(err.response?.data?.message || 'Failed to apply coupon');
+      setCouponError(err.response?.data?.message || "Failed to apply coupon");
     } finally {
       setIsValidatingCoupon(false);
     }
@@ -296,20 +378,28 @@ export default function Checkout() {
 
     try {
       if (!userLocation?.latitude || !userLocation?.longitude) {
-        showGlobalToast('Location is required to move items to wishlist', 'error');
+        showGlobalToast(
+          "Location is required to move items to wishlist",
+          "error",
+        );
         return;
       }
 
       // Add to wishlist
-      await addToWishlist(productId, userLocation.latitude, userLocation.longitude);
+      await addToWishlist(
+        productId,
+        userLocation.latitude,
+        userLocation.longitude,
+      );
       // Remove from cart
       await removeFromCart(productId);
       // Show success message
-      showGlobalToast('Item moved to wishlist');
+      showGlobalToast("Item moved to wishlist");
     } catch (error: any) {
-      console.error('Failed to move to wishlist:', error);
-      const msg = error.response?.data?.message || 'Failed to move item to wishlist';
-      showGlobalToast(msg, 'error');
+      console.error("Failed to move to wishlist:", error);
+      const msg =
+        error.response?.data?.message || "Failed to move item to wishlist";
+      showGlobalToast(msg, "error");
     }
   };
 
@@ -323,7 +413,12 @@ export default function Checkout() {
 
     // Check if user needs to complete their profile first
     if (!bypassProfileCheck && isPlaceholderUser) {
-      setProfileFormData({ name: user?.name === 'User' ? '' : (user?.name || ''), email: user?.email?.endsWith('@dhakadsnazzy.temp') ? '' : (user?.email || '') });
+      setProfileFormData({
+        name: user?.name === "User" ? "" : user?.name || "",
+        email: user?.email?.endsWith("@dhakadsnazzy.temp")
+          ? ""
+          : user?.email || "",
+      });
       setShowProfileModal(true);
       return;
     }
@@ -341,8 +436,12 @@ export default function Checkout() {
 
     // Validate that we have location data (either from address or user's current location)
     if (finalLatitude == null || finalLongitude == null) {
-      console.error("Address is missing location data (latitude/longitude) and user location is not available");
-      alert("Location is required for delivery. Please ensure your address has location data or enable location access.");
+      console.error(
+        "Address is missing location data (latitude/longitude) and user location is not available",
+      );
+      alert(
+        "Location is required for delivery. Please ensure your address has location data or enable location access.",
+      );
       return;
     }
 
@@ -366,7 +465,8 @@ export default function Checkout() {
       },
       totalAmount: grandTotal,
       address: addressWithLocation,
-      status: 'Pending', // Changed from 'Placed' to 'Pending' until payment is complete
+      paymentMethod: paymentMethod,
+      status: paymentMethod === "COD" ? "Received" : "Pending", // COD orders start as 'Received'
       createdAt: new Date().toISOString(),
       tipAmount: finalTipAmount,
       gstin: gstin || undefined,
@@ -375,30 +475,39 @@ export default function Checkout() {
     };
 
     try {
-      // Create the order first (with Pending status)
+      // Create the order
       const placedId = await addOrder(order);
       if (placedId) {
-        // Set the pending order ID and trigger Razorpay payment
-        setPendingOrderId(placedId);
-        setShowRazorpayCheckout(true);
-        // Note: Cart will be cleared and success shown only after successful payment
+        if (paymentMethod === "COD") {
+          // For COD, proceed directly to success
+          setPlacedOrderId(placedId);
+          clearCart();
+          setShowOrderSuccess(true);
+          showGlobalToast("Order placed successfully!", "success");
+        } else {
+          // For Online, trigger Razorpay payment
+          setPendingOrderId(placedId);
+          setShowRazorpayCheckout(true);
+        }
+        // Note: For Online payment, the cart will be cleared and success shown only after successful payment
         // See the RazorpayCheckout onSuccess handler (lines 1840-1846)
       }
     } catch (error: any) {
       console.error("Order placement failed", error);
       // Show user-friendly error message
-      const errorMessage = error.message || error.response?.data?.message || "Failed to place order. Please try again.";
+      const errorMessage =
+        error.message ||
+        error.response?.data?.message ||
+        "Failed to place order. Please try again.";
       alert(errorMessage);
     }
   };
-
-
 
   const handleGoToOrders = () => {
     if (placedOrderId) {
       navigate(`/orders/${placedOrderId}`);
     } else {
-      navigate('/orders');
+      navigate("/orders");
     }
   };
 
@@ -409,16 +518,21 @@ export default function Checkout() {
       // Prepare update payload
       const updatePayload: any = {
         latitude: mapLocation.lat,
-        longitude: mapLocation.lng
+        longitude: mapLocation.lng,
       };
 
       // If address details are available from map, update them too
       if (mapLocation.address) {
-        if (mapLocation.address.street) updatePayload.address = mapLocation.address.street;
-        if (mapLocation.address.city) updatePayload.city = mapLocation.address.city;
-        if (mapLocation.address.state) updatePayload.state = mapLocation.address.state;
-        if (mapLocation.address.pincode) updatePayload.pincode = mapLocation.address.pincode;
-        if (mapLocation.address.landmark) updatePayload.landmark = mapLocation.address.landmark;
+        if (mapLocation.address.street)
+          updatePayload.address = mapLocation.address.street;
+        if (mapLocation.address.city)
+          updatePayload.city = mapLocation.address.city;
+        if (mapLocation.address.state)
+          updatePayload.state = mapLocation.address.state;
+        if (mapLocation.address.pincode)
+          updatePayload.pincode = mapLocation.address.pincode;
+        if (mapLocation.address.landmark)
+          updatePayload.landmark = mapLocation.address.landmark;
       }
 
       // Update the address in backend
@@ -439,7 +553,7 @@ export default function Checkout() {
       setSavedAddress(updated); // Sync
       setShowMapPicker(false);
       setIsMapSelected(true); // Mark map as selected
-      showGlobalToast('Location and address updated successfully!');
+      showGlobalToast("Location and address updated successfully!");
     } catch (err) {
       console.error(err);
       // showGlobalToast('Failed to update location');
@@ -451,14 +565,14 @@ export default function Checkout() {
   // Handle profile completion submission
   const handleProfileSubmit = async () => {
     if (!profileFormData.name.trim() || !profileFormData.email.trim()) {
-      setProfileError('Please enter both name and email');
+      setProfileError("Please enter both name and email");
       return;
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(profileFormData.email)) {
-      setProfileError('Please enter a valid email address');
+      setProfileError("Please enter a valid email address");
       return;
     }
 
@@ -475,32 +589,31 @@ export default function Checkout() {
         // Update local user data
         updateUser({
           ...user,
-          id: user?.id || '',
+          id: user?.id || "",
           name: response.data.name,
           email: response.data.email,
         });
 
         setShowProfileModal(false);
-        showGlobalToast('Profile updated successfully!');
+        showGlobalToast("Profile updated successfully!");
 
         // Directly trigger order placement, bypassing the profile check
         handlePlaceOrder(true);
       }
     } catch (error: any) {
-      setProfileError(error.response?.data?.message || 'Failed to update profile. Please try again.');
+      setProfileError(
+        error.response?.data?.message ||
+          "Failed to update profile. Please try again.",
+      );
     } finally {
       setIsUpdatingProfile(false);
     }
   };
 
-
   return (
     <div
       className="bg-white min-h-screen flex flex-col opacity-100"
-      style={{ opacity: 1, height: '1250px' }}
-    >
-
-
+      style={{ opacity: 1, height: "1250px" }}>
       {/* Party Popper Animation */}
       <PartyPopper
         show={showPartyPopper}
@@ -515,27 +628,34 @@ export default function Checkout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setShowProfileModal(false)}
-          >
+            onClick={() => setShowProfileModal(false)}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-lg font-bold text-neutral-900 mb-2">Complete Your Profile</h2>
+              onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-bold text-neutral-900 mb-2">
+                Complete Your Profile
+              </h2>
               <p className="text-sm text-neutral-600 mb-4">
                 Please provide your name and email to continue with your order.
               </p>
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">Full Name</label>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Full Name
+                  </label>
                   <input
                     type="text"
                     value={profileFormData.name}
-                    onChange={(e) => setProfileFormData(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileFormData((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                      }))
+                    }
                     placeholder="Enter your full name"
                     className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-green-500 transition-colors"
                     disabled={isUpdatingProfile}
@@ -543,11 +663,18 @@ export default function Checkout() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-neutral-700 mb-1">Email Address</label>
+                  <label className="block text-xs font-medium text-neutral-700 mb-1">
+                    Email Address
+                  </label>
                   <input
                     type="email"
                     value={profileFormData.email}
-                    onChange={(e) => setProfileFormData(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) =>
+                      setProfileFormData((prev) => ({
+                        ...prev,
+                        email: e.target.value,
+                      }))
+                    }
                     placeholder="Enter your email"
                     className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-green-500 transition-colors"
                     disabled={isUpdatingProfile}
@@ -555,26 +682,33 @@ export default function Checkout() {
                 </div>
 
                 {profileError && (
-                  <p className="text-xs text-red-600 bg-red-50 p-2 rounded">{profileError}</p>
+                  <p className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                    {profileError}
+                  </p>
                 )}
 
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setShowProfileModal(false)}
                     className="flex-1 py-2.5 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors"
-                    disabled={isUpdatingProfile}
-                  >
+                    disabled={isUpdatingProfile}>
                     Cancel
                   </button>
                   <button
                     onClick={handleProfileSubmit}
-                    disabled={isUpdatingProfile || !profileFormData.name.trim() || !profileFormData.email.trim()}
-                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${isUpdatingProfile || !profileFormData.name.trim() || !profileFormData.email.trim()
-                      ? 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
-                      : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
-                  >
-                    {isUpdatingProfile ? 'Saving...' : 'Save & Continue'}
+                    disabled={
+                      isUpdatingProfile ||
+                      !profileFormData.name.trim() ||
+                      !profileFormData.email.trim()
+                    }
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                      isUpdatingProfile ||
+                      !profileFormData.name.trim() ||
+                      !profileFormData.email.trim()
+                        ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}>
+                    {isUpdatingProfile ? "Saving..." : "Save & Continue"}
                   </button>
                 </div>
               </div>
@@ -591,26 +725,46 @@ export default function Checkout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setShowMapPicker(false)}
-          >
+            onClick={() => setShowMapPicker(false)}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white rounded-xl overflow-hidden w-full max-w-lg shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
+              onClick={(e) => e.stopPropagation()}>
               <div className="p-4 border-b flex justify-between items-center">
-                <h3 className="font-bold text-neutral-900">Pin Delivery Location</h3>
+                <h3 className="font-bold text-neutral-900">
+                  Pin Delivery Location
+                </h3>
                 <button onClick={() => setShowMapPicker(false)}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
               <GoogleMapsLocationPicker
-                initialLat={mapLocation?.lat || userLocation?.latitude || selectedAddress?.latitude || 0}
-                initialLng={mapLocation?.lng || userLocation?.longitude || selectedAddress?.longitude || 0}
-                onLocationSelect={(lat, lng, address) => setMapLocation({ lat, lng, address })}
+                initialLat={
+                  mapLocation?.lat ||
+                  userLocation?.latitude ||
+                  selectedAddress?.latitude ||
+                  0
+                }
+                initialLng={
+                  mapLocation?.lng ||
+                  userLocation?.longitude ||
+                  selectedAddress?.longitude ||
+                  0
+                }
+                onLocationSelect={(lat, lng, address) =>
+                  setMapLocation({ lat, lng, address })
+                }
                 height="300px"
               />
 
@@ -621,14 +775,15 @@ export default function Checkout() {
                 <button
                   onClick={handleUpdateLocation}
                   disabled={isUpdatingLocation}
-                  className="w-full py-3 bg-neutral-900 text-white font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-70 flex justify-center items-center gap-2"
-                >
+                  className="w-full py-3 bg-neutral-900 text-white font-bold rounded-lg hover:bg-neutral-800 transition-colors disabled:opacity-70 flex justify-center items-center gap-2">
                   {isUpdatingLocation ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                       Updating...
                     </>
-                  ) : 'Confirm Location'}
+                  ) : (
+                    "Confirm Location"
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -640,8 +795,7 @@ export default function Checkout() {
       {showOrderSuccess && (
         <div
           className="fixed inset-0 z-[70] bg-white flex flex-col items-center justify-center h-screen w-screen overflow-hidden"
-          style={{ animation: 'fadeIn 0.3s ease-out' }}
-        >
+          style={{ animation: "fadeIn 0.3s ease-out" }}>
           {/* Confetti Background */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             {/* Animated confetti pieces */}
@@ -652,7 +806,14 @@ export default function Checkout() {
                 style={{
                   left: `${Math.random() * 100}%`,
                   top: `-10%`,
-                  backgroundColor: ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'][Math.floor(Math.random() * 6)],
+                  backgroundColor: [
+                    "#22c55e",
+                    "#3b82f6",
+                    "#f59e0b",
+                    "#ef4444",
+                    "#8b5cf6",
+                    "#ec4899",
+                  ][Math.floor(Math.random() * 6)],
                   animation: `confettiFall ${2 + Math.random() * 2}s linear ${Math.random() * 2}s infinite`,
                   transform: `rotate(${Math.random() * 360}deg)`,
                 }}
@@ -665,14 +826,16 @@ export default function Checkout() {
             {/* Success Tick Circle */}
             <div
               className="relative mb-8"
-              style={{ animation: 'scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both' }}
-            >
+              style={{
+                animation:
+                  "scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both",
+              }}>
               {/* Outer ring animation */}
               <div
                 className="absolute inset-0 w-32 h-32 rounded-full border-4 border-green-500"
                 style={{
-                  animation: 'ringPulse 1.5s ease-out infinite',
-                  opacity: 0.3
+                  animation: "ringPulse 1.5s ease-out infinite",
+                  opacity: 0.3,
                 }}
               />
               {/* Main circle */}
@@ -685,8 +848,7 @@ export default function Checkout() {
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  style={{ animation: 'checkDraw 0.5s ease-out 0.5s both' }}
-                >
+                  style={{ animation: "checkDraw 0.5s ease-out 0.5s both" }}>
                   <path d="M5 12l5 5L19 7" className="check-path" />
                 </svg>
               </div>
@@ -696,8 +858,8 @@ export default function Checkout() {
                   key={i}
                   className="absolute w-2 h-2 bg-yellow-400 rounded-full"
                   style={{
-                    top: '50%',
-                    left: '50%',
+                    top: "50%",
+                    left: "50%",
                     animation: `sparkle 0.6s ease-out ${0.3 + i * 0.1}s both`,
                     transform: `rotate(${i * 60}deg) translateY(-80px)`,
                   }}
@@ -708,8 +870,7 @@ export default function Checkout() {
             {/* Location Info */}
             <div
               className="text-center"
-              style={{ animation: 'slideUp 0.5s ease-out 0.6s both' }}
-            >
+              style={{ animation: "slideUp 0.5s ease-out 0.6s both" }}>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <div className="w-5 h-5 text-red-500">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -721,16 +882,19 @@ export default function Checkout() {
                 </h2>
               </div>
               <p className="text-gray-500 text-base">
-                {selectedAddress ? `${selectedAddress.street}, ${selectedAddress.city}` : "Delivery Address"}
+                {selectedAddress
+                  ? `${selectedAddress.street}, ${selectedAddress.city}`
+                  : "Delivery Address"}
               </p>
             </div>
 
             {/* Order Placed Message */}
             <div
               className="mt-12 text-center"
-              style={{ animation: 'slideUp 0.5s ease-out 0.8s both' }}
-            >
-              <h3 className="text-3xl font-bold text-green-600 mb-2">Order Placed!</h3>
+              style={{ animation: "slideUp 0.5s ease-out 0.8s both" }}>
+              <h3 className="text-3xl font-bold text-green-600 mb-2">
+                Order Placed!
+              </h3>
               <p className="text-gray-600">Your order is on the way</p>
             </div>
 
@@ -738,8 +902,7 @@ export default function Checkout() {
             <button
               onClick={handleGoToOrders}
               className="mt-10 bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-12 rounded-xl shadow-lg transition-all hover:shadow-xl hover:scale-105"
-              style={{ animation: 'slideUp 0.5s ease-out 1s both' }}
-            >
+              style={{ animation: "slideUp 0.5s ease-out 1s both" }}>
               Track Your Order
             </button>
           </div>
@@ -752,10 +915,20 @@ export default function Checkout() {
           <button
             onClick={() => navigate(-1)}
             className="w-7 h-7 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 rounded-full transition-colors"
-            aria-label="Go back"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            aria-label="Go back">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M15 18L9 12L15 6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
 
@@ -770,15 +943,18 @@ export default function Checkout() {
       {/* Ordering for someone else */}
       <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 bg-neutral-50 border-b border-neutral-200">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-neutral-700">Ordering for someone else?</span>
+          <span className="text-xs text-neutral-700">
+            Ordering for someone else?
+          </span>
           <button
-            onClick={() => navigate('/checkout/address', {
-              state: {
-                editAddress: savedAddress
-              }
-            })}
-            className="text-xs text-green-600 font-medium hover:text-green-700 transition-colors"
-          >
+            onClick={() =>
+              navigate("/checkout/address", {
+                state: {
+                  editAddress: savedAddress,
+                },
+              })
+            }
+            className="text-xs text-green-600 font-medium hover:text-green-700 transition-colors">
             Add details
           </button>
         </div>
@@ -788,49 +964,83 @@ export default function Checkout() {
       {savedAddress && (
         <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200">
           <div className="mb-2">
-            <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">Delivery Address</h3>
-            <p className="text-[10px] text-neutral-600">Select or edit your saved address</p>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
+              Delivery Address
+            </h3>
+            <p className="text-[10px] text-neutral-600">
+              Select or edit your saved address
+            </p>
           </div>
 
           <div
-            className={`border rounded-lg p-2.5 cursor-pointer transition-all ${selectedAddress && !isMapSelected ? 'border-green-600 bg-green-50' : 'border-neutral-300 bg-white'
-              }`}
+            className={`border rounded-lg p-2.5 cursor-pointer transition-all ${
+              selectedAddress && !isMapSelected
+                ? "border-green-600 bg-green-50"
+                : "border-neutral-300 bg-white"
+            }`}
             onClick={() => {
               setSelectedAddress(savedAddress);
               setIsMapSelected(false);
-            }}
-          >
+            }}>
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAddress && !isMapSelected ? 'border-green-600 bg-green-600' : 'border-neutral-400'
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                      selectedAddress && !isMapSelected
+                        ? "border-green-600 bg-green-600"
+                        : "border-neutral-400"
                     }`}>
                     {selectedAddress && !isMapSelected && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M20 6L9 17l-5-5"
+                          stroke="white"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
                       </svg>
                     )}
                   </div>
-                  <span className="text-xs font-semibold text-neutral-900">{savedAddress.name}</span>
+                  <span className="text-xs font-semibold text-neutral-900">
+                    {savedAddress.name}
+                  </span>
                 </div>
-                <p className="text-[10px] text-neutral-600 mb-0.5">{savedAddress.phone}</p>
+                <p className="text-[10px] text-neutral-600 mb-0.5">
+                  {savedAddress.phone}
+                </p>
                 <p className="text-[10px] text-neutral-600">
-                  {savedAddress.flat ? `${savedAddress.flat}, ` : ''}{savedAddress.street}
-                  {savedAddress.landmark ? <>, <span className="font-medium text-green-700">Near {savedAddress.landmark}</span></> : ''}
+                  {savedAddress.flat ? `${savedAddress.flat}, ` : ""}
+                  {savedAddress.street}
+                  {savedAddress.landmark ? (
+                    <>
+                      ,{" "}
+                      <span className="font-medium text-green-700">
+                        Near {savedAddress.landmark}
+                      </span>
+                    </>
+                  ) : (
+                    ""
+                  )}
                   , {savedAddress.city} - {savedAddress.pincode}
                 </p>
               </div>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigate('/checkout/address', {
+                  navigate("/checkout/address", {
                     state: {
-                      editAddress: savedAddress
-                    }
+                      editAddress: savedAddress,
+                    },
                   });
                 }}
-                className="text-xs text-green-600 font-medium ml-2"
-              >
+                className="text-xs text-green-600 font-medium ml-2">
                 Edit
               </button>
             </div>
@@ -842,25 +1052,58 @@ export default function Checkout() {
                 // Prioritize current GPS location (matches homepage header), then saved address
                 setMapLocation({
                   lat: userLocation?.latitude || selectedAddress?.latitude || 0,
-                  lng: userLocation?.longitude || selectedAddress?.longitude || 0
+                  lng:
+                    userLocation?.longitude || selectedAddress?.longitude || 0,
                 });
                 setShowMapPicker(true);
               }}
-
-              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${isMapSelected
-                ? 'text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600'
-                : 'text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400'
-                }`}
-            >
+              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${
+                isMapSelected
+                  ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
+                  : "text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400"
+              }`}>
               {isMapSelected ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
               ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  <circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle
+                    cx="12"
+                    cy="10"
+                    r="3"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               )}
-              {isMapSelected ? 'Precise Location Selected' : (selectedAddress?.latitude ? 'Update Precise Location on Map' : 'Set Exact Location on Map')}
+              {isMapSelected
+                ? "Precise Location Selected"
+                : selectedAddress?.latitude
+                  ? "Update Precise Location on Map"
+                  : "Set Exact Location on Map"}
             </button>
           </div>
         </div>
@@ -872,106 +1115,134 @@ export default function Checkout() {
           {/* Delivery info */}
           <div className="flex items-center gap-1.5 mb-2">
             <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
                 <circle cx="12" cy="12" r="10" stroke="white" strokeWidth="2" />
-                <path d="M12 6v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round" />
+                <path
+                  d="M12 6v6l4 2"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             </div>
-            <span className="text-xs font-semibold text-neutral-900">Delivery in {appConfig.estimatedDeliveryTime}</span>
+            <span className="text-xs font-semibold text-neutral-900">
+              Delivery in {appConfig.estimatedDeliveryTime}
+            </span>
           </div>
 
-          <p className="text-[10px] text-neutral-600 mb-2.5">Shipment of {displayCart.itemCount || 0} {(displayCart.itemCount || 0) === 1 ? 'item' : 'items'}</p>
+          <p className="text-[10px] text-neutral-600 mb-2.5">
+            Shipment of {displayCart.itemCount || 0}{" "}
+            {(displayCart.itemCount || 0) === 1 ? "item" : "items"}
+          </p>
 
           {/* Cart Items */}
           <div className="space-y-2.5">
-            {displayItems.filter(item => item.product).map((item) => (
-              <div key={item.product?.id || Math.random()} className="flex gap-2">
-                {/* Product Image */}
-                <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden">
-                  {item.product?.imageUrl ? (
-                    <img
-                      src={item.product?.imageUrl}
-                      alt={item.product?.name}
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-neutral-400">
-                      {(item.product?.name || '').charAt(0)}
-                    </div>
-                  )}
-                </div>
+            {displayItems
+              .filter((item) => item.product)
+              .map((item) => (
+                <div
+                  key={item.product?.id || Math.random()}
+                  className="flex gap-2">
+                  {/* Product Image */}
+                  <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden">
+                    {item.product?.imageUrl ? (
+                      <img
+                        src={item.product?.imageUrl}
+                        alt={item.product?.name}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-neutral-400">
+                        {(item.product?.name || "").charAt(0)}
+                      </div>
+                    )}
+                  </div>
 
-                {/* Product Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-neutral-900 mb-0.5 line-clamp-2">
-                    {item.product?.name}
-                  </h3>
-                  <p className="text-[10px] text-neutral-600 mb-0.5">{item.quantity} × {item.product?.pack}</p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMoveToWishlist(item.product);
-                    }}
-                    className="text-[10px] text-green-600 font-medium mb-1.5 hover:text-green-700 transition-colors"
-                  >
-                    Move to wishlist
-                  </button>
+                  {/* Product Info */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xs font-semibold text-neutral-900 mb-0.5 line-clamp-2">
+                      {item.product?.name}
+                    </h3>
+                    <p className="text-[10px] text-neutral-600 mb-0.5">
+                      {item.quantity} × {item.product?.pack}
+                    </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMoveToWishlist(item.product);
+                      }}
+                      className="text-[10px] text-green-600 font-medium mb-1.5 hover:text-green-700 transition-colors">
+                      Move to wishlist
+                    </button>
 
-                  {/* Quantity Selector */}
-                  <div className="flex items-center justify-between mt-1.5">
-                    <div className="flex items-center gap-1.5 bg-white border-2 border-green-600 rounded-full px-1.5 py-0.5">
-                      <button
-                        onClick={() => updateQuantity(item.product?.id, item.quantity - 1)}
-                        className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
-                      >
-                        −
-                      </button>
-                      <span className="text-xs font-bold text-green-600 min-w-[1.25rem] text-center">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.product?.id, item.quantity + 1)}
-                        className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs"
-                      >
-                        +
-                      </button>
-                    </div>
+                    {/* Quantity Selector */}
+                    <div className="flex items-center justify-between mt-1.5">
+                      <div className="flex items-center gap-1.5 bg-white border-2 border-green-600 rounded-full px-1.5 py-0.5">
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product?.id, item.quantity - 1)
+                          }
+                          className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs">
+                          −
+                        </button>
+                        <span className="text-xs font-bold text-green-600 min-w-[1.25rem] text-center">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() =>
+                            updateQuantity(item.product?.id, item.quantity + 1)
+                          }
+                          className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs">
+                          +
+                        </button>
+                      </div>
 
-                    {/* Price */}
-                    {(() => {
-                      const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
-                      return (
-                        <div className="flex items-center gap-1.5">
-                          {hasDiscount && (
-                            <span className="text-[10px] text-neutral-500 line-through">
-                              ₹{mrp}
+                      {/* Price */}
+                      {(() => {
+                        const { displayPrice, mrp, hasDiscount } =
+                          calculateProductPrice(item.product, item.variant);
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            {hasDiscount && (
+                              <span className="text-[10px] text-neutral-500 line-through">
+                                ₹{mrp}
+                              </span>
+                            )}
+                            <span className="text-sm font-bold text-neutral-900">
+                              ₹{displayPrice}
                             </span>
-                          )}
-                          <span className="text-sm font-bold text-neutral-900">
-                            ₹{displayPrice}
-                          </span>
-                        </div>
-                      );
-                    })()}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       </div>
 
       {/* You might also like */}
       <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200">
-        <h2 className="text-sm font-semibold text-neutral-900 mb-2">You might also like</h2>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3" style={{ scrollSnapType: 'x mandatory' }}>
+        <h2 className="text-sm font-semibold text-neutral-900 mb-2">
+          You might also like
+        </h2>
+        <div
+          className="flex gap-2 overflow-x-auto scrollbar-hide pb-3"
+          style={{ scrollSnapType: "x mandatory" }}>
           {similarProducts.map((product) => {
             // Get price details
-            const { displayPrice, mrp, discount, hasDiscount } = calculateProductPrice(product);
+            const { displayPrice, mrp, discount, hasDiscount } =
+              calculateProductPrice(product);
 
             // Get quantity in cart
             const productId = product.id || product._id;
-            const inCartItem = (cart?.items || []).find(item => {
+            const inCartItem = (cart?.items || []).find((item) => {
               const itemProductId = item.product?.id || item.product?._id;
               return itemProductId === productId;
             });
@@ -981,35 +1252,49 @@ export default function Checkout() {
               <div
                 key={product.id}
                 className="flex-shrink-0 w-[140px]"
-                style={{ scrollSnapAlign: 'start' }}
-              >
-                <div className="bg-white rounded-lg overflow-hidden flex flex-col relative h-full" style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.03)' }}>
+                style={{ scrollSnapAlign: "start" }}>
+                <div
+                  className="bg-white rounded-lg overflow-hidden flex flex-col relative h-full"
+                  style={{ boxShadow: "0 1px 1px rgba(0, 0, 0, 0.03)" }}>
                   {/* Product Image Area */}
                   <div
-                    onClick={() => navigate(`/product/${product.id || product._id}`)}
-                    className="relative block cursor-pointer"
-                  >
+                    onClick={() =>
+                      navigate(`/product/${product.id || product._id}`)
+                    }
+                    className="relative block cursor-pointer">
                     <div className="w-full h-28 bg-neutral-100 flex items-center justify-center overflow-hidden relative">
                       {product.imageUrl || product.mainImage ? (
                         <img
                           src={product.imageUrl || product.mainImage}
-                          alt={product.name || product.productName || 'Product'}
+                          alt={product.name || product.productName || "Product"}
                           className="w-full h-full object-contain"
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
+                            target.style.display = "none";
                             const parent = target.parentElement;
-                            if (parent && !parent.querySelector('.fallback-icon')) {
-                              const fallback = document.createElement('div');
-                              fallback.className = 'w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl fallback-icon';
-                              fallback.textContent = (product.name || product.productName || '?').charAt(0).toUpperCase();
+                            if (
+                              parent &&
+                              !parent.querySelector(".fallback-icon")
+                            ) {
+                              const fallback = document.createElement("div");
+                              fallback.className =
+                                "w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl fallback-icon";
+                              fallback.textContent = (
+                                product.name ||
+                                product.productName ||
+                                "?"
+                              )
+                                .charAt(0)
+                                .toUpperCase();
                               parent.appendChild(fallback);
                             }
                           }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl">
-                          {(product.name || product.productName || '?').charAt(0).toUpperCase()}
+                          {(product.name || product.productName || "?")
+                            .charAt(0)
+                            .toUpperCase()}
                         </div>
                       )}
 
@@ -1042,8 +1327,7 @@ export default function Checkout() {
                                 e.stopPropagation();
                                 addToCart(product, e.currentTarget);
                               }}
-                              className="bg-white/95 backdrop-blur-sm text-green-600 border-2 border-green-600 text-[10px] font-semibold px-2 py-1 rounded shadow-md hover:bg-white transition-colors"
-                            >
+                              className="bg-white/95 backdrop-blur-sm text-green-600 border-2 border-green-600 text-[10px] font-semibold px-2 py-1 rounded shadow-md hover:bg-white transition-colors">
                               ADD
                             </motion.button>
                           ) : (
@@ -1054,8 +1338,7 @@ export default function Checkout() {
                               exit={{ opacity: 0, scale: 0.8 }}
                               transition={{ duration: 0.2 }}
                               className="flex items-center gap-1 bg-green-600 rounded px-1.5 py-1 shadow-md"
-                              onClick={(e) => e.stopPropagation()}
-                            >
+                              onClick={(e) => e.stopPropagation()}>
                               <motion.button
                                 whileTap={{ scale: 0.9 }}
                                 onClick={(e) => {
@@ -1064,18 +1347,20 @@ export default function Checkout() {
                                   updateQuantity(productId, inCartQty - 1);
                                 }}
                                 className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
-                                style={{ lineHeight: 1, fontSize: '14px' }}
-                              >
+                                style={{ lineHeight: 1, fontSize: "14px" }}>
                                 <span className="relative top-[-1px]">−</span>
                               </motion.button>
                               <motion.span
                                 key={inCartQty}
                                 initial={{ scale: 1.2, y: -2 }}
                                 animate={{ scale: 1, y: 0 }}
-                                transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 500,
+                                  damping: 15,
+                                }}
                                 className="text-white font-bold min-w-[0.75rem] text-center"
-                                style={{ fontSize: '12px' }}
-                              >
+                                style={{ fontSize: "12px" }}>
                                 {inCartQty}
                               </motion.span>
                               <motion.button
@@ -1086,8 +1371,7 @@ export default function Checkout() {
                                   updateQuantity(productId, inCartQty + 1);
                                 }}
                                 className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
-                                style={{ lineHeight: 1, fontSize: '14px' }}
-                              >
+                                style={{ lineHeight: 1, fontSize: "14px" }}>
                                 <span className="relative top-[-1px]">+</span>
                               </motion.button>
                             </motion.div>
@@ -1102,22 +1386,25 @@ export default function Checkout() {
                     {/* Light Grey Tags */}
                     <div className="flex gap-0.5 mb-0.5">
                       <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-                        {product.pack || '1 unit'}
+                        {product.pack || "1 unit"}
                       </div>
-                      {product.pack && (product.pack.includes('g') || product.pack.includes('kg')) && (
-                        <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-                          {product.pack.replace(/[gk]/gi, '').trim()} GSM
-                        </div>
-                      )}
+                      {product.pack &&
+                        (product.pack.includes("g") ||
+                          product.pack.includes("kg")) && (
+                          <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
+                            {product.pack.replace(/[gk]/gi, "").trim()} GSM
+                          </div>
+                        )}
                     </div>
 
                     {/* Product Name */}
                     <div
-                      onClick={() => navigate(`/product/${product.id || product._id}`)}
-                      className="mb-0.5 cursor-pointer"
-                    >
+                      onClick={() =>
+                        navigate(`/product/${product.id || product._id}`)
+                      }
+                      className="mb-0.5 cursor-pointer">
                       <h3 className="text-[10px] font-bold text-neutral-900 line-clamp-2 leading-tight">
-                        {product.name || product.productName || 'Product'}
+                        {product.name || product.productName || "Product"}
                       </h3>
                     </div>
 
@@ -1130,9 +1417,8 @@ export default function Checkout() {
                             width="8"
                             height="8"
                             viewBox="0 0 24 24"
-                            fill={i < 4 ? '#fbbf24' : '#e5e7eb'}
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
+                            fill={i < 4 ? "#fbbf24" : "#e5e7eb"}
+                            xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                           </svg>
                         ))}
@@ -1156,11 +1442,11 @@ export default function Checkout() {
                     <div className="mb-1">
                       <div className="flex items-baseline gap-1">
                         <span className="text-[13px] font-bold text-neutral-900">
-                          ₹{(displayPrice || 0).toLocaleString('en-IN')}
+                          ₹{(displayPrice || 0).toLocaleString("en-IN")}
                         </span>
                         {hasDiscount && (
                           <span className="text-[10px] text-neutral-400 line-through">
-                            ₹{(mrp || 0).toLocaleString('en-IN')}
+                            ₹{(mrp || 0).toLocaleString("en-IN")}
                           </span>
                         )}
                       </div>
@@ -1168,13 +1454,21 @@ export default function Checkout() {
 
                     {/* Bottom Link */}
                     <div
-                      onClick={() => navigate(`/category/${product.categoryId || product.category || 'all'}`)}
-                      className="w-full bg-green-100 text-green-700 text-[8px] font-medium py-0.5 rounded-lg flex items-center justify-between px-1 hover:bg-green-200 transition-colors mt-auto cursor-pointer"
-                    >
+                      onClick={() =>
+                        navigate(
+                          `/category/${product.categoryId || product.category || "all"}`,
+                        )
+                      }
+                      className="w-full bg-green-100 text-green-700 text-[8px] font-medium py-0.5 rounded-lg flex items-center justify-between px-1 hover:bg-green-200 transition-colors mt-auto cursor-pointer">
                       <span>See more like this</span>
                       <div className="flex items-center gap-0.5">
                         <div className="w-px h-2 bg-green-300"></div>
-                        <svg width="6" height="6" viewBox="0 0 8 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <svg
+                          width="6"
+                          height="6"
+                          viewBox="0 0 8 8"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg">
                           <path d="M0 0L8 4L0 8Z" fill="#16a34a" />
                         </svg>
                       </div>
@@ -1191,25 +1485,53 @@ export default function Checkout() {
       {deliveryCharge > 0 && (
         <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
           <div className="flex items-center gap-2 mb-1.5">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5 13h14M5 13l4-4m-4 4l4 4" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M5 13h14M5 13l4-4m-4 4l4 4"
+                stroke="#3b82f6"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
               <circle cx="18" cy="5" r="2" fill="#3b82f6" />
             </svg>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-blue-700">Get FREE delivery</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 18l6-6-6-6" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <span className="text-xs font-bold text-blue-700">
+                  Get FREE delivery
+                </span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M9 18l6-6-6-6"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
-              <p className="text-[10px] text-blue-600 mt-0.5">Add products worth ₹{amountNeededForFreeDelivery} more</p>
+              <p className="text-[10px] text-blue-600 mt-0.5">
+                Add products worth ₹{amountNeededForFreeDelivery} more
+              </p>
             </div>
           </div>
           {/* Progress bar */}
           <div className="w-full h-1 bg-blue-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-blue-600 transition-all duration-300"
-              style={{ width: `${Math.min(100, ((199 - amountNeededForFreeDelivery) / 199) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, ((199 - amountNeededForFreeDelivery) / 199) * 100)}%`,
+              }}
             />
           </div>
         </div>
@@ -1221,19 +1543,33 @@ export default function Checkout() {
           <div className="flex items-center justify-between bg-green-50 rounded-lg p-2 border border-green-200">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M20 6L9 17l-5-5"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-green-700 truncate">{selectedCoupon.code}</p>
-                <p className="text-[10px] text-green-600 truncate">{selectedCoupon.title}</p>
+                <p className="text-xs font-semibold text-green-700 truncate">
+                  {selectedCoupon.code}
+                </p>
+                <p className="text-[10px] text-green-600 truncate">
+                  {selectedCoupon.title}
+                </p>
               </div>
             </div>
             <button
               onClick={handleRemoveCoupon}
-              className="text-xs text-green-600 font-medium ml-2 flex-shrink-0"
-            >
+              className="text-xs text-green-600 font-medium ml-2 flex-shrink-0">
               Remove
             </button>
           </div>
@@ -1242,19 +1578,94 @@ export default function Checkout() {
         <div className="px-4 py-1.5 flex justify-end border-b border-neutral-200">
           <button
             onClick={() => setShowCouponSheet(true)}
-            className="text-xs text-neutral-600 flex items-center gap-1"
-          >
+            className="text-xs text-neutral-600 flex items-center gap-1">
             See all coupons
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M9 18l6-6-6-6"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>
       )}
 
+      {/* Payment Method Selection */}
+      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
+        <h2 className="text-sm font-bold text-neutral-900 mb-3">
+          Select Payment Method
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setPaymentMethod("Online")}
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              paymentMethod === "Online"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
+            <div
+              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "Online" ? "bg-green-600" : "bg-neutral-100"}`}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={paymentMethod === "Online" ? "white" : "currentColor"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                <line x1="1" y1="10" x2="23" y2="10" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold">Online Payment</span>
+            <p className="text-[8px] mt-0.5 opacity-70">
+              (Cards, UPI, NetBanking)
+            </p>
+          </button>
+
+          <button
+            onClick={() => setPaymentMethod("COD")}
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              paymentMethod === "COD"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
+            <div
+              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "COD" ? "bg-green-600" : "bg-neutral-100"}`}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={paymentMethod === "COD" ? "white" : "currentColor"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold">Cash on Delivery</span>
+            <p className="text-[8px] mt-0.5 opacity-70">
+              (Pay when you receive)
+            </p>
+          </button>
+        </div>
+      </div>
+
       {/* Bill details */}
       <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200">
-        <h2 className="text-base font-bold text-neutral-900 mb-2.5">Bill details</h2>
+        <h2 className="text-base font-bold text-neutral-900 mb-2.5">
+          Bill details
+        </h2>
 
         <div className="space-y-2">
           {/* Items total */}
@@ -1269,40 +1680,65 @@ export default function Checkout() {
             </div>
             <div className="flex items-center gap-1.5">
               {itemsTotal > discountedTotal && (
-                <span className="text-xs text-neutral-500 line-through">₹{itemsTotal}</span>
+                <span className="text-xs text-neutral-500 line-through">
+                  ₹{itemsTotal}
+                </span>
               )}
-              <span className="text-xs font-medium text-neutral-900">₹{discountedTotal}</span>
+              <span className="text-xs font-medium text-neutral-900">
+                ₹{discountedTotal}
+              </span>
             </div>
           </div>
 
           {/* Handling charge */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="2" fill="none" />
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                />
               </svg>
               <span className="text-xs text-neutral-700">Handling charge</span>
             </div>
-            <span className="text-xs font-medium text-neutral-900">₹{handlingCharge}</span>
+            <span className="text-xs font-medium text-neutral-900">
+              ₹{handlingCharge}
+            </span>
           </div>
 
           {/* Delivery charge */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" stroke="currentColor" strokeWidth="2" fill="none" />
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                />
                 <circle cx="5.5" cy="18.5" r="1.5" fill="currentColor" />
                 <circle cx="18.5" cy="18.5" r="1.5" fill="currentColor" />
               </svg>
               <span className="text-xs text-neutral-700">Delivery charge</span>
             </div>
             <div className="flex flex-col items-end">
-              <span className={`text-xs font-medium ${deliveryCharge === 0 ? 'text-green-600' : 'text-neutral-900'}`}>
-                {deliveryCharge === 0 ? 'FREE' : `₹${deliveryCharge}`}
+              <span
+                className={`text-xs font-medium ${deliveryCharge === 0 ? "text-green-600" : "text-neutral-900"}`}>
+                {deliveryCharge === 0 ? "FREE" : `₹${deliveryCharge}`}
               </span>
-              {deliveryCharge > 0 && (
-                null
-              )}
+              {deliveryCharge > 0 && null}
             </div>
           </div>
 
@@ -1310,15 +1746,30 @@ export default function Checkout() {
           {selectedCoupon && currentCouponDiscount > 0 && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
-                <span className="text-xs text-neutral-700">Coupon discount</span>
+                <span className="text-xs text-neutral-700">
+                  Coupon discount
+                </span>
                 <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">
                   {selectedCoupon.code}
                 </span>
               </div>
-              <span className="text-xs font-medium text-green-600">-₹{currentCouponDiscount.toLocaleString('en-IN')}</span>
+              <span className="text-xs font-medium text-green-600">
+                -₹{currentCouponDiscount.toLocaleString("en-IN")}
+              </span>
             </div>
           )}
 
@@ -1326,12 +1777,27 @@ export default function Checkout() {
           {finalTipAmount > 0 && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
-                <span className="text-xs text-neutral-700">Tip to delivery partner</span>
+                <span className="text-xs text-neutral-700">
+                  Tip to delivery partner
+                </span>
               </div>
-              <span className="text-xs font-medium text-neutral-900">₹{finalTipAmount}</span>
+              <span className="text-xs font-medium text-neutral-900">
+                ₹{finalTipAmount}
+              </span>
             </div>
           )}
 
@@ -1339,19 +1805,35 @@ export default function Checkout() {
           {giftPackaging && (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="2" fill="none" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    fill="none"
+                  />
                 </svg>
                 <span className="text-xs text-neutral-700">Gift Packaging</span>
               </div>
-              <span className="text-xs font-medium text-neutral-900">₹{giftPackagingFee}</span>
+              <span className="text-xs font-medium text-neutral-900">
+                ₹{giftPackagingFee}
+              </span>
             </div>
           )}
 
           {/* Grand total */}
           <div className="pt-2 border-t border-neutral-200 flex items-center justify-between">
-            <span className="text-sm font-bold text-neutral-900">Grand total</span>
-            <span className="text-sm font-bold text-neutral-900">₹{Math.max(0, grandTotal)}</span>
+            <span className="text-sm font-bold text-neutral-900">
+              Grand total
+            </span>
+            <span className="text-sm font-bold text-neutral-900">
+              ₹{Math.max(0, grandTotal)}
+            </span>
           </div>
         </div>
       </div>
@@ -1360,30 +1842,48 @@ export default function Checkout() {
       <div className="px-4 py-2 border-b border-neutral-200">
         <button
           onClick={() => setShowGstinSheet(true)}
-          className="w-full flex items-center justify-between bg-neutral-50 rounded-lg p-2 hover:bg-neutral-100 transition-colors"
-        >
+          className="w-full flex items-center justify-between bg-neutral-50 rounded-lg p-2 hover:bg-neutral-100 transition-colors">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
               <span className="text-blue-600 font-bold text-sm">%</span>
             </div>
             <div className="text-left">
-              <p className="text-xs font-semibold text-neutral-900">Add GSTIN</p>
+              <p className="text-xs font-semibold text-neutral-900">
+                Add GSTIN
+              </p>
               <p className="text-[10px] text-neutral-600">
-                {gstin ? `GSTIN: ${gstin}` : 'Claim GST input credit up to 18% on your order'}
+                {gstin
+                  ? `GSTIN: ${gstin}`
+                  : "Claim GST input credit up to 18% on your order"}
               </p>
             </div>
           </div>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M9 18l6-6-6-6"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         </button>
       </div>
 
-
       {/* Tip your delivery partner */}
       <div className="px-4 py-2 border-b border-neutral-200">
-        <h3 className="text-sm font-bold text-neutral-900 mb-0.5">Tip your delivery partner</h3>
-        <p className="text-xs text-neutral-600 mb-2">Your kindness means a lot! 100% of your tip will go directly to your delivery partner.</p>
+        <h3 className="text-sm font-bold text-neutral-900 mb-0.5">
+          Tip your delivery partner
+        </h3>
+        <p className="text-xs text-neutral-600 mb-2">
+          Your kindness means a lot! 100% of your tip will go directly to your
+          delivery partner.
+        </p>
 
         <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1.5">
           <button
@@ -1391,11 +1891,11 @@ export default function Checkout() {
               setTipAmount(20);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 20 && !showCustomTipInput
-              ? 'border-green-600 bg-green-50 text-green-700'
-              : 'border-neutral-300 bg-white text-neutral-700'
-              }`}
-          >
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 20 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             😊 ₹20
           </button>
           <button
@@ -1403,11 +1903,11 @@ export default function Checkout() {
               setTipAmount(30);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 30 && !showCustomTipInput
-              ? 'border-green-600 bg-green-50 text-green-700'
-              : 'border-neutral-300 bg-white text-neutral-700'
-              }`}
-          >
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 30 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             🤩 ₹30
           </button>
           <button
@@ -1415,11 +1915,11 @@ export default function Checkout() {
               setTipAmount(50);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 50 && !showCustomTipInput
-              ? 'border-green-600 bg-green-50 text-green-700'
-              : 'border-neutral-300 bg-white text-neutral-700'
-              }`}
-          >
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 50 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             😍 ₹50
           </button>
           <button
@@ -1427,11 +1927,11 @@ export default function Checkout() {
               setShowCustomTipInput(true);
               setTipAmount(null);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${showCustomTipInput
-              ? 'border-green-600 bg-green-50 text-green-700'
-              : 'border-neutral-300 bg-white text-neutral-700'
-              }`}
-          >
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             🎁 Custom
           </button>
         </div>
@@ -1441,7 +1941,7 @@ export default function Checkout() {
           <div className="mt-2 flex items-center gap-2">
             <input
               type="number"
-              value={customTipAmount || ''}
+              value={customTipAmount || ""}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 if (val >= 0) {
@@ -1465,8 +1965,7 @@ export default function Checkout() {
                 setCustomTipAmount(0);
                 setTipAmount(null);
               }}
-              className="px-3 py-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-900"
-            >
+              className="px-3 py-1.5 text-xs font-medium text-neutral-700 hover:text-neutral-900">
               Cancel
             </button>
           </div>
@@ -1477,31 +1976,57 @@ export default function Checkout() {
       <div className="px-4 py-2 border-b border-neutral-200">
         <button
           onClick={() => setGiftPackaging(!giftPackaging)}
-          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${giftPackaging
-            ? 'bg-green-50 border-2 border-green-600'
-            : 'bg-neutral-50 border-2 border-transparent hover:bg-neutral-100'
-            }`}
-        >
+          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${
+            giftPackaging
+              ? "bg-green-50 border-2 border-green-600"
+              : "bg-neutral-50 border-2 border-transparent hover:bg-neutral-100"
+          }`}>
           <div className="flex items-center gap-2">
-            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${giftPackaging
-              ? 'border-green-600 bg-green-600'
-              : 'border-neutral-400 bg-white'
+            <div
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                giftPackaging
+                  ? "border-green-600 bg-green-600"
+                  : "border-neutral-400 bg-white"
               }`}>
               {giftPackaging && (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M20 6L9 17l-5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M20 6L9 17l-5-5"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               )}
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="2" fill="none" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M20 7h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v3H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V9c0-1.1-.9-2-2-2z"
+                stroke="currentColor"
+                strokeWidth="2"
+                fill="none"
+              />
             </svg>
             <div className="text-left">
-              <p className={`text-xs font-semibold ${giftPackaging ? 'text-green-700' : 'text-neutral-900'}`}>
+              <p
+                className={`text-xs font-semibold ${giftPackaging ? "text-green-700" : "text-neutral-900"}`}>
                 Gift Packaging
               </p>
               <p className="text-[10px] text-neutral-600">
-                {giftPackaging ? 'Add ₹30 for gift packaging' : 'Add ₹30 for elegant gift packaging'}
+                {giftPackaging
+                  ? "Add ₹30 for gift packaging"
+                  : "Add ₹30 for elegant gift packaging"}
               </p>
             </div>
           </div>
@@ -1515,8 +2040,7 @@ export default function Checkout() {
       <div className="px-4 py-2">
         <button
           onClick={() => setShowCancellationPolicy(true)}
-          className="text-xs text-neutral-700 hover:text-neutral-900 transition-colors"
-        >
+          className="text-xs text-neutral-700 hover:text-neutral-900 transition-colors">
           Cancellation Policy
         </button>
       </div>
@@ -1529,12 +2053,13 @@ export default function Checkout() {
             <motion.span
               animate={{ scale: [1, 1.2, 1] }}
               transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1 }}
-              className="text-red-500 text-sm"
-            >
+              className="text-red-500 text-sm">
               ❤️
             </motion.span>
             <span className="text-[10px] font-medium">by</span>
-            <span className="text-[10px] font-semibold text-green-600">Dhakad Snazzy</span>
+            <span className="text-[10px] font-semibold text-green-600">
+              Dhakad Snazzy
+            </span>
           </div>
         </div>
       </div>
@@ -1544,10 +2069,23 @@ export default function Checkout() {
         <SheetContent side="bottom" className="max-h-[50vh]">
           <SheetHeader className="text-left">
             <div className="flex items-center justify-between mb-2">
-              <SheetTitle className="text-base font-bold text-neutral-900">Add GSTIN</SheetTitle>
+              <SheetTitle className="text-base font-bold text-neutral-900">
+                Add GSTIN
+              </SheetTitle>
               <SheetClose onClick={() => setShowGstinSheet(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </SheetClose>
             </div>
@@ -1562,7 +2100,9 @@ export default function Checkout() {
                 type="text"
                 value={gstin}
                 onChange={(e) => {
-                  const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                  const value = e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "");
                   if (value.length <= 15) {
                     setGstin(value);
                   }
@@ -1580,21 +2120,19 @@ export default function Checkout() {
                 if (gstin.length === 15) {
                   setShowGstinSheet(false);
                 } else {
-                  alert('Please enter a valid 15-character GSTIN');
+                  alert("Please enter a valid 15-character GSTIN");
                 }
               }}
-              className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors rounded-lg"
-            >
+              className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors rounded-lg">
               Save GSTIN
             </button>
             {gstin && (
               <button
                 onClick={() => {
-                  setGstin('');
+                  setGstin("");
                   setShowGstinSheet(false);
                 }}
-                className="w-full mt-2 bg-neutral-100 text-neutral-700 py-2 px-4 font-medium text-sm hover:bg-neutral-200 transition-colors rounded-lg"
-              >
+                className="w-full mt-2 bg-neutral-100 text-neutral-700 py-2 px-4 font-medium text-sm hover:bg-neutral-200 transition-colors rounded-lg">
                 Remove GSTIN
               </button>
             )}
@@ -1603,14 +2141,29 @@ export default function Checkout() {
       </Sheet>
 
       {/* Cancellation Policy Sheet Modal */}
-      <Sheet open={showCancellationPolicy} onOpenChange={setShowCancellationPolicy}>
+      <Sheet
+        open={showCancellationPolicy}
+        onOpenChange={setShowCancellationPolicy}>
         <SheetContent side="bottom" className="max-h-[85vh]">
           <SheetHeader className="text-left">
             <div className="flex items-center justify-between mb-2">
-              <SheetTitle className="text-base font-bold text-neutral-900">Cancellation Policy</SheetTitle>
+              <SheetTitle className="text-base font-bold text-neutral-900">
+                Cancellation Policy
+              </SheetTitle>
               <SheetClose onClick={() => setShowCancellationPolicy(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </SheetClose>
             </div>
@@ -1619,32 +2172,48 @@ export default function Checkout() {
           <div className="px-4 pb-4 overflow-y-auto max-h-[calc(85vh-80px)]">
             <div className="space-y-4 mt-4 text-sm text-neutral-700">
               <div>
-                <h3 className="font-bold text-neutral-900 mb-2">Order Cancellation</h3>
+                <h3 className="font-bold text-neutral-900 mb-2">
+                  Order Cancellation
+                </h3>
                 <p className="mb-2">
-                  You can cancel your order before it is confirmed by the seller. Once confirmed, cancellation may not be possible.
+                  You can cancel your order before it is confirmed by the
+                  seller. Once confirmed, cancellation may not be possible.
                 </p>
               </div>
 
               <div>
-                <h3 className="font-bold text-neutral-900 mb-2">Refund Policy</h3>
+                <h3 className="font-bold text-neutral-900 mb-2">
+                  Refund Policy
+                </h3>
                 <ul className="list-disc list-inside space-y-1 ml-2">
                   <li>Refunds will be processed within 5-7 business days</li>
-                  <li>Refund amount will be credited to your original payment method</li>
+                  <li>
+                    Refund amount will be credited to your original payment
+                    method
+                  </li>
                   <li>Delivery charges are non-refundable</li>
                 </ul>
               </div>
 
               <div>
-                <h3 className="font-bold text-neutral-900 mb-2">Partial Cancellation</h3>
+                <h3 className="font-bold text-neutral-900 mb-2">
+                  Partial Cancellation
+                </h3>
                 <p>
-                  Partial cancellation of items in an order is not allowed. You can cancel the entire order or contact customer support for assistance.
+                  Partial cancellation of items in an order is not allowed. You
+                  can cancel the entire order or contact customer support for
+                  assistance.
                 </p>
               </div>
 
               <div>
-                <h3 className="font-bold text-neutral-900 mb-2">Contact Support</h3>
+                <h3 className="font-bold text-neutral-900 mb-2">
+                  Contact Support
+                </h3>
                 <p>
-                  For any cancellation requests or queries, please contact our customer support team at support@dhakadsnazzy.com or call +91-XXXXX-XXXXX
+                  For any cancellation requests or queries, please contact our
+                  customer support team at support@dhakadsnazzy.com or call
+                  +91-XXXXX-XXXXX
                 </p>
               </div>
             </div>
@@ -1657,10 +2226,23 @@ export default function Checkout() {
         <SheetContent side="bottom" className="max-h-[85vh]">
           <SheetHeader className="text-left">
             <div className="flex items-center justify-between mb-2">
-              <SheetTitle className="text-base font-bold text-neutral-900">Available Coupons</SheetTitle>
+              <SheetTitle className="text-base font-bold text-neutral-900">
+                Available Coupons
+              </SheetTitle>
               <SheetClose onClick={() => setShowCouponSheet(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </SheetClose>
             </div>
@@ -1674,27 +2256,36 @@ export default function Checkout() {
                 </div>
               ) : (
                 availableCoupons.map((coupon) => {
-                  const subtotalBeforeCoupon = discountedTotal + handlingCharge + deliveryCharge;
-                  const meetsMinOrder = !coupon.minOrderValue || subtotalBeforeCoupon >= coupon.minOrderValue;
+                  const subtotalBeforeCoupon =
+                    discountedTotal + handlingCharge + deliveryCharge;
+                  const meetsMinOrder =
+                    !coupon.minOrderValue ||
+                    subtotalBeforeCoupon >= coupon.minOrderValue;
                   const isSelected = selectedCoupon?._id === coupon._id;
 
                   return (
                     <div
                       key={coupon._id}
-                      className={`border-2 rounded-lg p-2.5 transition-all ${isSelected
-                        ? 'border-green-600 bg-green-50'
-                        : meetsMinOrder
-                          ? 'border-neutral-200 bg-white'
-                          : 'border-neutral-200 bg-neutral-50 opacity-60'
-                        }`}
-                    >
+                      className={`border-2 rounded-lg p-2.5 transition-all ${
+                        isSelected
+                          ? "border-green-600 bg-green-50"
+                          : meetsMinOrder
+                            ? "border-neutral-200 bg-white"
+                            : "border-neutral-200 bg-neutral-50 opacity-60"
+                      }`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold text-green-600">{coupon.code}</span>
-                            <span className="text-xs font-semibold text-neutral-900">{coupon.title}</span>
+                            <span className="text-xs font-bold text-green-600">
+                              {coupon.code}
+                            </span>
+                            <span className="text-xs font-semibold text-neutral-900">
+                              {coupon.title}
+                            </span>
                           </div>
-                          <p className="text-[10px] text-neutral-600 mb-1">{coupon.description}</p>
+                          <p className="text-[10px] text-neutral-600 mb-1">
+                            {coupon.description}
+                          </p>
                           {coupon.minOrderValue && (
                             <p className="text-[10px] text-neutral-500">
                               Min. order: ₹{coupon.minOrderValue}
@@ -1703,21 +2294,34 @@ export default function Checkout() {
                         </div>
                         {isSelected ? (
                           <div className="flex items-center gap-1 text-green-600">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg">
+                              <path
+                                d="M20 6L9 17l-5-5"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
                             </svg>
                             <span className="text-xs font-medium">Applied</span>
                           </div>
                         ) : (
                           <button
-                            onClick={() => meetsMinOrder && handleApplyCoupon(coupon)}
+                            onClick={() =>
+                              meetsMinOrder && handleApplyCoupon(coupon)
+                            }
                             disabled={!meetsMinOrder || isValidatingCoupon}
-                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${meetsMinOrder
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
-                              }`}
-                          >
-                            {isValidatingCoupon ? '...' : 'Apply'}
+                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                              meetsMinOrder
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                            }`}>
+                            {isValidatingCoupon ? "..." : "Apply"}
                           </button>
                         )}
                       </div>
@@ -1736,22 +2340,23 @@ export default function Checkout() {
           <button
             onClick={handlePlaceOrder}
             disabled={cart.items.length === 0}
-            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${cart.items.length > 0
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
-              }`}
-          >
+            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
+              cart.items.length > 0
+                ? "bg-green-600 text-white hover:bg-green-700"
+                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+            }`}>
             Place Order
           </button>
         ) : (
           <button
-            onClick={() => navigate('/checkout/address', {
-              state: {
-                editAddress: savedAddress
-              }
-            })}
-            className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors"
-          >
+            onClick={() =>
+              navigate("/checkout/address", {
+                state: {
+                  editAddress: savedAddress,
+                },
+              })
+            }
+            className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors">
             Choose address at next step
           </button>
         )}
@@ -1850,9 +2455,9 @@ export default function Checkout() {
           orderId={pendingOrderId}
           amount={grandTotal}
           customerDetails={{
-            name: user.name || 'Customer',
-            email: user.email || '',
-            phone: user.phone || '',
+            name: user.name || "Customer",
+            email: user.email || "",
+            phone: user.phone || "",
           }}
           onSuccess={(paymentId) => {
             setShowRazorpayCheckout(false);
@@ -1860,16 +2465,18 @@ export default function Checkout() {
             setPendingOrderId(null);
             clearCart();
             setShowOrderSuccess(true);
-            showGlobalToast('Payment successful!', 'success');
+            showGlobalToast("Payment successful!", "success");
           }}
           onFailure={(error) => {
             setShowRazorpayCheckout(false);
             setPendingOrderId(null);
-            showGlobalToast(error || 'Payment failed. Please try again.', 'error');
+            showGlobalToast(
+              error || "Payment failed. Please try again.",
+              "error",
+            );
           }}
         />
       )}
     </div>
   );
 }
-

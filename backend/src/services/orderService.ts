@@ -93,13 +93,25 @@ const createCommissions = async (items: IOrderItem[]) => {
 
   try {
     const orderId = items[0].order.toString();
-    const { distributeCommissions } = await import('./commissionService');
-    await distributeCommissions(orderId);
+    const order = await Order.findById(orderId);
+
+    if (!order) return;
+
+    if (order.paymentMethod && order.paymentMethod.toUpperCase() === "COD") {
+      // For COD orders, use the comprehensive COD processing logic
+      const { processCODOrderDelivery } = await import("./commissionService");
+      await processCODOrderDelivery(orderId);
+    } else {
+      // For online/prepaid orders, distribute commissions immediately
+      const { distributeCommissions } = await import("./commissionService");
+      await distributeCommissions(orderId);
+    }
   } catch (err) {
-    console.error("Error distributing commissions in orderService:", err);
+    console.error("Error creating commissions in orderService:", err);
     throw err;
   }
 };
+
 
 /**
  * Validate order can transition to new status

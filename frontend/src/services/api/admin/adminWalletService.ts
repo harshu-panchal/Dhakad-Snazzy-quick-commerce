@@ -9,6 +9,7 @@ export interface WalletStats {
   totalAdminEarnings: number;
   sellerPendingPayouts: number;
   deliveryPendingPayouts: number;
+  pendingAmountFromDeliveryBoy: number;
   pendingWithdrawalsCount?: number;
 }
 
@@ -61,20 +62,28 @@ export interface SellerTransaction {
 /**
  * Get Financial Dashboard Stats
  */
-export const getFinancialDashboard = async (): Promise<ApiResponse<WalletStats>> => {
-  const response = await api.get<ApiResponse<WalletStats>>("/admin/financial/dashboard");
+export const getFinancialDashboard = async (): Promise<
+  ApiResponse<WalletStats>
+> => {
+  const response = await api.get<ApiResponse<WalletStats>>(
+    "/admin/financial/dashboard",
+  );
   return response.data;
 };
 
 /**
  * Get Admin Earnings (Commissions)
  */
-export const getAdminEarnings = async (
-  params?: { page?: number; limit?: number; status?: string; startDate?: string; endDate?: string }
-): Promise<ApiResponse<AdminEarning[]>> => {
+export const getAdminEarnings = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<ApiResponse<AdminEarning[]>> => {
   const response = await api.get<ApiResponse<AdminEarning[]>>(
     "/admin/wallet/earnings",
-    { params }
+    { params },
   );
   return response.data;
 };
@@ -82,12 +91,16 @@ export const getAdminEarnings = async (
 /**
  * Get Wallet Transactions (Platform Level)
  */
-export const getWalletTransactions = async (
-  params?: { page?: number; limit?: number; type?: string; status?: string; userType?: string }
-): Promise<ApiResponse<WalletTransaction[]>> => {
+export const getWalletTransactions = async (params?: {
+  page?: number;
+  limit?: number;
+  type?: string;
+  status?: string;
+  userType?: string;
+}): Promise<ApiResponse<WalletTransaction[]>> => {
   const response = await api.get<ApiResponse<WalletTransaction[]>>(
     "/admin/wallet/transactions",
-    { params }
+    { params },
   );
   return response.data;
 };
@@ -95,25 +108,31 @@ export const getWalletTransactions = async (
 /**
  * Get Withdrawal Requests
  */
-export const getWithdrawalRequests = async (
-  params?: { page?: number; limit?: number; status?: string }
-): Promise<ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>> => {
-  const response = await api.get<ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>>(
-    "/admin/wallet/withdrawals",
-    { params }
-  );
+export const getWithdrawalRequests = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<
+  ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>
+> => {
+  const response = await api.get<
+    ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>
+  >("/admin/wallet/withdrawals", { params });
   return response.data;
 };
 
 /**
  * Process Withdrawal (Approve/Reject/Complete)
  */
-export const processWithdrawal = async (
-  data: { requestId: string; action: "Approve" | "Reject" | "Complete"; remark?: string; transactionReference?: string }
-): Promise<ApiResponse<any>> => {
+export const processWithdrawal = async (data: {
+  requestId: string;
+  action: "Approve" | "Reject" | "Complete";
+  remark?: string;
+  transactionReference?: string;
+}): Promise<ApiResponse<any>> => {
   const response = await api.post<ApiResponse<any>>(
     "/admin/wallet/withdrawal/process",
-    data
+    data,
   );
   return response.data;
 };
@@ -121,11 +140,11 @@ export const processWithdrawal = async (
 // Legacy / Other Helpers
 export const getSellerTransactions = async (
   sellerId: string,
-  params?: { page?: number; limit?: number }
+  params?: { page?: number; limit?: number },
 ): Promise<ApiResponse<any[]>> => {
   const response = await api.get<ApiResponse<any[]>>(
     `/admin/wallet/seller/${sellerId}`,
-    { params }
+    { params },
   );
   return response.data;
 };

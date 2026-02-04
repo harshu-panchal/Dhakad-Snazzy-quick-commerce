@@ -8,6 +8,8 @@ import {
   requestDeliveryWithdrawal,
   getDeliveryWithdrawals,
   getDeliveryCommissions,
+  createAdminPayoutOrder,
+  verifyAdminPayout,
 } from "../../../services/api/deliveryWalletService";
 
 type Tab = "transactions" | "withdrawals" | "commissions";
@@ -17,6 +19,7 @@ export default function DeliveryWallet() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<Tab>("transactions");
   const [balance, setBalance] = useState(0);
+  const [pendingAdminPayout, setPendingAdminPayout] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any>({
@@ -35,6 +38,17 @@ export default function DeliveryWallet() {
 
   useEffect(() => {
     fetchWalletData();
+    // Load Razorpay script
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
   }, []);
 
   const fetchWalletData = async () => {
@@ -48,7 +62,10 @@ export default function DeliveryWallet() {
           getDeliveryCommissions(),
         ]);
 
-      if (balanceRes.success) setBalance(balanceRes.data.balance);
+      if (balanceRes.success) {
+        setBalance(balanceRes.data.balance);
+        setPendingAdminPayout(balanceRes.data.pendingAdminPayout || 0);
+      }
       if (transactionsRes.success)
         setTransactions(transactionsRes.data.transactions || []);
       if (withdrawalsRes.success) setWithdrawals(withdrawalsRes.data || []);
@@ -89,6 +106,69 @@ export default function DeliveryWallet() {
         error.response?.data?.message || "Failed to request withdrawal",
         "error",
       );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePayToAdmin = async () => {
+    if (pendingAdminPayout <= 0) {
+      showToast("No pending amount to pay", "info");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const orderRes = await createAdminPayoutOrder(pendingAdminPayout);
+
+      if (!orderRes.success) {
+        showToast(orderRes.message || "Failed to create payout order", "error");
+        return;
+      }
+
+      const { razorpayOrderId, razorpayKey, amount, currency } = orderRes.data;
+
+      const options = {
+        key: razorpayKey,
+        amount: amount,
+        currency: currency,
+        name: "Dhakad Snazzy",
+        description: "Admin Payout for COD Collections",
+        order_id: razorpayOrderId,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await verifyAdminPayout({
+              razorpayOrderId: razorpayOrderId,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+              amount: pendingAdminPayout,
+            });
+
+            if (verifyRes.success) {
+              showToast("Payment to admin successful", "success");
+              fetchWalletData();
+            } else {
+              showToast(
+                verifyRes.message || "Payment verification failed",
+                "error",
+              );
+            }
+          } catch (error: any) {
+            showToast(error.message || "Verification failed", "error");
+          }
+        },
+        prefill: {
+          name: "Delivery Boy",
+        },
+        theme: {
+          color: "#22c55e",
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (error: any) {
+      showToast(error.message || "Payment initiation failed", "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -166,6 +246,58 @@ export default function DeliveryWallet() {
         {/* Decorative background circle */}
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-green-400/20 rounded-full blur-3xl"></div>
+      </motion.div>
+
+      {/* Admin Payout Card (COD Collection) */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="m-4 bg-white border border-red-100 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-gray-500 text-sm font-medium">
+                Admin's Payout (COD)
+              </p>
+              <p className="text-xs text-red-500 font-medium mt-0.5">
+                Pending amount to pay to admin
+              </p>
+            </div>
+            <div className="bg-red-50 p-2 rounded-xl text-red-600">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <polyline points="16 11 18 13 22 9" />
+              </svg>
+            </div>
+          </div>
+          <h1 className="text-4xl font-extrabold mb-6 text-gray-900">
+            ₹{pendingAdminPayout.toFixed(2)}
+          </h1>
+          <button
+            onClick={handlePayToAdmin}
+            disabled={isSubmitting || pendingAdminPayout <= 0}
+            className={`w-full py-3.5 rounded-xl font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center ${
+              pendingAdminPayout > 0
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-gray-100 text-gray-400 cursor-not-allowed shadow-none"
+            }`}>
+            {isSubmitting ? (
+              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              "Pay to Admin"
+            )}
+          </button>
+        </div>
       </motion.div>
 
       {/* Commission Summary */}

@@ -1,4 +1,3 @@
-
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IOrder extends Document {
@@ -45,27 +44,27 @@ export interface IOrder extends Document {
 
   // Order Status
   status:
-  | "Received"
-  | "Accepted"
-  | "Pending"
-  | "Processed"
-  | "Shipped"
-  | "Picked up"
-  | "On the way"
-  | "Out for Delivery"
-  | "Delivered"
-  | "Cancelled"
-  | "Rejected"
-  | "Returned";
+    | "Received"
+    | "Accepted"
+    | "Pending"
+    | "Processed"
+    | "Shipped"
+    | "Picked up"
+    | "On the way"
+    | "Out for Delivery"
+    | "Delivered"
+    | "Cancelled"
+    | "Rejected"
+    | "Returned";
 
   // Delivery Assignment
   deliveryBoy?: mongoose.Types.ObjectId;
   deliveryBoyStatus?:
-  | "Assigned"
-  | "Picked Up"
-  | "In Transit"
-  | "Delivered"
-  | "Failed";
+    | "Assigned"
+    | "Picked Up"
+    | "In Transit"
+    | "Delivered"
+    | "Failed";
   assignedAt?: Date;
 
   // Tracking
@@ -366,7 +365,7 @@ const OrderSchema = new Schema<IOrder>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Generate order number before validation
@@ -388,6 +387,8 @@ OrderSchema.index({ orderDate: -1 });
 OrderSchema.index({ deliveryBoy: 1 });
 OrderSchema.index({ orderNumber: 1 });
 
-const Order = (mongoose.models.Order as mongoose.Model<IOrder>) || mongoose.model<IOrder>("Order", OrderSchema);
+const Order =
+  (mongoose.models.Order as mongoose.Model<IOrder>) ||
+  mongoose.model<IOrder>("Order", OrderSchema);
 
 export default Order;
