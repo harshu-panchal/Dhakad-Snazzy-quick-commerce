@@ -332,17 +332,21 @@ export default function SellerAddProduct() {
       return;
     }
 
-    setGalleryImageFiles(files);
+    // Append new files to existing state
+    setGalleryImageFiles((prev) => [...prev, ...files]);
     setUploadError("");
 
     try {
-      const previews = await Promise.all(
+      const newPreviews = await Promise.all(
         files.map((file) => createImagePreview(file))
       );
-      setGalleryImagePreviews(previews);
+      setGalleryImagePreviews((prev) => [...prev, ...newPreviews]);
     } catch (error) {
       setUploadError("Failed to create image previews");
     }
+
+    // Reset file input value to allow selecting the same file again if needed
+    e.target.value = "";
   };
 
   const removeGalleryImage = (index: number) => {
@@ -614,8 +618,8 @@ export default function SellerAddProduct() {
                     onChange={handleChange}
                     disabled={!formData.headerCategory}
                     className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.headerCategory
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
+                      ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
+                      : "bg-white"
                       }`}>
                     <option value="">
                       {formData.headerCategory
@@ -658,8 +662,8 @@ export default function SellerAddProduct() {
                     onChange={handleChange}
                     disabled={!formData.category}
                     className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.category
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
+                      ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
+                      : "bg-white"
                       }`}>
                     <option value="">
                       {formData.category
@@ -688,8 +692,8 @@ export default function SellerAddProduct() {
                     onChange={handleChange}
                     disabled={!formData.subcategory}
                     className={`w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 ${!formData.subcategory
-                        ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
-                        : "bg-white"
+                      ? "bg-neutral-100 cursor-not-allowed text-neutral-500"
+                      : "bg-white"
                       }`}>
                     <option value="">Select Sub-SubCategory</option>
                     {subSubCategories.map((subSub) => (
@@ -1181,67 +1185,91 @@ export default function SellerAddProduct() {
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
                   Product Gallery Images (Optional)
                 </label>
-                <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
+                <div className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center bg-white">
                   {galleryImagePreviews.length > 0 ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {galleryImagePreviews.map((preview, index) => (
-                          <div key={index} className="relative">
+                          <div key={index} className="relative group">
                             <img
                               src={preview}
                               alt={`Gallery ${index + 1}`}
-                              className="w-full h-32 object-cover rounded-lg"
+                              className="w-full h-32 object-cover rounded-lg shadow-sm"
                             />
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                removeGalleryImage(index);
-                              }}
-                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700">
+                              onClick={() => removeGalleryImage(index)}
+                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1.5 hover:bg-red-700 shadow-md transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                              title="Remove image">
                               <svg
-                                width="16"
-                                height="16"
+                                width="14"
+                                height="14"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
-                                strokeWidth="2">
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"></line>
                                 <line x1="6" y1="6" x2="18" y2="18"></line>
                               </svg>
                             </button>
                           </div>
                         ))}
+                        {/* Visual "Add More" Placeholder - Acts as Label for Input */}
+                        <label
+                          htmlFor="gallery-image-upload"
+                          className="w-full h-32 border-2 border-dashed border-neutral-300 rounded-lg flex flex-col items-center justify-center text-neutral-400 hover:text-teal-600 hover:border-teal-500 hover:bg-teal-50 transition-all bg-neutral-50 cursor-pointer">
+                          <svg
+                            width="32"
+                            height="32"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="mb-1">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                          <span className="text-xs font-semibold">Add Image</span>
+                        </label>
                       </div>
                       <p className="text-sm text-neutral-600">
                         {galleryImageFiles.length} image(s) selected
                       </p>
                     </div>
                   ) : (
-                    <div>
-                      <svg
-                        width="48"
-                        height="48"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="mx-auto mb-2 text-neutral-400">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      <p className="text-sm text-neutral-600 font-medium">
-                        Upload Other Product Images Here
-                      </p>
-                      <p className="text-xs text-neutral-500 mt-1">
-                        Max 5MB per image, up to 10 images
-                      </p>
-                    </div>
+                    <label
+                      htmlFor="gallery-image-upload"
+                      className="cursor-pointer block w-full h-full">
+                      <div className="flex flex-col items-center justify-center">
+                        <svg
+                          width="48"
+                          height="48"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="mx-auto mb-2 text-neutral-400">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p className="text-sm text-neutral-600 font-medium">
+                          Upload Other Product Images Here
+                        </p>
+                        <p className="text-xs text-neutral-500 mt-1">
+                          Max 5MB per image, up to 10 images
+                        </p>
+                      </div>
+                    </label>
                   )}
                   <input
+                    id="gallery-image-upload"
                     type="file"
                     accept="image/*"
                     multiple
@@ -1249,7 +1277,7 @@ export default function SellerAddProduct() {
                     className="hidden"
                     disabled={uploading}
                   />
-                </label>
+                </div>
               </div>
             </div>
           </div>
@@ -1314,8 +1342,8 @@ export default function SellerAddProduct() {
               type="submit"
               disabled={uploading}
               className={`px-8 py-3 rounded-lg font-medium text-lg transition-colors shadow-sm ${uploading
-                  ? "bg-neutral-400 cursor-not-allowed text-white"
-                  : "bg-teal-600 hover:bg-teal-700 text-white"
+                ? "bg-neutral-400 cursor-not-allowed text-white"
+                : "bg-teal-600 hover:bg-teal-700 text-white"
                 }`}>
               {uploading ? "Uploading Images..." : "Add Product"}
             </button>
