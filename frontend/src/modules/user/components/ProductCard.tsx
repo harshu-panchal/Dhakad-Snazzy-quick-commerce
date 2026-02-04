@@ -99,8 +99,8 @@ export default function ProductCard({
         showToast('Removed from wishlist');
       } else {
         if (!location?.latitude || !location?.longitude) {
-           showToast('Location is required to add items to wishlist', 'error');
-           return;
+          showToast('Location is required to add items to wishlist', 'error');
+          return;
         }
         // Optimistic update
         setIsWishlisted(true);
@@ -119,7 +119,12 @@ export default function ProductCard({
     }
   };
 
-  const cartItem = cart.items.find((item) => item?.product && (item.product.id === (product as any).id || item.product._id === (product as any).id || item.product.id === product._id));
+  const cartItem = cart.items.find((item) => {
+    if (!item?.product) return false;
+    const itemProdId = String(item.product.id || item.product._id);
+    const prodId = String((product as any).id || product._id);
+    return itemProdId === prodId;
+  });
   const inCartQty = cartItem?.quantity || 0;
 
   // Get Price and MRP using utility
@@ -316,11 +321,10 @@ export default function ProductCard({
                       e.stopPropagation();
                       handleAdd(e);
                     }}
-                    className={`w-full border rounded-full font-semibold text-xs h-7 px-3 flex items-center justify-center uppercase tracking-wide ${
-                      product.isAvailable === false
-                      ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
-                      : 'border-green-600 text-green-600 bg-transparent hover:bg-green-50'
-                    }`}
+                    className={`w-full border rounded-full font-semibold text-xs h-7 px-3 flex items-center justify-center uppercase tracking-wide ${product.isAvailable === false
+                        ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
+                        : 'border-green-600 text-green-600 bg-transparent hover:bg-green-50'
+                      }`}
                   >
                     {product.isAvailable === false ? 'Out of Range' : 'ADD'}
                   </Button>
@@ -351,9 +355,8 @@ export default function ProductCard({
                     e.stopPropagation();
                     handleIncrease(e);
                   }}
-                  className={`w-5 h-5 p-0 bg-transparent text-green-600 shadow-none ${
-                    product.isAvailable === false ? 'text-neutral-300 cursor-not-allowed' : 'hover:bg-green-50'
-                  }`}
+                  className={`w-5 h-5 p-0 bg-transparent text-green-600 shadow-none ${product.isAvailable === false ? 'text-neutral-300 cursor-not-allowed' : 'hover:bg-green-50'
+                    }`}
                   aria-label="Increase quantity"
                 >
                   +
@@ -424,7 +427,7 @@ export default function ProductCard({
             <>
               {!showPackBadge && (
                 <p className={`${compact ? 'text-[10px] md:text-xs' : 'text-xs md:text-sm'} text-neutral-500 mb-1`}>
-                    {product.variations?.[0]?.value || product.pack}
+                  {product.variations?.[0]?.value || product.pack}
                 </p>
               )}
 
@@ -485,11 +488,10 @@ export default function ProductCard({
                   size="sm"
                   disabled={product.isAvailable === false}
                   onClick={handleAdd}
-                  className={`w-full border h-8 text-xs font-semibold uppercase tracking-wide ${
-                    product.isAvailable === false
-                    ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
-                    : 'border-green-600 text-green-600 hover:bg-green-50'
-                  }`}
+                  className={`w-full border h-8 text-xs font-semibold uppercase tracking-wide ${product.isAvailable === false
+                      ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
+                      : 'border-green-600 text-green-600 hover:bg-green-50'
+                    }`}
                 >
                   {product.isAvailable === false ? 'Out of Range' : 'Add'}
                 </Button>
@@ -515,9 +517,8 @@ export default function ProductCard({
                   size="icon"
                   disabled={product.isAvailable === false}
                   onClick={handleIncrease}
-                  className={`w-6 h-6 p-0 bg-transparent text-green-600 shadow-none ${
-                    product.isAvailable === false ? 'text-neutral-300 cursor-not-allowed' : 'hover:bg-green-50'
-                  }`}
+                  className={`w-6 h-6 p-0 bg-transparent text-green-600 shadow-none ${product.isAvailable === false ? 'text-neutral-300 cursor-not-allowed' : 'hover:bg-green-50'
+                    }`}
                   aria-label="Increase quantity"
                 >
                   +

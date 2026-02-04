@@ -125,11 +125,10 @@ const ProductCard = memo(({
                       e.stopPropagation();
                       onAddToCart(product, e.currentTarget);
                     }}
-                    className={`bg-white/95 backdrop-blur-sm text-[10px] font-semibold px-2 py-1 rounded shadow-md transition-colors ${
-                      product.isAvailable === false
-                      ? 'text-neutral-400 border-2 border-neutral-300 cursor-not-allowed'
-                      : 'text-green-600 border-2 border-green-600 hover:bg-white'
-                    }`}
+                    className={`bg-white/95 backdrop-blur-sm text-[10px] font-semibold px-2 py-1 rounded shadow-md transition-colors ${product.isAvailable === false
+                        ? 'text-neutral-400 border-2 border-neutral-300 cursor-not-allowed'
+                        : 'text-green-600 border-2 border-green-600 hover:bg-white'
+                      }`}
                   >
                     {product.isAvailable === false ? 'Out of Range' : 'ADD'}
                   </motion.button>
@@ -173,11 +172,10 @@ const ProductCard = memo(({
                         e.stopPropagation();
                         onUpdateQuantity(product.id, inCartQty + 1);
                       }}
-                      className={`w-4 h-4 flex items-center justify-center font-bold rounded transition-colors p-0 leading-none ${
-                        product.isAvailable === false
-                        ? 'text-neutral-300 cursor-not-allowed'
-                        : 'text-white hover:bg-green-700'
-                      }`}
+                      className={`w-4 h-4 flex items-center justify-center font-bold rounded transition-colors p-0 leading-none ${product.isAvailable === false
+                          ? 'text-neutral-300 cursor-not-allowed'
+                          : 'text-white hover:bg-green-700'
+                        }`}
                       style={{ lineHeight: 1, fontSize: '14px' }}
                     >
                       <span className="relative top-[-1px]">+</span>
@@ -321,7 +319,8 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
     const map = new Map();
     cart.items.forEach(item => {
       if (item?.product) {
-        map.set(item.product.id, item.quantity);
+        const id = String(item.product.id || item.product._id);
+        map.set(id, (map.get(id) || 0) + item.quantity);
       }
     });
     return map;

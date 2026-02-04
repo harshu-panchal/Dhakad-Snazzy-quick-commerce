@@ -165,21 +165,38 @@ export default function ProductDetail() {
     ? cart.items.find(
       (item) => {
         if (!item?.product) return false;
-        const itemProductId = item.product.id || item.product._id;
-        const productId = product.id || product._id;
+        const itemProductId = String(item.product.id || item.product._id);
+        const productId = String(product.id || product._id);
 
         if (itemProductId !== productId) return false;
 
-        // If variant exists, match by variant
+        // Normalize titles for comparison (remove whitespace, lowercase)
+        const normalize = (s: any) => String(s || "").toLowerCase().trim().replace(/\s+/g, "");
+        const currentVariantTitle = normalize(variantTitle);
+
+        // If variant exists in current view, match by variant
         if (selectedVariant) {
           const itemVariantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id;
-          const itemVariantTitle = (item.product as any).variantTitle || (item.product as any).pack;
-          return itemVariantId === selectedVariant._id || itemVariantTitle === variantTitle;
+          const itemVariantTitle = normalize((item.product as any).variantTitle || (item.product as any).pack || item.variant);
+
+          const selectedVariantId = String(selectedVariant._id || "");
+
+          // Match by ID if available
+          if (itemVariantId && selectedVariantId && String(itemVariantId) === selectedVariantId) {
+            return true;
+          }
+
+          // Fallback to Title match
+          return itemVariantTitle === currentVariantTitle;
         }
 
-        // If no variant, check that item also has no variant
+        // If no variant in current view, match items that also have no variant info
         const itemVariantId = (item.product as any).variantId || (item.product as any).selectedVariant?._id;
         const itemVariantTitle = (item.product as any).variantTitle;
+
+        // If the item in cart HAS a variant but we don't have variants here, it's still the same product
+        // and we might want to show it as "In Cart" (at least in summary).
+        // For ProductDetail, if there's ONLY one type of item for this product, match it.
         return !itemVariantId && !itemVariantTitle;
       }
     )

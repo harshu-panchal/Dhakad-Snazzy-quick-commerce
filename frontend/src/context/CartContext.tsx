@@ -202,9 +202,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Filter out null products and find existing item
       const validItems = prevItems.filter(item => item?.product);
 
-      // Check for variant ID or variant title if product has variants
-      const variantId = (product as any).variantId || (product as any).selectedVariant?._id;
-      const variantTitle = (product as any).variantTitle || (product as any).pack;
+      // Check for variant ID or variant title if product has variations
+      let variantId = (product as any).variantId || (product as any).selectedVariant?._id;
+      let variantTitle = (product as any).variantTitle || (product as any).pack;
+
+      // If no explicit variant info but variations exist, default to first variation
+      if (!variantId && product.variations && product.variations.length > 0) {
+        const firstVar = product.variations[0];
+        variantId = (firstVar as any)._id || (firstVar as any).id;
+        variantTitle = (firstVar as any).title || (firstVar as any).value || variantTitle;
+      }
 
       // Find existing item - match by product ID and variant (if variant exists)
       const existingItem = validItems.find((item) => {
@@ -213,9 +220,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const itemVariantTitle = (item.product as any).variantTitle || (item.product as any).pack;
 
         // If both have variants, match by variant ID or title
-        if (variantId || variantTitle) {
-          return itemProductId === productId &&
-            (itemVariantId === variantId || itemVariantTitle === variantTitle);
+        if (variantId || (itemVariantId && itemVariantId !== itemProductId)) {
+          // Match by ID if both have it
+          if (variantId && itemVariantId) {
+            return itemProductId === productId && (itemVariantId === variantId || itemVariantTitle === variantTitle);
+          }
+          // Fallback to title
+          return itemProductId === productId && itemVariantTitle === variantTitle;
         }
         // If no variant, match by product ID only
         return itemProductId === productId && !itemVariantId && !itemVariantTitle;
@@ -228,7 +239,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const itemVariantTitle = (item.product as any).variantTitle || (item.product as any).pack;
 
           // Match by product ID and variant
-          const isMatch = variantId || variantTitle
+          const isMatch = (variantId || (itemVariantId && itemVariantId !== itemProductId))
             ? itemProductId === productId && (itemVariantId === variantId || itemVariantTitle === variantTitle)
             : itemProductId === productId && !itemVariantId && !itemVariantTitle;
 
@@ -244,7 +255,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated && user?.userType === 'Customer') {
       try {
         // Pass variation info to API if available
-        const variation = (product as any).variantId || (product as any).selectedVariant?._id || (product as any).variantTitle || (product as any).pack;
+        // If product has variations but no variantId/selectedVariant is provided (e.g. from Home page),
+        // use the ID of the first variation to ensure consistency with ProductDetail page
+        let variation = (product as any).variantId || (product as any).selectedVariant?._id || (product as any).variantTitle;
+
+        if (!variation && product.variations && product.variations.length > 0) {
+          const firstVar = product.variations[0];
+          variation = (firstVar as any)._id || (firstVar as any).id || (firstVar as any).title || (firstVar as any).value;
+        }
+
+        // Final fallback to pack
+        if (!variation) {
+          variation = product.pack;
+        }
+
         const response = await apiAddToCart(
           productId,
           1,
