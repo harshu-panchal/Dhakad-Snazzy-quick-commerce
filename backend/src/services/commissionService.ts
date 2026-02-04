@@ -282,7 +282,7 @@ export const createPendingCommissions = async (orderId: string) => {
       const netEarning = item.total - commissionAmount;
 
       console.log(
-        `[Commission] Item: ${product?.productName}, Rate: ${commissionRate}% (${rateSource}), Amount: ${commissionAmount}, Net: ${netEarning}`,
+        `[Commission] Item: ${item.product}, Rate: ${commissionRate}%, Amount: ${commissionAmount}, Net: ${netEarning}`,
       );
 
       // Create commission record as PAID immediately

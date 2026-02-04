@@ -106,6 +106,20 @@ async function startServer() {
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();
 
+  // Handle server errors gracefully (e.g., port already in use)
+  httpServer.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`\n\x1b[31m✗ Port ${PORT} is already in use!\x1b[0m`);
+      console.error(`\x1b[33m  → Another instance of the server may be running.\x1b[0m`);
+      console.error(`\x1b[33m  → Run: taskkill /f /im node.exe (Windows) or killall node (Mac/Linux)\x1b[0m`);
+      console.error(`\x1b[33m  → Or change PORT in .env file\x1b[0m\n`);
+      process.exit(1);
+    } else {
+      console.error('\n\x1b[31m✗ Server error:\x1b[0m', error);
+      process.exit(1);
+    }
+  });
+
   httpServer.listen(PORT, () => {
     console.log("\n\x1b[32m✓\x1b[0m \x1b[1mdhakadsnazzy Server Started\x1b[0m");
     console.log(`   \x1b[36mPort:\x1b[0m http://localhost:${PORT}`);
