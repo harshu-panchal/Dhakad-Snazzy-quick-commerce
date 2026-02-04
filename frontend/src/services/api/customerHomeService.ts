@@ -68,3 +68,18 @@ export const getStoreProducts = async (
   const response = await api.get(`/customer/home/store/${storeId}`, { params });
   return response.data;
 };
+/**
+ * Check if service is available at the given location
+ */
+export const checkServiceability = async (
+  latitude: number,
+  longitude: number
+): Promise<{ success: boolean; isServiceAvailable: boolean }> => {
+  const response = await api.get<{ success: boolean; isServiceAvailable: boolean }>(
+    "/customer/home/serviceability",
+    {
+      params: { latitude, longitude }
+    }
+  );
+  return response.data;
+};

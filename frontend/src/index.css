@@ -94,3 +94,8 @@ video {
   }
 }
 
+/* Ensure Google Maps Autocomplete dropdown appears above modals */
+.pac-container {
+  z-index: 99999 !important;
+}
+

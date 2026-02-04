@@ -1,10 +1,12 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import FloatingCartPill from './FloatingCartPill';
 import { useLocation as useLocationContext } from '../hooks/useLocation';
 import LocationPermissionRequest from './LocationPermissionRequest';
 import { useThemeContext } from '../context/ThemeContext';
+import ServiceNotAvailable from './ServiceNotAvailable';
+import { checkServiceability } from '../services/api/customerHomeService';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -23,7 +25,33 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [showLocationChangeModal, setShowLocationChangeModal] = useState(false);
   const { currentTheme } = useThemeContext();
 
+  // State to track if service is available at user's location
+  const [isServiceAvailable, setIsServiceAvailable] = useState<boolean>(true);
+
+  // Check serviceability when user location changes
+  useEffect(() => {
+    const performCheck = async () => {
+      if (userLocation && userLocation.latitude && userLocation.longitude) {
+        try {
+          const result = await checkServiceability(userLocation.latitude, userLocation.longitude);
+          setIsServiceAvailable(result.isServiceAvailable);
+        } catch (error) {
+          console.error("Failed to check serviceability:", error);
+          // Default to true on error to avoid blocking user due to network issues
+          setIsServiceAvailable(true);
+        }
+      } else {
+        // If no location, we can't determine, so we assume available or waiting for location
+        setIsServiceAvailable(true);
+      }
+    };
+
+    performCheck();
+  }, [userLocation]);
+
   const isActive = (path: string) => location.pathname === path;
+
+  // ... (rest of the component logic)
 
   // Check if location is required for current route
   const requiresLocation = () => {
@@ -36,6 +64,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     // This ensures location is mandatory for everyone visiting the platform
     return true;
   };
+
+  // ... (rest of the component logic)
+
+  // ...
 
   // ALWAYS show location request modal on app load if location is not enabled
   // This ensures modal appears on every app open, regardless of browser permission state
@@ -59,6 +91,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
       setShowLocationRequest(false);
     }
   }, [isLocationLoading, isLocationEnabled, location.pathname]);
+
+  // ...
+
+
 
   // Update search query when URL params change
   useEffect(() => {
@@ -262,23 +298,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
               {/* Location line - only show if user has provided location */}
               {userLocation && (userLocation.address || userLocation.city) && (
-              <div className="px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between text-sm">
+                <div className="px-4 md:px-6 lg:px-8 py-2 flex items-center justify-between text-sm">
                   <span className="text-neutral-700 line-clamp-1" title={userLocation?.address || ''}>
-                  {userLocation?.address
-                    ? userLocation.address.length > 50
-                      ? `${userLocation.address.substring(0, 50)}...`
-                      : userLocation.address
-                    : userLocation?.city && userLocation?.state
-                      ? `${userLocation.city}, ${userLocation.state}`
+                    {userLocation?.address
+                      ? userLocation.address.length > 50
+                        ? `${userLocation.address.substring(0, 50)}...`
+                        : userLocation.address
+                      : userLocation?.city && userLocation?.state
+                        ? `${userLocation.city}, ${userLocation.state}`
                         : userLocation?.city || ''}
-                </span>
-                <button
-                  onClick={() => setShowLocationChangeModal(true)}
-                  className="text-blue-600 font-medium hover:text-blue-700 transition-colors flex-shrink-0 ml-2"
-                >
-                  Change
-                </button>
-              </div>
+                  </span>
+                  <button
+                    onClick={() => setShowLocationChangeModal(true)}
+                    className="text-blue-600 font-medium hover:text-blue-700 transition-colors flex-shrink-0 ml-2"
+                  >
+                    Change
+                  </button>
+                </div>
               )}
 
               {/* Search bar - Hidden on Order Again page */}
@@ -303,31 +339,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pb-24 md:pb-8">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
-                key={location.pathname}
+                key={isLocationEnabled && userLocation ? 'content' : 'location-check'}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{
-                  duration: 0.2,
-                  ease: "easeInOut"
-                }}
+                transition={{ duration: 0.2 }}
                 className="w-full max-w-full"
                 style={{ minHeight: '100%' }}
-                onAnimationComplete={() => {
-                  const isHomePage = location.pathname === '/' || location.pathname === '/user/home';
-
-                  // Home page handles its own scroll (either restoration or starting from top)
-                  if (isHomePage) {
-                    return;
-                  }
-
-                  if (mainRef.current) {
-                    mainRef.current.scrollTop = 0;
-                  }
-                  window.scrollTo(0, 0);
-                }}
               >
-                {children}
+                {/* Service Availability Check */}
+                {
+                  (() => {
+                    // If we have a location but service is NOT available, show the unavailable screen
+                    // We check the component state 'isServiceAvailable' which is updated by useEffect
+                    if (isLocationEnabled && userLocation && !isServiceAvailable && !showLocationRequest) {
+                      return <ServiceNotAvailable onChangeLocation={() => setShowLocationChangeModal(true)} />;
+                    }
+                    return children;
+                  })()
+                }
               </motion.div>
             </AnimatePresence>
           </main>
@@ -352,6 +382,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               skipable={true}
               title="Change Location"
               description="Update your location to see products available near you."
+              forceOpen={true}
             />
           )}
 

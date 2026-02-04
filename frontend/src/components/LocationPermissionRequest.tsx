@@ -7,6 +7,7 @@ interface LocationPermissionRequestProps {
   skipable?: boolean;
   title?: string;
   description?: string;
+  forceOpen?: boolean;
 }
 
 export default function LocationPermissionRequest({
@@ -14,20 +15,25 @@ export default function LocationPermissionRequest({
   skipable = false,
   title = 'Location Access Required',
   description = 'We need your location to show you products available near you and enable delivery services.',
+  forceOpen = false,
 }: LocationPermissionRequestProps) {
   const { requestLocation, updateLocation, isLocationEnabled, isLocationLoading, locationError, locationPermissionStatus, clearLocation } = useLocation();
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualAddress, setManualAddress] = useState('');
   const [manualLat, setManualLat] = useState(0);
   const [manualLng, setManualLng] = useState(0);
+  const [manualCity, setManualCity] = useState('');
+  const [manualState, setManualState] = useState('');
+  const [manualPincode, setManualPincode] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Auto-grant if already enabled or session permission exists
+  // Auto-grant if already enabled or session permission exists (unless forced open)
   useEffect(() => {
-    if (isLocationEnabled) {
+    if (isLocationEnabled && !forceOpen) {
       console.log('[LocationPermissionRequest] Location is enabled, notifying parent.');
       onLocationGranted();
     }
-  }, [isLocationEnabled, onLocationGranted]);
+  }, [isLocationEnabled, onLocationGranted, forceOpen]);
 
   const handleAllowLocation = async () => {
     // Clear any previous errors before retrying
@@ -40,8 +46,11 @@ export default function LocationPermissionRequest({
       // ONLY call location API when user explicitly clicks the button
       // This ensures we don't auto-request location on app load
       await requestLocation();
-      // If requestLocation succeeds, locationError will be cleared in the context
-      // and isLocationEnabled will be set to true, which will trigger onLocationGranted
+
+      // If forced open (Change Location mode), we must manually close since the effect is disabled
+      if (forceOpen) {
+        onLocationGranted();
+      }
     } catch (error) {
       // Error is handled by context and displayed in the error box
       // Location will remain disabled, modal will stay visible
@@ -49,33 +58,137 @@ export default function LocationPermissionRequest({
     }
   };
 
-  const handleManualLocationSelect = (address: string, lat: number, lng: number, _placeName: string) => {
+  const handleManualLocationSelect = (address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string; pincode?: string }) => {
     setManualAddress(address);
     setManualLat(lat);
     setManualLng(lng);
-    // placeName is available but not stored separately as we use address
+    setManualCity(components?.city || '');
+    setManualState(components?.state || '');
+    setManualPincode(components?.pincode || '');
   };
 
   const handleSaveManualLocation = async () => {
-    if (!manualAddress || manualLat === 0 || manualLng === 0) {
+    if (!manualAddress) {
       return;
     }
 
+    setIsSaving(true);
+    let lat = manualLat;
+    let lng = manualLng;
+    // Start with manual values, but prioritize fetched ones
+    let finalAddress = manualAddress;
+    let city = manualCity;
+    let state = manualState;
+    let pincode = manualPincode;
+
+    // Track if we successfully resolved the address
+    let isResolved = false;
+
     try {
-      // Save manual location - this will set isLocationEnabled to true
+      const geocoder = new window.google.maps.Geocoder();
+
+      // Strategy 1: If we have coordinates, try valid REVERSE geocoding first
+      if (lat && lng) {
+        try {
+          const result = await new Promise<any>((resolve, reject) => {
+            geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+              if (status === 'OK' && results && results[0]) {
+                resolve(results[0]);
+              } else {
+                reject(status);
+              }
+            });
+          });
+
+          if (result && result.formatted_address) {
+            finalAddress = result.formatted_address;
+
+            // Update components
+            if (result.address_components) {
+              city = ''; state = ''; pincode = '';
+              result.address_components.forEach((comp: any) => {
+                if (comp.types.includes('locality')) city = comp.long_name;
+                if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
+                if (comp.types.includes('postal_code')) pincode = comp.long_name;
+              });
+            }
+            isResolved = true;
+          }
+        } catch (error) {
+          console.warn('Strategy 1 (Reverse Geocode) failed:', error);
+          // If this fails (e.g. invalid coords), we continue to Strategy 2 (Text Geocode)
+        }
+      }
+
+      // Strategy 2: If Strategy 1 failed or we didn't have coords, Geocode the TEXT
+      if (!isResolved) {
+        try {
+          const result = await new Promise<any>((resolve, reject) => {
+            // Constrain to India to match Autocomplete behavior and prevent weird matches
+            geocoder.geocode({
+              address: manualAddress,
+              componentRestrictions: { country: 'in' }
+            }, (results, status) => {
+              if (status === 'OK' && results && results[0]) {
+                resolve(results[0]);
+              } else {
+                reject(status);
+              }
+            });
+          });
+
+          if (result && result.geometry && result.geometry.location) {
+            lat = result.geometry.location.lat();
+            lng = result.geometry.location.lng();
+
+            if (result.formatted_address) {
+              finalAddress = result.formatted_address;
+            }
+
+            if (result.address_components) {
+              city = ''; state = ''; pincode = '';
+              result.address_components.forEach((comp: any) => {
+                if (comp.types.includes('locality')) city = comp.long_name;
+                if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
+                if (comp.types.includes('postal_code')) pincode = comp.long_name;
+              });
+            }
+            isResolved = true;
+          }
+        } catch (error) {
+          console.error('Strategy 2 (Text Geocode) failed:', error);
+        }
+      }
+
+      // Final Check: Do we have coordinates?
+      if (!lat || !lng) {
+        console.error("Could not resolve coordinates for address");
+        setIsSaving(false);
+        return;
+      }
+
+      console.log("Saving location:", { lat, lng, finalAddress, city, state });
+
+      // Save manual location with the CORRECT full address and components
       await updateLocation({
-        latitude: manualLat,
-        longitude: manualLng,
-        address: manualAddress,
+        latitude: lat,
+        longitude: lng,
+        address: finalAddress,
+        city: city,
+        state: state,
+        pincode: pincode
       });
-      // Modal will automatically hide when isLocationEnabled becomes true
+
+      // Close modal
       onLocationGranted();
     } catch (error) {
       console.error('Failed to save manual location:', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  if (isLocationEnabled) {
+  if (isLocationEnabled && !forceOpen) {
     return null;
   }
 
@@ -191,15 +304,26 @@ export default function LocationPermissionRequest({
               <button
                 onClick={() => setShowManualInput(false)}
                 className="flex-1 py-2 bg-neutral-100 text-neutral-700 rounded-lg font-semibold hover:bg-neutral-200 transition-colors"
+                disabled={isSaving}
               >
                 Back
               </button>
               <button
                 onClick={handleSaveManualLocation}
-                disabled={!manualAddress || manualLat === 0}
-                className="flex-1 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!manualAddress || isSaving}
+                className="flex-1 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Save Location
+                {isSaving ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  'Save Location'
+                )}
               </button>
             </div>
           </div>
@@ -208,9 +332,3 @@ export default function LocationPermissionRequest({
     </div>
   );
 }
-
-
-
-
-
-

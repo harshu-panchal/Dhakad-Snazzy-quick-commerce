@@ -798,8 +798,57 @@ export const getStoreProducts = async (req: Request, res: Response) => {
 
 // Helper
 async function getCategoryIdByName(name: string) {
-  const cat = await Category.findOne({
-    name: { $regex: new RegExp(name, "i") },
-  });
-  return cat ? cat._id : null;
+  try {
+    const category = await Category.findOne({
+      name: { $regex: new RegExp(name, "i") },
+      status: "Active"
+    }).select("_id");
+    return category ? category._id : null;
+  } catch (error) {
+    console.error("Error finding category by name:", error);
+    return null;
+  }
 }
+
+/**
+ * Check if service is available at the given location
+ */
+export const checkServiceability = async (req: Request, res: Response) => {
+  try {
+    const { latitude, longitude } = req.query;
+
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        success: false,
+        message: "Latitude and longitude are required",
+        isServiceAvailable: false
+      });
+    }
+
+    const userLat = parseFloat(latitude as string);
+    const userLng = parseFloat(longitude as string);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid coordinates",
+        isServiceAvailable: false
+      });
+    }
+
+    const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+
+    return res.status(200).json({
+      success: true,
+      isServiceAvailable: nearbySellerIds.length > 0,
+      nearbySellersCount: nearbySellerIds.length
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: "Error checking serviceability",
+      error: error.message,
+      isServiceAvailable: false
+    });
+  }
+};
