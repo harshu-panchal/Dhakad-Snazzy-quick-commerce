@@ -17,6 +17,11 @@ export interface HomeSection {
     displayType: "subcategories" | "products" | "categories";
     columns: number;
     limit: number;
+    pageLocation?: "Home Page" | "Header Category Page";
+    targetHeaderCategory?: {
+        _id: string;
+        name: string;
+    } | string;
     order: number;
     isActive: boolean;
     createdAt: string;
@@ -31,6 +36,8 @@ export interface HomeSectionFormData {
     displayType: "subcategories" | "products" | "categories";
     columns: number;
     limit: number;
+    pageLocation?: "Home Page" | "Header Category Page";
+    targetHeaderCategory?: string;
     order?: number;
     isActive: boolean;
 }

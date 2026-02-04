@@ -8,6 +8,7 @@ export const getHomeSections = async (_req: Request, res: Response) => {
         const sections = await HomeSection.find()
             .populate("categories", "name slug image")
             .populate("subCategories", "name")
+            .populate("targetHeaderCategory", "name")
             .sort({ order: 1 })
             .lean();
 
@@ -37,8 +38,9 @@ export const getHomeSectionById = async (req: Request, res: Response) => {
         }
 
         const section = await HomeSection.findById(id)
-            .populate("category", "name slug image")
-            .populate("subCategory", "name")
+            .populate("categories", "name slug image")
+            .populate("subCategories", "name")
+            .populate("targetHeaderCategory", "name")
             .lean();
 
         if (!section) {
@@ -64,7 +66,7 @@ export const getHomeSectionById = async (req: Request, res: Response) => {
 // Create new home section
 export const createHomeSection = async (req: Request, res: Response) => {
     try {
-        const { title, slug, categories, subCategories, displayType, columns, limit, order, isActive } = req.body;
+        const { title, slug, categories, subCategories, displayType, columns, limit, order, isActive, pageLocation, targetHeaderCategory } = req.body;
 
         // Validate required fields
         if (!title || !slug || !displayType) {
@@ -100,13 +102,16 @@ export const createHomeSection = async (req: Request, res: Response) => {
             limit: limit || 8,
             order: sectionOrder,
             isActive: isActive !== undefined ? isActive : true,
+            pageLocation: pageLocation || "Home Page",
+            targetHeaderCategory: targetHeaderCategory || undefined,
         });
 
         await newSection.save();
 
         const populatedSection = await HomeSection.findById(newSection._id)
-            .populate("category", "name slug image")
-            .populate("subCategory", "name")
+            .populate("categories", "name slug image")
+            .populate("subCategories", "name")
+            .populate("targetHeaderCategory", "name")
             .lean();
 
         return res.status(201).json({
@@ -127,7 +132,7 @@ export const createHomeSection = async (req: Request, res: Response) => {
 export const updateHomeSection = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { title, slug, categories, subCategories, displayType, columns, limit, order, isActive } = req.body;
+        const { title, slug, categories, subCategories, displayType, columns, limit, order, isActive, pageLocation, targetHeaderCategory } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
@@ -165,12 +170,15 @@ export const updateHomeSection = async (req: Request, res: Response) => {
         if (limit !== undefined) section.limit = limit;
         if (order !== undefined) section.order = order;
         if (isActive !== undefined) section.isActive = isActive;
+        if (pageLocation !== undefined) section.pageLocation = pageLocation;
+        if (targetHeaderCategory !== undefined) section.targetHeaderCategory = targetHeaderCategory;
 
         await section.save();
 
         const updatedSection = await HomeSection.findById(id)
-            .populate("category", "name slug image")
-            .populate("subCategory", "name")
+            .populate("categories", "name slug image")
+            .populate("subCategories", "name")
+            .populate("targetHeaderCategory", "name")
             .lean();
 
         return res.status(200).json({

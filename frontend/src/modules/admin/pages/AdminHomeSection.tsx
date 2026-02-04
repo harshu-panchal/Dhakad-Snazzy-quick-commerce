@@ -29,6 +29,8 @@ export default function AdminHomeSection() {
     const [columns, setColumns] = useState(4);
     const [limit, setLimit] = useState(8);
     const [isActive, setIsActive] = useState(true);
+    const [pageLocation, setPageLocation] = useState<"Home Page" | "Header Category Page">("Home Page");
+    const [targetPageHeaderCategory, setTargetPageHeaderCategory] = useState<string>("");
 
     // Data state
     const [sections, setSections] = useState<HomeSection[]>([]);
@@ -191,6 +193,11 @@ export default function AdminHomeSection() {
             }
         }
 
+        if (pageLocation === "Header Category Page" && !targetPageHeaderCategory) {
+            setError("Please select a target header category");
+            return;
+        }
+
         const formData: HomeSectionFormData = {
             title: title.trim(),
             slug: slug.trim(),
@@ -201,6 +208,8 @@ export default function AdminHomeSection() {
             columns,
             limit,
             isActive,
+            pageLocation,
+            targetHeaderCategory: pageLocation === "Header Category Page" ? targetPageHeaderCategory : undefined,
         };
 
         try {
@@ -265,6 +274,12 @@ export default function AdminHomeSection() {
         setColumns(section.columns);
         setLimit(section.limit);
         setIsActive(section.isActive);
+        setPageLocation(section.pageLocation || "Home Page");
+        setTargetPageHeaderCategory(
+            typeof section.targetHeaderCategory === 'object'
+                ? section.targetHeaderCategory?._id || ""
+                : section.targetHeaderCategory || ""
+        );
         setEditingId(section._id);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
@@ -298,6 +313,8 @@ export default function AdminHomeSection() {
         setColumns(4);
         setLimit(8);
         setIsActive(true);
+        setPageLocation("Home Page");
+        setTargetPageHeaderCategory("");
         setEditingId(null);
     };
 
@@ -363,6 +380,61 @@ export default function AdminHomeSection() {
                                     className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                                 />
                             </div>
+
+                            {/* Page Location */}
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                                    Page Location <span className="text-red-500">*</span>
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="pageLocation"
+                                            checked={pageLocation === "Home Page"}
+                                            onChange={() => setPageLocation("Home Page")}
+                                            className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300"
+                                        />
+                                        <span className="ml-2 text-sm text-neutral-700">Home Page</span>
+                                    </label>
+                                    <label className="flex items-center cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="pageLocation"
+                                            checked={pageLocation === "Header Category Page"}
+                                            onChange={() => setPageLocation("Header Category Page")}
+                                            className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300"
+                                        />
+                                        <span className="ml-2 text-sm text-neutral-700">Header Category Page</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Target Header Category - Only show when pageLocation is "Header Category Page" */}
+                            {pageLocation === "Header Category Page" && (
+                                <div>
+                                    <label className="block text-sm font-medium text-neutral-700 mb-2">
+                                        Target Header Category <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        value={targetPageHeaderCategory}
+                                        onChange={(e) => setTargetPageHeaderCategory(e.target.value)}
+                                        className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                                    >
+                                        <option value="">Select target page</option>
+                                        {headerCategories
+                                            .filter((hc) => hc.status === "Published")
+                                            .map((hc) => (
+                                                <option key={hc._id} value={hc._id}>
+                                                    {hc.name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                    <p className="text-xs text-neutral-500 mt-1">
+                                        Section will only appear on this header category page
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Slug */}
                             <div>
@@ -445,9 +517,8 @@ export default function AdminHomeSection() {
                                         <span className="text-red-500 ml-1">*</span>
                                     )}
                                 </label>
-                                <div className={`border border-neutral-300 rounded max-h-40 overflow-y-auto p-2 ${
-                                    displayType === "categories" && !selectedHeaderCategory ? 'bg-gray-100' : 'bg-white'
-                                }`}>
+                                <div className={`border border-neutral-300 rounded max-h-40 overflow-y-auto p-2 ${displayType === "categories" && !selectedHeaderCategory ? 'bg-gray-100' : 'bg-white'
+                                    }`}>
                                     {displayType === "categories" && !selectedHeaderCategory ? (
                                         <p className="text-sm text-neutral-400 p-2">Please select a header category first</p>
                                     ) : filteredCategories.length === 0 ? (
@@ -663,12 +734,12 @@ export default function AdminHomeSection() {
                                             </td>
                                         </tr>
                                     ) : (
-                                        displayedSections.map((section) => (
+                                        displayedSections.map((section, index) => (
                                             <tr
                                                 key={section._id}
                                                 className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200"
                                             >
-                                                <td className="p-4">{section.order}</td>
+                                                <td className="p-4">{startIndex + index + 1}</td>
                                                 <td className="p-4 font-medium">{section.title}</td>
                                                 <td className="p-4 capitalize">{section.displayType}</td>
                                                 <td className="p-4">

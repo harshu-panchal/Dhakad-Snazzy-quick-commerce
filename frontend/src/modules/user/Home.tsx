@@ -59,8 +59,12 @@ export default function Home() {
         startRouteLoading();
         setLoading(true);
         setError(null);
+        // Pass the activeTab as slug (if it's not "all")
+        // This ensures backend filters sections based on the category
+        const slug = activeTab === "all" ? undefined : activeTab;
+
         const response = await getHomeContent(
-          undefined,
+          slug,
           location?.latitude,
           location?.longitude
         );
@@ -84,18 +88,33 @@ export default function Home() {
 
     fetchData();
 
-    // Preload PromoStrip data for all header categories in the background
-    // This ensures instant loading when users switch tabs
+    // Preload Logic (kept same)
     const preloadHeaderCategories = async () => {
       try {
-        // Wait a bit after initial load to not interfere with main content
+        // ... (rest of preload logic same as before, no changes needed here but including for context if needed, 
+        // but easier to just keep the original preload logic if it's separate. 
+        // Wait, the ReplacementContent must replace the targeting block entirely.)
+        // To avoid large duplicate block, I will just include the fetchData call and dependencies update.
+      } catch (error) {
+        console.debug("Failed to preload header categories:", error);
+      }
+    };
+
+    // We only want to preload once on mount, so we can keep the preload logic in a separate effect or just here
+    // But since this effect now runs on activeTab change, we shouldn't preload every time.
+    // Let's separate preload to a mount-only effect or use a ref.
+
+  }, [location?.latitude, location?.longitude, activeTab]);
+
+  // Separate effect for preloading only on mount/location change, NOT activeTab
+  useEffect(() => {
+    const preloadHeaderCategories = async () => {
+      try {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         const headerCategories = await getHeaderCategoriesPublic(true);
-        // Preload data for each header category (including 'all')
         const slugsToPreload = ['all', ...headerCategories.map(cat => cat.slug)];
 
-        // Preload in batches to avoid overwhelming the network
         const batchSize = 2;
         for (let i = 0; i < slugsToPreload.length; i += batchSize) {
           const batch = slugsToPreload.slice(i, i + batchSize);
@@ -109,18 +128,15 @@ export default function Home() {
                 5 * 60 * 1000,
                 true
               ).catch(err => {
-                // Silently fail - this is just preloading
                 console.debug(`Failed to preload data for ${slug}:`, err);
               })
             )
           );
-          // Small delay between batches
           if (i + batchSize < slugsToPreload.length) {
             await new Promise(resolve => setTimeout(resolve, 200));
           }
         }
       } catch (error) {
-        // Silently fail - preloading is optional
         console.debug("Failed to preload header categories:", error);
       }
     };
@@ -252,6 +268,65 @@ export default function Home() {
       {/* Main content */}
       <div
         className="bg-neutral-50 -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
+        {/* Dynamic Home Sections - Render sections created by admin */}
+        {homeData.homeSections && homeData.homeSections.length > 0 && (
+          <>
+            {homeData.homeSections.map((section: any) => {
+              const columnCount = Number(section.columns) || 4;
+
+              if (section.displayType === "products" && section.data && section.data.length > 0) {
+                // Strict column mapping as requested - applies to ALL screen sizes including mobile
+                const gridClass = {
+                  2: "grid-cols-2",
+                  3: "grid-cols-3",
+                  4: "grid-cols-4",
+                  6: "grid-cols-6",
+                  8: "grid-cols-8"
+                }[columnCount] || "grid-cols-4";
+
+                // Use compact mode for 4 or more columns to fit content on mobile
+                const isCompact = columnCount >= 4;
+                const gapClass = columnCount >= 4 ? "gap-2" : "gap-3 md:gap-4";
+
+                return (
+                  <div key={section.id} className="mt-6 mb-6 md:mt-8 md:mb-8">
+                    {section.title && (
+                      <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6 px-4 md:px-6 lg:px-8 tracking-tight capitalize">
+                        {section.title}
+                      </h2>
+                    )}
+                    <div className="px-4 md:px-6 lg:px-8">
+                      <div className={`grid ${gridClass} ${gapClass}`}>
+                        {section.data.map((product: any) => (
+                          <ProductCard
+                            key={product.id || product._id}
+                            product={product}
+                            categoryStyle={true}
+                            showBadge={true}
+                            showPackBadge={false}
+                            showStockInfo={false}
+                            compact={isCompact}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <CategoryTileSection
+                  key={section.id}
+                  title={section.title}
+                  tiles={section.data || []}
+                  columns={columnCount as 2 | 3 | 4 | 6 | 8}
+                  showProductCount={false}
+                />
+              );
+            })}
+          </>
+        )}
+
         {/* Filtered Products Section */}
         {activeTab !== "all" && (
           <div data-products-section className="mt-6 mb-6 md:mt-8 md:mb-8">
@@ -313,65 +388,6 @@ export default function Home() {
 
             {/* Featured this week Section */}
             <FeaturedThisWeek />
-
-            {/* Dynamic Home Sections - Render sections created by admin */}
-            {homeData.homeSections && homeData.homeSections.length > 0 && (
-              <>
-                {homeData.homeSections.map((section: any) => {
-                  const columnCount = Number(section.columns) || 4;
-
-                  if (section.displayType === "products" && section.data && section.data.length > 0) {
-                    // Strict column mapping as requested - applies to ALL screen sizes including mobile
-                    const gridClass = {
-                      2: "grid-cols-2",
-                      3: "grid-cols-3",
-                      4: "grid-cols-4",
-                      6: "grid-cols-6",
-                      8: "grid-cols-8"
-                    }[columnCount] || "grid-cols-4";
-
-                    // Use compact mode for 4 or more columns to fit content on mobile
-                    const isCompact = columnCount >= 4;
-                    const gapClass = columnCount >= 4 ? "gap-2" : "gap-3 md:gap-4";
-
-                    return (
-                      <div key={section.id} className="mt-6 mb-6 md:mt-8 md:mb-8">
-                        {section.title && (
-                          <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6 px-4 md:px-6 lg:px-8 tracking-tight capitalize">
-                            {section.title}
-                          </h2>
-                        )}
-                        <div className="px-4 md:px-6 lg:px-8">
-                          <div className={`grid ${gridClass} ${gapClass}`}>
-                            {section.data.map((product: any) => (
-                              <ProductCard
-                                key={product.id || product._id}
-                                product={product}
-                                categoryStyle={true}
-                                showBadge={true}
-                                showPackBadge={false}
-                                showStockInfo={false}
-                                compact={isCompact}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <CategoryTileSection
-                      key={section.id}
-                      title={section.title}
-                      tiles={section.data || []}
-                      columns={columnCount as 2 | 3 | 4 | 6 | 8}
-                      showProductCount={false}
-                    />
-                  );
-                })}
-              </>
-            )}
 
             {/* Shop by Store Section */}
             <div className="mb-6 mt-6 md:mb-8 md:mt-8">

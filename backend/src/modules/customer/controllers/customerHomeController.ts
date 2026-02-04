@@ -475,7 +475,29 @@ export const getHomeContent = async (req: Request, res: Response) => {
         ];
 
     // 9. Dynamic Home Sections - Fetch from database
-    const homeSections = await HomeSection.find({ isActive: true })
+    let homeSectionQuery: any = { isActive: true };
+
+    if (headerCategorySlug && headerCategorySlug !== "all") {
+      const headerCategoryForSection = await HeaderCategory.findOne({
+        slug: headerCategorySlug,
+        status: "Published",
+      }).select("_id");
+
+      if (headerCategoryForSection) {
+        homeSectionQuery.pageLocation = "Header Category Page";
+        homeSectionQuery.targetHeaderCategory = headerCategoryForSection._id;
+      } else {
+        // If header category not found, return empty sections
+        homeSectionQuery = { _id: { $exists: false } };
+      }
+    } else {
+      homeSectionQuery.$or = [
+        { pageLocation: "Home Page" },
+        { pageLocation: { $exists: false } },
+      ];
+    }
+
+    const homeSections = await HomeSection.find(homeSectionQuery)
       .populate("categories", "name slug image")
       .populate("subCategories", "name")
       .sort({ order: 1 })

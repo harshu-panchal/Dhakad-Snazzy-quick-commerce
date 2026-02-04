@@ -9,6 +9,8 @@ export interface IHomeSection extends Document {
     displayType: "subcategories" | "products" | "categories";
     columns: number;
     limit: number;
+    pageLocation: "Home Page" | "Header Category Page";
+    targetHeaderCategory?: mongoose.Types.ObjectId;
     order: number;
     isActive: boolean;
     createdAt: Date;
@@ -62,6 +64,16 @@ const HomeSectionSchema = new Schema<IHomeSection>(
             min: [1, "Minimum 1 item required"],
             max: [50, "Maximum 50 items allowed"],
             default: 8,
+        },
+        pageLocation: {
+            type: String,
+            enum: ["Home Page", "Header Category Page"],
+            default: "Home Page",
+            required: true,
+        },
+        targetHeaderCategory: {
+            type: Schema.Types.ObjectId,
+            ref: "HeaderCategory",
         },
         order: {
             type: Number,
