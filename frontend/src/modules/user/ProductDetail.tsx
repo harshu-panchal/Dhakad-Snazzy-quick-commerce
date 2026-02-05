@@ -119,7 +119,7 @@ export default function ProductDetail() {
 
   const variantStock = selectedVariant?.stock !== undefined ? selectedVariant.stock : (product?.stock || 0);
   const variantTitle = selectedVariant?.title || selectedVariant?.value || product?.pack || "Standard";
-  const isVariantAvailable = selectedVariant?.status !== "Sold out" && (variantStock > 0 || variantStock === 0); // 0 means unlimited
+  const isVariantAvailable = selectedVariant?.status !== "Sold out" && (variantStock > 0);
 
   // Get all images for gallery
   const allImages = product?.allImages || [product?.imageUrl || ""].filter(Boolean);
@@ -1193,21 +1193,21 @@ export default function ProductDetail() {
                     variant="default"
                     size="default"
                     onClick={handleAddToCart}
-                    disabled={!isAvailableAtLocation || (!isVariantAvailable && variantStock !== 0)}
-                    className={`px-6 py-2 text-sm font-semibold h-[36px] ${!isAvailableAtLocation || (!isVariantAvailable && variantStock !== 0)
+                    disabled={!isAvailableAtLocation || !isVariantAvailable}
+                    className={`px-6 py-2 text-sm font-semibold h-[36px] ${!isAvailableAtLocation || !isVariantAvailable
                       ? "opacity-50 cursor-not-allowed"
                       : ""
                       }`}
                     title={
                       !isAvailableAtLocation
                         ? "Not available at your location"
-                        : !isVariantAvailable && variantStock !== 0
+                        : !isVariantAvailable
                           ? "This variant is out of stock"
                           : ""
                     }>
                     {!isAvailableAtLocation
                       ? "Unavailable"
-                      : !isVariantAvailable && variantStock !== 0
+                      : !isVariantAvailable
                         ? "Out of Stock"
                         : "Add to cart"}
                   </Button>

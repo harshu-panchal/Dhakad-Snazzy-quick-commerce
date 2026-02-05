@@ -173,10 +173,11 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 
   // Stock filter
   if (stock === "inStock") {
-    query["variations.stock"] = { $gt: 0 };
+    query.stock = { $gt: 0 };
   } else if (stock === "outOfStock") {
-    query["variations.stock"] = 0;
-    query["variations.status"] = "Sold out";
+    // Check for products where total stock is 0
+    // This implies all variations are out of stock
+    query.stock = 0;
   }
 
   // Pagination
@@ -318,9 +319,8 @@ export const updateProduct = asyncHandler(
         if (Number(variation.discPrice) > Number(variation.price)) {
           return res.status(400).json({
             success: false,
-            message: `Discounted price cannot be greater than price for variation ${
-              variation.title || variation.value
-            }`,
+            message: `Discounted price cannot be greater than price for variation ${variation.title || variation.value
+              }`,
           });
         }
       }

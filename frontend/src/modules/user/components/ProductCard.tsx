@@ -316,17 +316,17 @@ export default function ProductCard({
                     ref={addButtonRef}
                     variant="outline"
                     size="sm"
-                    disabled={product.isAvailable === false}
+                    disabled={product.isAvailable === false || ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out")}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleAdd(e);
                     }}
-                    className={`w-full border rounded-full font-semibold text-xs h-7 px-3 flex items-center justify-center uppercase tracking-wide ${product.isAvailable === false
-                        ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
-                        : 'border-green-600 text-green-600 bg-transparent hover:bg-green-50'
+                    className={`w-full border rounded-full font-semibold text-xs h-7 px-3 flex items-center justify-center uppercase tracking-wide ${product.isAvailable === false || ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out")
+                      ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
+                      : 'border-green-600 text-green-600 bg-transparent hover:bg-green-50'
                       }`}
                   >
-                    {product.isAvailable === false ? 'Out of Range' : 'ADD'}
+                    {product.isAvailable === false ? 'Out of Range' : ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out") ? 'Out of Stock' : 'ADD'}
                   </Button>
                 </div>
               </div>
@@ -486,14 +486,14 @@ export default function ProductCard({
                   ref={addButtonRef}
                   variant="outline"
                   size="sm"
-                  disabled={product.isAvailable === false}
+                  disabled={product.isAvailable === false || ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out")}
                   onClick={handleAdd}
-                  className={`w-full border h-8 text-xs font-semibold uppercase tracking-wide ${product.isAvailable === false
-                      ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
-                      : 'border-green-600 text-green-600 hover:bg-green-50'
+                  className={`w-full border h-8 text-xs font-semibold uppercase tracking-wide ${product.isAvailable === false || ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out")
+                    ? 'border-neutral-300 text-neutral-400 bg-neutral-50 cursor-not-allowed'
+                    : 'border-green-600 text-green-600 hover:bg-green-50'
                     }`}
                 >
-                  {product.isAvailable === false ? 'Out of Range' : 'Add'}
+                  {product.isAvailable === false ? 'Out of Range' : ((product.stock !== undefined && product.stock <= 0) || product.status === "Sold out") ? 'Out of Stock' : 'Add'}
                 </Button>
                 <div className="h-4 mt-1">
                 </div>

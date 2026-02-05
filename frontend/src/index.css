@@ -2,11 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent font flash for Rubik Doodle Shadow */
-@font-face {
-  font-family: 'Rubik Doodle Shadow';
-  font-display: swap;
-}
+
 
 @layer base {
   body {

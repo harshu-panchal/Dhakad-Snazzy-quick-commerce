@@ -20,7 +20,7 @@ export default function SellerProductList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All Category");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Products");
   const [stockFilter, setStockFilter] = useState("All Products");
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -70,7 +70,7 @@ export default function SellerProductList() {
       if (searchTerm) {
         params.search = searchTerm;
       }
-      if (categoryFilter !== "All Category") {
+      if (categoryFilter) {
         params.category = categoryFilter;
       }
       if (statusFilter === "Published") {
@@ -200,18 +200,11 @@ export default function SellerProductList() {
   });
 
   // Filter variations
-  let filteredVariations = allVariations.filter((variation) => {
-    const matchesSearch =
-      variation.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      variation.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      variation.brandName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      categoryFilter === "All Category" ||
-      variation.category === categoryFilter;
-    const matchesStatus = statusFilter === "All Products";
-    const matchesStock = stockFilter === "All Products";
-    return matchesSearch && matchesCategory && matchesStatus && matchesStock;
-  });
+  // Since we are using server-side filtering (triggered by useEffect dependencies), 
+  // the 'products' array is already filtered by the backend.
+  // We should not filter again on the client side as it may hide valid results 
+  // (e.g., if backend search matches fields not available in the frontend model).
+  let filteredVariations = allVariations;
 
   // Sort variations
   if (sortColumn) {
@@ -312,10 +305,10 @@ export default function SellerProductList() {
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
                 className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer">
-                <option value="All Category">All Category</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
+                <option value="">All Category</option>
+                {allCategories.map((cat) => (
+                  <option key={cat._id} value={cat._id}>
+                    {cat.name}
                   </option>
                 ))}
               </select>
