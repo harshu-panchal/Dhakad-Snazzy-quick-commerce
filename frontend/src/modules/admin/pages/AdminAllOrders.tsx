@@ -273,13 +273,25 @@ export default function AdminAllOrders() {
             Orders List
           </h1>
 
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-xs sm:text-sm">
-            <Link to="/admin" className="text-blue-600 hover:text-blue-700">
-              Dashboard
+          {/* Breadcrumb & Actions */}
+          <div className="flex items-center gap-4">
+            <Link
+              to="/admin/delivery-boy/manual-assign"
+              className="hidden sm:flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm font-bold border border-blue-100 hover:bg-blue-100 transition-all">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <polyline points="16 11 18 13 22 9"></polyline>
+              </svg>
+              Manual Assignment
             </Link>
-            <span className="text-neutral-500">/</span>
-            <span className="text-neutral-700">Orders List</span>
+            <div className="flex items-center gap-2 text-xs sm:text-sm">
+              <Link to="/admin" className="text-blue-600 hover:text-blue-700">
+                Dashboard
+              </Link>
+              <span className="text-neutral-500">/</span>
+              <span className="text-neutral-700">Orders List</span>
+            </div>
           </div>
         </div>
       </div>

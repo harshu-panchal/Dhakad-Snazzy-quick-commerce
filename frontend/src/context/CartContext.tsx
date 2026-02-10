@@ -26,7 +26,7 @@ interface CartContextType {
   removeFromCart: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => Promise<void>;
   clearCart: () => Promise<void>;
-  refreshCart: (latitude?: number, longitude?: number) => Promise<void>;
+  refreshCart: (latitude?: number, longitude?: number, deliveryOption?: string) => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
 }
@@ -91,7 +91,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   // Helper to sync cart from API
-  const fetchCart = async (lat?: number, lng?: number) => {
+  const fetchCart = async (lat?: number, lng?: number, deliveryOption?: string) => {
     if (!isAuthenticated || user?.userType !== 'Customer') {
       // If we cleared it above but had things in localStorage, we keep them for guests?
       // For now, if logged out, we clear if it was an authenticated session.
@@ -108,7 +108,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       const response = await getCart({
         latitude: queryLat,
-        longitude: queryLng
+        longitude: queryLng,
+        deliveryOption: deliveryOption
       });
       if (response && response.data && response.data.items) {
         setItems(mapApiItemsToState(response.data.items));
@@ -438,8 +439,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshCart = async (latitude?: number, longitude?: number) => {
-    await fetchCart(latitude, longitude);
+  const refreshCart = async (latitude?: number, longitude?: number, deliveryOption?: string) => {
+    await fetchCart(latitude, longitude, deliveryOption);
   };
 
   return (

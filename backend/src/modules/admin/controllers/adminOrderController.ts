@@ -7,6 +7,7 @@ import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Return from "../../../models/Return";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { Server as SocketIOServer } from "socket.io";
+import { notifyDeliveryBoyOfAssignment } from "../../../services/orderNotificationService";
 
 /**
  * Get all orders with filters
@@ -125,9 +126,12 @@ export const updateOrderStatus = asyncHandler(
 
     const validStatuses = [
       "Received",
+      "Accepted",
       "Pending",
       "Processed",
       "Shipped",
+      "Picked up",
+      "On the way",
       "Out for Delivery",
       "Delivered",
       "Cancelled",
@@ -259,6 +263,12 @@ export const assignDeliveryBoy = asyncHandler(
       .populate("deliveryBoy", "name mobile email")
       .populate("items");
 
+    // Trigger notification to delivery boy
+    const io: SocketIOServer = req.app.get("io");
+    if (io) {
+      notifyDeliveryBoyOfAssignment(io, updatedOrder, deliveryBoyId);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Delivery boy assigned successfully",
@@ -277,9 +287,12 @@ export const getOrdersByStatus = asyncHandler(
 
     const validStatuses = [
       "Received",
+      "Accepted",
       "Pending",
       "Processed",
       "Shipped",
+      "Picked up",
+      "On the way",
       "Out for Delivery",
       "Delivered",
       "Cancelled",

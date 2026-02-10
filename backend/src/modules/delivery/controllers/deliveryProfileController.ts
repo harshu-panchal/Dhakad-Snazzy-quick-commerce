@@ -70,7 +70,10 @@ export const updateStatus = asyncHandler(async (req: Request, res: Response) => 
 
     const delivery = await Delivery.findByIdAndUpdate(
         deliveryId,
-        { isOnline },
+        {
+            isOnline,
+            available: isOnline ? "Available" : "Not Available"
+        },
         { new: true }
     );
 

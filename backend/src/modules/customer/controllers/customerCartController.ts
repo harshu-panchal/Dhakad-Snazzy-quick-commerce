@@ -35,7 +35,6 @@ const calculateItemPrice = (product: any, variationSelector: any) => {
         finalPrice = product.discPrice;
     }
 
-    console.log(`[DEBUG Price] VarId: ${variationId}, Found: ${!!variation}, ProdDisc: ${product.discPrice}, Final: ${finalPrice}`);
     return finalPrice;
 };
 
@@ -62,7 +61,7 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
 };
 
 // Helper to calculate delivery fee
-const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null) => {
+const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null, deliveryOption: string = 'Standard') => {
     let estimatedDeliveryFee = 0;
     let platformFee = 0;
     let freeDeliveryThreshold = 0;
@@ -75,58 +74,61 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
         // Check free delivery threshold
         if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
             estimatedDeliveryFee = 0;
-        } else if (settings) {
-            // If distance based is enabled
-            if (settings.deliveryConfig?.isDistanceBased === true) {
-                const config = settings.deliveryConfig;
-                // Default to base charge to ensure we don't accidentally give free delivery
-                estimatedDeliveryFee = config.baseCharge || 0;
+        }
+        // Standard Delivery: Always Fixed Price
+        else if (deliveryOption === 'Standard') {
+            estimatedDeliveryFee = settings.deliveryCharges || 0;
+        }
+        // Instant Delivery: Distance Based (if config exists)
+        else if (deliveryOption === 'Instant' && settings.deliveryConfig) {
+            const config = settings.deliveryConfig;
+            // Default to base charge
+            estimatedDeliveryFee = config.baseCharge || 0;
 
-                if (userLat && userLng) {
-                    // Get all sellers involved in the cart
-                    const sellerIds = new Set<string>();
-                    items.forEach((item: any) => {
-                        if (item.product?.seller) {
-                            sellerIds.add(item.product.seller.toString());
+            if (userLat && userLng) {
+                // Get all sellers involved in the cart
+                const sellerIds = new Set<string>();
+                items.forEach((item: any) => {
+                    if (item.product?.seller) {
+                        sellerIds.add(item.product.seller.toString());
+                    }
+                });
+
+                if (sellerIds.size > 0) {
+                    const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
+                    const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+
+                    const sellerLocations: { lat: number; lng: number }[] = [];
+                    sellers.forEach(seller => {
+                        let lat, lng;
+                        if (seller.location?.coordinates?.length === 2) {
+                            lng = seller.location.coordinates[0];
+                            lat = seller.location.coordinates[1];
+                        } else if (seller.latitude && seller.longitude) {
+                            lat = parseFloat(seller.latitude);
+                            lng = parseFloat(seller.longitude);
                         }
+                        if (lat && lng) sellerLocations.push({ lat, lng });
                     });
 
-                    if (sellerIds.size > 0) {
-                        const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
-                        const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+                    if (sellerLocations.length > 0) {
+                        const distances = await getRoadDistances(
+                            sellerLocations,
+                            { lat: userLat, lng: userLng },
+                            config.googleMapsKey
+                        );
 
-                        const sellerLocations: { lat: number; lng: number }[] = [];
-                        sellers.forEach(seller => {
-                            let lat, lng;
-                            if (seller.location?.coordinates?.length === 2) {
-                                lng = seller.location.coordinates[0];
-                                lat = seller.location.coordinates[1];
-                            } else if (seller.latitude && seller.longitude) {
-                                lat = parseFloat(seller.latitude);
-                                lng = parseFloat(seller.longitude);
-                            }
-                            if (lat && lng) sellerLocations.push({ lat, lng });
-                        });
-
-                        if (sellerLocations.length > 0) {
-                            const distances = await getRoadDistances(
-                                sellerLocations,
-                                { lat: userLat, lng: userLng },
-                                config.googleMapsKey
-                            );
-
-                            if (distances && distances.length > 0) {
-                                const maxDistance = Math.max(...distances);
-                                const extraKm = Math.max(0, maxDistance - config.baseDistance);
-                                estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
-                            }
+                        if (distances && distances.length > 0) {
+                            const maxDistance = Math.max(...distances);
+                            const extraKm = Math.max(0, maxDistance - config.baseDistance);
+                            estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
                         }
                     }
                 }
-            } else {
-                // Fixed charge
-                estimatedDeliveryFee = settings.deliveryCharges || 0;
             }
+        } else {
+            // Fallback for unknown options
+            estimatedDeliveryFee = settings.deliveryCharges || 0;
         }
     } catch (err) {
         console.error("Error calculating delivery stuff:", err);
@@ -184,7 +186,6 @@ export const getCart = async (req: Request, res: Response) => {
                     filteredItems.push(item);
                     const price = calculateItemPrice(product, item.variation);
                     total += price * item.quantity;
-                    console.log(`[DEBUG CartLoop] Item: ${product.productName}, Price: ${price}, Qty: ${item.quantity}, RunningTotal: ${total}`);
                 }
             }
         }
@@ -196,7 +197,8 @@ export const getCart = async (req: Request, res: Response) => {
         }
 
         // Calculate fees
-        const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng);
+        const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
+        const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng, deliveryOption);
 
         return res.status(200).json({
             success: true,
@@ -310,7 +312,8 @@ export const addToCart = async (req: Request, res: Response) => {
         });
 
         // Calculate fees
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+        const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
 
         return res.status(200).json({
             success: true,
@@ -397,7 +400,8 @@ export const updateCartItem = async (req: Request, res: Response) => {
         });
 
         // Calculate fees
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+        const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
 
         return res.status(200).json({
             success: true,
@@ -465,7 +469,8 @@ export const removeFromCart = async (req: Request, res: Response) => {
         });
 
         // Calculate fees
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng);
+        const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
 
         return res.status(200).json({
             success: true,

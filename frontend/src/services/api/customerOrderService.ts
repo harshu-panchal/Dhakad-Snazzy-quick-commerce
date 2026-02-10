@@ -34,6 +34,7 @@ export interface CreateOrderData {
         deliveryFee: number;
         platformFee: number;
     };
+    deliveryOption?: 'Instant' | 'Standard';
 }
 
 export interface OrderResponse {

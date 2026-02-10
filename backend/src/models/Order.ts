@@ -44,27 +44,27 @@ export interface IOrder extends Document {
 
   // Order Status
   status:
-    | "Received"
-    | "Accepted"
-    | "Pending"
-    | "Processed"
-    | "Shipped"
-    | "Picked up"
-    | "On the way"
-    | "Out for Delivery"
-    | "Delivered"
-    | "Cancelled"
-    | "Rejected"
-    | "Returned";
+  | "Received"
+  | "Accepted"
+  | "Pending"
+  | "Processed"
+  | "Shipped"
+  | "Picked up"
+  | "On the way"
+  | "Out for Delivery"
+  | "Delivered"
+  | "Cancelled"
+  | "Rejected"
+  | "Returned";
 
   // Delivery Assignment
   deliveryBoy?: mongoose.Types.ObjectId;
   deliveryBoyStatus?:
-    | "Assigned"
-    | "Picked Up"
-    | "In Transit"
-    | "Delivered"
-    | "Failed";
+  | "Assigned"
+  | "Picked Up"
+  | "In Transit"
+  | "Delivered"
+  | "Failed";
   assignedAt?: Date;
 
   // Tracking
@@ -98,6 +98,8 @@ export interface IOrder extends Document {
   cancellationReason?: string;
   cancelledAt?: Date;
   cancelledBy?: mongoose.Types.ObjectId;
+
+  deliveryOption: "Instant" | "Standard";
 
   createdAt: Date;
   updatedAt: Date;
@@ -361,6 +363,11 @@ const OrderSchema = new Schema<IOrder>(
     cancelledBy: {
       type: Schema.Types.ObjectId,
       ref: "Admin",
+    },
+    deliveryOption: {
+      type: String,
+      enum: ["Instant", "Standard"],
+      default: "Standard",
     },
   },
   {

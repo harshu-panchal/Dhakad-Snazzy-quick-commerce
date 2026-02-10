@@ -68,12 +68,12 @@ export default function Checkout() {
   const [hasAppliedCouponBefore, setHasAppliedCouponBefore] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
 
-  // Refresh cart delivery fee when selected address changes
+  // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
     if (selectedAddress?.latitude && selectedAddress?.longitude) {
-      refreshCart(selectedAddress.latitude, selectedAddress.longitude);
+      refreshCart(selectedAddress.latitude, selectedAddress.longitude, deliveryOption);
     }
-  }, [selectedAddress]);
+  }, [selectedAddress, deliveryOption]);
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<ApiCoupon[]>([]);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -112,6 +112,11 @@ export default function Checkout() {
   // Razorpay Payment State
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
+
+  // Delivery Option State
+  const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
+    "Standard",
+  );
 
   // Check if user has placeholder data (needs profile completion)
   const isPlaceholderUser =
@@ -188,7 +193,7 @@ export default function Checkout() {
               typeof product.categoryId === "string"
                 ? product.categoryId
                 : (product.categoryId as any)._id ||
-                  (product.categoryId as any).id;
+                (product.categoryId as any).id;
           }
 
           if (catId) {
@@ -334,11 +339,11 @@ export default function Checkout() {
   const grandTotal = Math.max(
     0,
     discountedTotal +
-      handlingCharge +
-      deliveryCharge +
-      finalTipAmount +
-      giftPackagingFee -
-      currentCouponDiscount,
+    handlingCharge +
+    deliveryCharge +
+    finalTipAmount +
+    giftPackagingFee -
+    currentCouponDiscount,
   );
 
   const handleApplyCoupon = async (coupon: ApiCoupon) => {
@@ -472,6 +477,7 @@ export default function Checkout() {
       gstin: gstin || undefined,
       couponCode: selectedCoupon?.code || undefined,
       giftPackaging: giftPackaging,
+      deliveryOption: deliveryOption,
     };
 
     try {
@@ -603,7 +609,7 @@ export default function Checkout() {
     } catch (error: any) {
       setProfileError(
         error.response?.data?.message ||
-          "Failed to update profile. Please try again.",
+        "Failed to update profile. Please try again.",
       );
     } finally {
       setIsUpdatingProfile(false);
@@ -701,13 +707,12 @@ export default function Checkout() {
                       !profileFormData.name.trim() ||
                       !profileFormData.email.trim()
                     }
-                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
-                      isUpdatingProfile ||
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${isUpdatingProfile ||
                       !profileFormData.name.trim() ||
                       !profileFormData.email.trim()
-                        ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                        : "bg-green-600 text-white hover:bg-green-700"
-                    }`}>
+                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                      : "bg-green-600 text-white hover:bg-green-700"
+                      }`}>
                     {isUpdatingProfile ? "Saving..." : "Save & Continue"}
                   </button>
                 </div>
@@ -973,11 +978,10 @@ export default function Checkout() {
           </div>
 
           <div
-            className={`border rounded-lg p-2.5 cursor-pointer transition-all ${
-              selectedAddress && !isMapSelected
-                ? "border-green-600 bg-green-50"
-                : "border-neutral-300 bg-white"
-            }`}
+            className={`border rounded-lg p-2.5 cursor-pointer transition-all ${selectedAddress && !isMapSelected
+              ? "border-green-600 bg-green-50"
+              : "border-neutral-300 bg-white"
+              }`}
             onClick={() => {
               setSelectedAddress(savedAddress);
               setIsMapSelected(false);
@@ -986,11 +990,10 @@ export default function Checkout() {
               <div className="flex-1">
                 <div className="flex items-center gap-1.5 mb-1">
                   <div
-                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      selectedAddress && !isMapSelected
-                        ? "border-green-600 bg-green-600"
-                        : "border-neutral-400"
-                    }`}>
+                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAddress && !isMapSelected
+                      ? "border-green-600 bg-green-600"
+                      : "border-neutral-400"
+                      }`}>
                     {selectedAddress && !isMapSelected && (
                       <svg
                         width="10"
@@ -1057,11 +1060,10 @@ export default function Checkout() {
                 });
                 setShowMapPicker(true);
               }}
-              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${
-                isMapSelected
-                  ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
-                  : "text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400"
-              }`}>
+              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${isMapSelected
+                ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
+                : "text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400"
+                }`}>
               {isMapSelected ? (
                 <svg
                   width="24"
@@ -1598,6 +1600,66 @@ export default function Checkout() {
         </div>
       )}
 
+      {/* Delivery Option Selection */}
+      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
+        <h2 className="text-sm font-bold text-neutral-900 mb-3">
+          Select Delivery Option
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setDeliveryOption("Standard")}
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${deliveryOption === "Standard"
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
+            <div
+              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Standard" ? "bg-green-600" : "bg-neutral-100"}`}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={
+                  deliveryOption === "Standard" ? "white" : "currentColor"
+                }
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
+                <circle cx="5.5" cy="18.5" r="1.5" />
+                <circle cx="18.5" cy="18.5" r="1.5" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold">Standard Delivery</span>
+            <p className="text-[8px] mt-0.5 opacity-70">(Expected in 30-45 mins)</p>
+          </button>
+
+          <button
+            onClick={() => setDeliveryOption("Instant")}
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${deliveryOption === "Instant"
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
+            <div
+              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"}`}>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={deliveryOption === "Instant" ? "white" : "currentColor"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <span className="text-xs font-bold">Instant Delivery</span>
+            <p className="text-[8px] mt-0.5 opacity-70">(Expected in 10-15 mins)</p>
+          </button>
+        </div>
+      </div>
+
       {/* Payment Method Selection */}
       <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
         <h2 className="text-sm font-bold text-neutral-900 mb-3">
@@ -1606,11 +1668,10 @@ export default function Checkout() {
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => setPaymentMethod("Online")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              paymentMethod === "Online"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-            }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === "Online"
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "Online" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1634,11 +1695,10 @@ export default function Checkout() {
 
           <button
             onClick={() => setPaymentMethod("COD")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              paymentMethod === "COD"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-            }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === "COD"
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "COD" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1891,11 +1951,10 @@ export default function Checkout() {
               setTipAmount(20);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
-              tipAmount === 20 && !showCustomTipInput
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-300 bg-white text-neutral-700"
-            }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 20 && !showCustomTipInput
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-300 bg-white text-neutral-700"
+              }`}>
             😊 ₹20
           </button>
           <button
@@ -1903,11 +1962,10 @@ export default function Checkout() {
               setTipAmount(30);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
-              tipAmount === 30 && !showCustomTipInput
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-300 bg-white text-neutral-700"
-            }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 30 && !showCustomTipInput
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-300 bg-white text-neutral-700"
+              }`}>
             🤩 ₹30
           </button>
           <button
@@ -1915,11 +1973,10 @@ export default function Checkout() {
               setTipAmount(50);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
-              tipAmount === 50 && !showCustomTipInput
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-300 bg-white text-neutral-700"
-            }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 50 && !showCustomTipInput
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-300 bg-white text-neutral-700"
+              }`}>
             😍 ₹50
           </button>
           <button
@@ -1927,11 +1984,10 @@ export default function Checkout() {
               setShowCustomTipInput(true);
               setTipAmount(null);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
-              showCustomTipInput
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-300 bg-white text-neutral-700"
-            }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${showCustomTipInput
+              ? "border-green-600 bg-green-50 text-green-700"
+              : "border-neutral-300 bg-white text-neutral-700"
+              }`}>
             🎁 Custom
           </button>
         </div>
@@ -1976,18 +2032,16 @@ export default function Checkout() {
       <div className="px-4 py-2 border-b border-neutral-200">
         <button
           onClick={() => setGiftPackaging(!giftPackaging)}
-          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${
-            giftPackaging
-              ? "bg-green-50 border-2 border-green-600"
-              : "bg-neutral-50 border-2 border-transparent hover:bg-neutral-100"
-          }`}>
+          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${giftPackaging
+            ? "bg-green-50 border-2 border-green-600"
+            : "bg-neutral-50 border-2 border-transparent hover:bg-neutral-100"
+            }`}>
           <div className="flex items-center gap-2">
             <div
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                giftPackaging
-                  ? "border-green-600 bg-green-600"
-                  : "border-neutral-400 bg-white"
-              }`}>
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${giftPackaging
+                ? "border-green-600 bg-green-600"
+                : "border-neutral-400 bg-white"
+                }`}>
               {giftPackaging && (
                 <svg
                   width="12"
@@ -2266,13 +2320,12 @@ export default function Checkout() {
                   return (
                     <div
                       key={coupon._id}
-                      className={`border-2 rounded-lg p-2.5 transition-all ${
-                        isSelected
-                          ? "border-green-600 bg-green-50"
-                          : meetsMinOrder
-                            ? "border-neutral-200 bg-white"
-                            : "border-neutral-200 bg-neutral-50 opacity-60"
-                      }`}>
+                      className={`border-2 rounded-lg p-2.5 transition-all ${isSelected
+                        ? "border-green-600 bg-green-50"
+                        : meetsMinOrder
+                          ? "border-neutral-200 bg-white"
+                          : "border-neutral-200 bg-neutral-50 opacity-60"
+                        }`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -2316,11 +2369,10 @@ export default function Checkout() {
                               meetsMinOrder && handleApplyCoupon(coupon)
                             }
                             disabled={!meetsMinOrder || isValidatingCoupon}
-                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                              meetsMinOrder
-                                ? "bg-green-600 text-white hover:bg-green-700"
-                                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                            }`}>
+                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${meetsMinOrder
+                              ? "bg-green-600 text-white hover:bg-green-700"
+                              : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                              }`}>
                             {isValidatingCoupon ? "..." : "Apply"}
                           </button>
                         )}
@@ -2340,11 +2392,10 @@ export default function Checkout() {
           <button
             onClick={handlePlaceOrder}
             disabled={cart.items.length === 0}
-            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
-              cart.items.length > 0
-                ? "bg-green-600 text-white hover:bg-green-700"
-                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-            }`}>
+            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${cart.items.length > 0
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+              }`}>
             Place Order
           </button>
         ) : (

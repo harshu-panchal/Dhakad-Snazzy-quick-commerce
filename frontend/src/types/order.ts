@@ -39,6 +39,7 @@ export interface Order {
   gstin?: string;
   couponCode?: string;
   giftPackaging?: boolean;
+  deliveryOption?: 'Instant' | 'Standard';
 }
 
 

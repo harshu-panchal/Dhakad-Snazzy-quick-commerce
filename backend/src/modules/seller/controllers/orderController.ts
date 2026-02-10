@@ -280,15 +280,12 @@ export const updateOrderStatus = asyncHandler(
     order.status = status;
     await order.save();
 
-    // Trigger delivery notification if seller accepts the order
-    if (status === 'Accepted' && previousStatus !== 'Accepted') {
+    // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery)
+    if (status === 'Accepted' && previousStatus !== 'Accepted' && order.deliveryOption === 'Instant') {
       try {
         const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
         if (io) {
           // Need to fetch full order with details for the notification service
-          // Using lean() to get a plain JS object which is what the service expects mostly,
-          // but checking the service implementation, it uses .items mainly for seller location.
-          // We should ensure the passed order object has populated items with sellers.
           const fullOrder = await Order.findById(order._id)
             .populate({
               path: 'items',
@@ -298,12 +295,11 @@ export const updateOrderStatus = asyncHandler(
 
           if (fullOrder) {
             await notifyDeliveryBoysOfNewOrder(io, fullOrder);
-            console.log(`Delivery notification triggered for Accepted order ${order.orderNumber}`);
+            console.log(`Delivery notification triggered for Instant order ${order.orderNumber}`);
           }
         }
       } catch (notifyError) {
         console.error('Error notifying delivery boys on seller acceptance:', notifyError);
-        // Don't fail the request, just log
       }
     }
 

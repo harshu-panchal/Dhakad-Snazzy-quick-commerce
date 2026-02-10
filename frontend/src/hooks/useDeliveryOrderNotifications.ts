@@ -91,6 +91,14 @@ export const useDeliveryOrderNotifications = () => {
         socket.on('new-order', (orderData: OrderNotificationData) => {
             console.log('📦 New order notification received:', orderData);
 
+            // Play notification sound
+            try {
+                const audio = new Audio('/assets/sound/delivery-alert.mp3');
+                audio.play().catch(e => console.warn('🔊 Sound play failed:', e.message));
+            } catch (error) {
+                console.warn('🔊 Error playing notification sound:', error);
+            }
+
             setState(prev => {
                 // If there's already a current notification, queue this one
                 if (prev.currentNotification) {

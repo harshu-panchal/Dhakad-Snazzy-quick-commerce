@@ -6,6 +6,8 @@ import DeliveryTracking from '../models/DeliveryTracking';
 import AppSettings from '../models/AppSettings';
 import mongoose from 'mongoose';
 import { notifySellersOfOrderUpdate } from './sellerNotificationService';
+import { sendNotificationToUser } from './firebaseAdmin';
+import { sendNotification } from './notificationService';
 
 /**
  * Calculate estimated delivery boy earning for a new order
@@ -609,3 +611,78 @@ export function clearNotificationState(orderId: string): void {
     notificationStates.delete(orderId);
 }
 
+/**
+ * Notify a specific delivery boy of an order assignment (Manual Assignment)
+ */
+export async function notifyDeliveryBoyOfAssignment(
+    io: SocketIOServer,
+    order: any,
+    deliveryBoyId: string
+): Promise<void> {
+    try {
+        // Calculate estimated delivery boy earning for this order
+        const deliveryBoyEarning = await calculateEstimatedDeliveryBoyEarning(order);
+
+        // Prepare order data for notification
+        const orderData = {
+            orderId: order._id.toString(),
+            orderNumber: order.orderNumber,
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            deliveryAddress: {
+                address: order.deliveryAddress.address,
+                city: order.deliveryAddress.city,
+                state: order.deliveryAddress.state,
+                pincode: order.deliveryAddress.pincode,
+            },
+            total: order.total,
+            subtotal: order.subtotal,
+            shipping: order.shipping,
+            deliveryBoyEarning: deliveryBoyEarning,
+            createdAt: order.createdAt,
+            isManualAssignment: true // Flag to distinguish from broadcast
+        };
+
+        const deliveryBoyIdString = String(deliveryBoyId).trim();
+        const roomName = `delivery-${deliveryBoyIdString}`;
+
+        // 1. Emit Socket notification (Real-time)
+        io.to(roomName).emit('new-order', orderData);
+        console.log(`📤 Emitted manual assignment (new-order) to delivery boy: ${deliveryBoyIdString}`);
+
+        // 2. Send Push Notification (FCM)
+        await sendNotificationToUser(deliveryBoyIdString, 'Delivery', {
+            title: 'New Order Assigned',
+            body: `Order #${order.orderNumber} has been assigned to you.`,
+            data: {
+                orderId: order._id.toString(),
+                type: 'ORDER_ASSIGNMENT'
+            },
+            icon: 'notification_icon' // Use a default icon resource name
+        });
+
+        // 3. Create Database Notification
+        await sendNotification(
+            'Delivery',
+            deliveryBoyIdString,
+            'New Order Assigned',
+            `You have been assigned to deliver order #${order.orderNumber}.`,
+            {
+                type: 'Order',
+                link: `/delivery/orders/${order._id}`,
+                priority: 'High'
+            }
+        );
+
+        // Initializing notification state for potential fallback handling
+        notificationStates.set(order._id.toString(), {
+            orderId: order._id.toString(),
+            notifiedDeliveryBoys: new Set([deliveryBoyIdString]),
+            rejectedDeliveryBoys: new Set(),
+            acceptedBy: null,
+        });
+
+    } catch (error) {
+        console.error('Error notifying delivery boy of assignment:', error);
+    }
+}

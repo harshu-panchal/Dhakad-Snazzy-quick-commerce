@@ -27,7 +27,7 @@ export const createOrder = async (req: Request, res: Response) => {
             session = null;
         }
 
-        const { items, address, paymentMethod, fees } = req.body;
+        const { items, address, paymentMethod, fees, deliveryOption } = req.body;
         const userId = req.user!.userId;
 
         // Log incoming request for debugging
@@ -38,6 +38,7 @@ export const createOrder = async (req: Request, res: Response) => {
             addressLat: address?.latitude,
             addressLng: address?.longitude,
             paymentMethod,
+            deliveryOption,
         });
 
         if (!items || items.length === 0) {
@@ -141,6 +142,7 @@ export const createOrder = async (req: Request, res: Response) => {
             paymentMethod: paymentMethod || 'COD',
             paymentStatus: 'Pending',
             status: 'Received',
+            deliveryOption: deliveryOption || 'Standard',
             subtotal: 0,
             tax: 0,
             shipping: fees?.deliveryFee || 0,
@@ -354,7 +356,7 @@ export const createOrder = async (req: Request, res: Response) => {
         let deliveryFee = Number(fees?.deliveryFee) || 0;
         let deliveryDistanceKm = 0;
 
-        // --- Distance-Based Delivery Charge Calculation ---
+        // --- Delivery Charge Calculation (Standard vs Instant) ---
         try {
             const settings = await AppSettings.getSettings();
             const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
@@ -363,8 +365,12 @@ export const createOrder = async (req: Request, res: Response) => {
             if (freeDeliveryThreshold > 0 && calculatedSubtotal >= freeDeliveryThreshold) {
                 deliveryFee = 0;
             }
-            // Only recalculate if enabled in settings (and not free delivery)
-            else if (settings && settings.deliveryConfig?.isDistanceBased === true) {
+            // Standard Delivery flow: Always Fixed Price
+            else if (deliveryOption === 'Standard') {
+                deliveryFee = settings.deliveryCharges || 0;
+            }
+            // Instant Delivery flow: Distance Based calculation
+            else if (deliveryOption === 'Instant' && settings.deliveryConfig) {
                 const config = settings.deliveryConfig;
 
                 // Collect seller locations
@@ -406,12 +412,17 @@ export const createOrder = async (req: Request, res: Response) => {
                     // Override the delivery fee
                     deliveryFee = Math.ceil(calculatedDeliveryFee);
 
-                    console.log(`DEBUG: Distance Calculation: MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`);
+                    console.log(`DEBUG: Instant Delivery (Distance-based): MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`);
                 }
+            } else {
+                // Fallback: If no settings or unhandled option, use provided fee or default
+                deliveryFee = Number(fees?.deliveryFee) || (settings?.deliveryCharges || 0);
             }
         } catch (calcError) {
-            console.error("Error calculating distance-based delivery fee:", calcError);
-            // Fallback to provided fee or 0
+            console.error("Error calculating delivery fee:", calcError);
+            // Fallback to provided fee or settings default
+            const settings = await AppSettings.getSettings();
+            deliveryFee = Number(fees?.deliveryFee) || (settings?.deliveryCharges || 0);
         }
 
         const finalTotal = calculatedSubtotal + platformFee + deliveryFee;

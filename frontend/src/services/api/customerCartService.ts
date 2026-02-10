@@ -34,6 +34,7 @@ export interface CartResponse {
 export interface CartLocationParams {
     latitude?: number;
     longitude?: number;
+    deliveryOption?: string;
 }
 
 /**
@@ -47,16 +48,20 @@ export const getCart = async (params?: CartLocationParams): Promise<CartResponse
 /**
  * Add item to cart
  */
-export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number): Promise<CartResponse> => {
+export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
         params.longitude = longitude;
     }
+    if (deliveryOption) {
+        params.deliveryOption = deliveryOption;
+    }
     const response = await api.post<CartResponse>('/customer/cart/add', {
         productId,
         quantity,
-        variation
+        variation,
+        deliveryOption
     }, { params });
     return response.data;
 };
@@ -64,24 +69,30 @@ export const addToCart = async (productId: string, quantity: number = 1, variati
 /**
  * Update cart item quantity
  */
-export const updateCartItem = async (itemId: string, quantity: number, latitude?: number, longitude?: number): Promise<CartResponse> => {
+export const updateCartItem = async (itemId: string, quantity: number, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
         params.longitude = longitude;
     }
-    const response = await api.put<CartResponse>(`/customer/cart/item/${itemId}`, { quantity }, { params });
+    if (deliveryOption) {
+        params.deliveryOption = deliveryOption;
+    }
+    const response = await api.put<CartResponse>(`/customer/cart/item/${itemId}`, { quantity, deliveryOption }, { params });
     return response.data;
 };
 
 /**
  * Remove item from cart
  */
-export const removeFromCart = async (itemId: string, latitude?: number, longitude?: number): Promise<CartResponse> => {
+export const removeFromCart = async (itemId: string, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
         params.longitude = longitude;
+    }
+    if (deliveryOption) {
+        params.deliveryOption = deliveryOption;
     }
     const response = await api.delete<CartResponse>(`/customer/cart/item/${itemId}`, { params });
     return response.data;
