@@ -127,12 +127,15 @@ export default function Checkout() {
   const isPlaceholderUser =
     user?.name === "User" || user?.email?.endsWith("@dhakadsnazzy.temp");
 
-  // Redirect if empty
+  // Redirect logic removed to prevent auto-redirect on refresh issues
+  // Instead we will show an Empty Cart UI
+  /*
   useEffect(() => {
     if (!cartLoading && cart.items.length === 0 && !showOrderSuccess) {
       navigate("/");
     }
   }, [cart.items.length, cartLoading, navigate, showOrderSuccess]);
+  */
 
   // Load addresses and coupons
   useEffect(() => {
@@ -167,6 +170,11 @@ export default function Checkout() {
           };
           setSavedAddress(mappedAddress);
           setSelectedAddress(mappedAddress);
+
+          // If address already has location, mark as precise location selected
+          if (defaultAddr.latitude && defaultAddr.longitude) {
+            setIsMapSelected(true);
+          }
         }
 
         if (couponResponse.success) {
@@ -245,15 +253,39 @@ export default function Checkout() {
     fetchSimilar();
   }, [cart?.items?.length]);
 
-  if (cartLoading || ((cart?.items?.length || 0) === 0 && !showOrderSuccess)) {
+  if (cartLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center">
           <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mb-4"></div>
           <p className="text-sm font-medium text-neutral-600">
-            {cartLoading ? "Loading checkout..." : "Redirecting..."}
+            Loading checkout...
           </p>
         </div>
+      </div>
+    );
+  }
+
+  // Show Empty Cart UI if no items and not successful order
+  if (cart.items.length === 0 && !showOrderSuccess) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+        <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-6">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-neutral-400">
+            <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+            <path d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-bold text-neutral-900 mb-2">Your cart is empty</h2>
+        <p className="text-neutral-500 text-center mb-8 max-w-xs">
+          Looks like you haven't added anything to your cart yet.
+        </p>
+        <button
+          onClick={() => navigate("/")}
+          className="bg-green-600 text-white font-semibold py-3 px-8 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Start Shopping
+        </button>
       </div>
     );
   }
@@ -565,9 +597,9 @@ export default function Checkout() {
       setShowMapPicker(false);
       setIsMapSelected(true); // Mark map as selected
       showGlobalToast("Location and address updated successfully!");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      // showGlobalToast('Failed to update location');
+      showGlobalToast(err.response?.data?.message || 'Failed to update location', 'error');
     } finally {
       setIsUpdatingLocation(false);
     }
@@ -1055,11 +1087,10 @@ export default function Checkout() {
           <div className="mt-2.5">
             <button
               onClick={() => {
-                // Prioritize current GPS location (matches homepage header), then saved address
+                // Prioritize saved address if available, then current GPS location (matches homepage header)
                 setMapLocation({
-                  lat: userLocation?.latitude || selectedAddress?.latitude || 0,
-                  lng:
-                    userLocation?.longitude || selectedAddress?.longitude || 0,
+                  lat: selectedAddress?.latitude || userLocation?.latitude || 0,
+                  lng: selectedAddress?.longitude || userLocation?.longitude || 0,
                 });
                 setShowMapPicker(true);
               }}

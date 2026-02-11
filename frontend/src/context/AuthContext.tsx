@@ -42,6 +42,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const userData = JSON.parse(storedUser);
         // Ensure userType is set for backward compatibility
+        if (!userData.userType) {
+          userData.userType = 'Customer';
+        }
         // If user is authenticated but userType is missing, we'll infer it from context
         // For now, we'll set it when needed in OrdersContext
         return userData;
@@ -65,9 +68,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const userData = JSON.parse(storedUser);
         // Ensure userType is set for backward compatibility
+        if (!userData.userType) {
+          userData.userType = 'Customer';
+        }
         // If missing, we'll let OrdersContext handle it based on context
         // Only update if state doesn't match to avoid loops
-        if (!isAuthenticated || token !== storedToken) {
+        if (!isAuthenticated || token !== storedToken || JSON.stringify(user) !== JSON.stringify(userData)) {
           setToken(storedToken);
           setUser(userData);
           setIsAuthenticated(true);

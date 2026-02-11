@@ -18,14 +18,80 @@ export default function CategoryPage() {
   const [category, setCategory] = useState<ApiCategory | null>(null);
   const [subcategories, setSubcategories] = useState<ApiCategory[]>([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState("all");
+
+  // Filter States
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]); // Pending filters in modal
+  const [appliedFilters, setAppliedFilters] = useState<string[]>([]); // Applied filters
   const [filterSearchQuery, setFilterSearchQuery] = useState("");
   const [selectedFilterCategory, setSelectedFilterCategory] = useState("Type");
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]); // Default max price
+  const [appliedPriceRange, setAppliedPriceRange] = useState<[number, number]>([0, 10000]);
+
+  // Sort States
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const [sortBy, setSortBy] = useState("default"); // default, price-asc, price-desc, name-asc, name-desc
+
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Common Types Definition for reusable filtering logic (Grocery + Fashion)
+  const commonTypes = useMemo(() => [
+    // Grocery
+    { keywords: ["tomato", "tomatoes"], display: "Tomato" },
+    { keywords: ["potato", "potatoes"], display: "Potato" },
+    { keywords: ["chilli", "chili", "chilies"], display: "Chilli" },
+    { keywords: ["spinach"], display: "Spinach" },
+    { keywords: ["brinjal", "eggplant"], display: "Brinjal" },
+    { keywords: ["onion", "onions"], display: "Onion" },
+    { keywords: ["peanut", "peanuts"], display: "Peanuts" },
+    { keywords: ["lemon", "lemons"], display: "Lemon" },
+    { keywords: ["mushroom", "mushrooms"], display: "Mushroom" },
+    { keywords: ["capsicum", "bell pepper", "pepper"], display: "Capsicum" },
+    { keywords: ["ginger"], display: "Ginger" },
+    { keywords: ["carrot", "carrots"], display: "Carrot" },
+    { keywords: ["fenugreek", "methi"], display: "Fenugreek" },
+    { keywords: ["broccoli"], display: "Broccoli" },
+    { keywords: ["cucumber", "cucumbers"], display: "Cucumber" },
+    { keywords: ["cabbage"], display: "Cabbage" },
+    { keywords: ["cauliflower"], display: "Cauliflower" },
+    { keywords: ["ladyfinger", "okra"], display: "Ladyfinger" },
+    { keywords: ["beans"], display: "Beans" },
+    { keywords: ["peas"], display: "Peas" },
+    { keywords: ["garlic"], display: "Garlic" },
+    { keywords: ["apple", "apples"], display: "Apple" },
+    { keywords: ["banana", "bananas"], display: "Banana" },
+    { keywords: ["orange", "oranges"], display: "Orange" },
+    { keywords: ["mango", "mangoes"], display: "Mango" },
+
+    // Fashion - Gender
+    { keywords: ["men", "man", "male", "gent"], display: "Men" },
+    { keywords: ["women", "woman", "female", "ladies"], display: "Women" },
+    { keywords: ["kid", "kids", "boy", "boys", "girl", "girls", "baby"], display: "Kids" },
+
+    // Fashion - Apparel
+    { keywords: ["shirt", "shirts"], display: "Shirt" },
+    { keywords: ["t-shirt", "tshirts", "tees", "polo"], display: "T-Shirt" },
+    { keywords: ["jeans", "denim", "jins"], display: "Jeans" },
+    { keywords: ["trouser", "trousers", "pant", "pants", "chinos"], display: "Pants" },
+    { keywords: ["saree", "saris", "sari"], display: "Saree" },
+    { keywords: ["kurta", "kurti", "kurtas", "ethnic"], display: "Kurta/Kurti" },
+    { keywords: ["dress", "dresses", "gown", "onepiece"], display: "Dress" },
+    { keywords: ["top", "tops", "tunic"], display: "Tops" },
+    { keywords: ["skirt", "skirts"], display: "Skirt" },
+    { keywords: ["jacket", "hoodie", "sweater", "blazer", "coat"], display: "Winter Wear" },
+    { keywords: ["short", "shorts", "boxer"], display: "Shorts" },
+
+    // Fashion - Accessories & Footwear
+    { keywords: ["shoe", "shoes", "sneaker", "sneakers", "footwear", "boot", "sandal", "heels"], display: "Shoes" },
+    { keywords: ["watch", "watches", "smartwatch"], display: "Watch" },
+    { keywords: ["sunglass", "sunglasses", "shades", "specs"], display: "Sunglasses" },
+    { keywords: ["bag", "bags", "handbag", "purse", "wallet", "clutch"], display: "Bags & Wallets" },
+    { keywords: ["belt", "belts"], display: "Belts" },
+    { keywords: ["jewellery", "earring", "necklace", "bangles"], display: "Jewellery" },
+  ], []);
 
   // Fetch Category Details
   useEffect(() => {
@@ -106,6 +172,7 @@ export default function CategoryPage() {
             ...p,
             tags: Array.isArray(p.tags) ? p.tags : [],
             nameParts: p.name ? p.name.toLowerCase().split(" ") : [],
+            price: p.salePrice || p.price || 0, // Ensure price is available for sorting
           }));
           setProducts(safeProducts);
         } else {
@@ -125,7 +192,61 @@ export default function CategoryPage() {
   }, [id, selectedSubcategory, category?._id, userLocation]);
 
   // Client-side filtering removed in favor of backend subcategory filtering
-  const categoryProducts = products;
+  // Sync selectedFilters with appliedFilters when modal opens
+  useEffect(() => {
+    if (isFiltersOpen) {
+      setSelectedFilters([...appliedFilters]);
+      setPriceRange([...appliedPriceRange]);
+    }
+  }, [isFiltersOpen, appliedFilters, appliedPriceRange]);
+
+  // Derived state: Filtered and Sorted Products
+  const categoryProducts = useMemo(() => {
+    let result = [...products];
+
+    // 1. Filter
+    // 1a. Type/Category Filter
+    if (appliedFilters.length > 0) {
+      result = result.filter((product) => {
+        const name = product.name.toLowerCase();
+        // Check if product matches ANY of the applied filters
+        return appliedFilters.some((filterName) => {
+          const typeDef = commonTypes.find(t => t.display === filterName);
+          if (typeDef) {
+            return typeDef.keywords.some(keyword => name.includes(keyword));
+          }
+          return false;
+        });
+      });
+    }
+
+    // 1b. Price Filter
+    result = result.filter((product) => {
+      const price = product.price || 0;
+      return price >= appliedPriceRange[0] && price <= appliedPriceRange[1];
+    });
+
+    // 2. Sort
+    switch (sortBy) {
+      case "price-asc":
+        result.sort((a, b) => a.price - b.price);
+        break;
+      case "price-desc":
+        result.sort((a, b) => b.price - a.price);
+        break;
+      case "name-asc":
+        result.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case "name-desc":
+        result.sort((a, b) => b.name.localeCompare(a.name));
+        break;
+      default:
+        // Default sorting
+        break;
+    }
+
+    return result;
+  }, [products, appliedFilters, sortBy, commonTypes, appliedPriceRange]);
 
   if ((categoryLoading || loading) && !products.length && !category) {
     return null; // Let global IconLoader handle it
@@ -177,36 +298,7 @@ export default function CategoryPage() {
         .replace(/^(fresh|organic|premium|best|new)\s+/i, "")
         .trim();
 
-      const commonTypes = [
-        { keywords: ["tomato", "tomatoes"], display: "Tomato" },
-        { keywords: ["potato", "potatoes"], display: "Potato" },
-        { keywords: ["chilli", "chili", "chilies"], display: "Chilli" },
-        { keywords: ["spinach"], display: "Spinach" },
-        { keywords: ["brinjal", "eggplant"], display: "Brinjal" },
-        { keywords: ["onion", "onions"], display: "Onion" },
-        { keywords: ["peanut", "peanuts"], display: "Peanuts" },
-        { keywords: ["lemon", "lemons"], display: "Lemon" },
-        { keywords: ["mushroom", "mushrooms"], display: "Mushroom" },
-        {
-          keywords: ["capsicum", "bell pepper", "pepper"],
-          display: "Capsicum",
-        },
-        { keywords: ["ginger"], display: "Ginger" },
-        { keywords: ["carrot", "carrots"], display: "Carrot" },
-        { keywords: ["fenugreek", "methi"], display: "Fenugreek" },
-        { keywords: ["broccoli"], display: "Broccoli" },
-        { keywords: ["cucumber", "cucumbers"], display: "Cucumber" },
-        { keywords: ["cabbage"], display: "Cabbage" },
-        { keywords: ["cauliflower"], display: "Cauliflower" },
-        { keywords: ["ladyfinger", "okra"], display: "Ladyfinger" },
-        { keywords: ["beans"], display: "Beans" },
-        { keywords: ["peas"], display: "Peas" },
-        { keywords: ["garlic"], display: "Garlic" },
-        { keywords: ["apple", "apples"], display: "Apple" },
-        { keywords: ["banana", "bananas"], display: "Banana" },
-        { keywords: ["orange", "oranges"], display: "Orange" },
-        { keywords: ["mango", "mangoes"], display: "Mango" },
-      ];
+
 
       for (const type of commonTypes) {
         if (type.keywords.some((keyword) => cleanName.includes(keyword))) {
@@ -244,8 +336,29 @@ export default function CategoryPage() {
       Banana: "🍌",
       Orange: "🍊",
       Mango: "🥭",
+      // Fashion Icons
+      Men: "👨",
+      Women: "👩",
+      Kids: "👶",
+      Shirt: "👕",
+      "T-Shirt": "👕",
+      Jeans: "👖",
+      Pants: "👖",
+      Saree: "🥻",
+      "Kurta/Kurti": "👘",
+      Dress: "👗",
+      Tops: "👚",
+      Skirt: "👗",
+      "Winter Wear": "🧥",
+      Shorts: "🩳",
+      Shoes: "👟",
+      Watch: "⌚",
+      Sunglasses: "🕶️",
+      "Bags & Wallets": "👜",
+      Belts: "🧶",
+      Jewellery: "💍",
     };
-    return iconMap[name] || "🥬";
+    return iconMap[name] || "🏷️";
   };
 
   const filterOptions = getFilterOptions();
@@ -266,9 +379,18 @@ export default function CategoryPage() {
   };
 
   const handleApplyFilters = () => {
-    // Apply filters logic here
+    setAppliedFilters(selectedFilters);
+    setAppliedPriceRange(priceRange);
     setIsFiltersOpen(false);
   };
+
+  const sortOptions = [
+    { id: 'default', label: 'Recommended' },
+    { id: 'price-asc', label: 'Price: Low to High' },
+    { id: 'price-desc', label: 'Price: High to Low' },
+    { id: 'name-asc', label: 'Name: A to Z' },
+    { id: 'name-desc', label: 'Name: Z to A' },
+  ];
 
   return (
     <div className="flex bg-white h-screen overflow-hidden">
@@ -286,9 +408,8 @@ export default function CategoryPage() {
                   console.log("Clicked subcategory:", subcat.id || subcat._id);
                   setSelectedSubcategory(subcat.id || subcat._id);
                 }}
-                className={`w-full flex flex-col items-center justify-center py-2 relative transition-all duration-200 group ${
-                  isSelected ? "bg-green-50" : "hover:bg-neutral-50"
-                }`}
+                className={`w-full flex flex-col items-center justify-center py-2 relative transition-all duration-200 group ${isSelected ? "bg-green-50" : "hover:bg-neutral-50"
+                  }`}
                 style={{
                   minHeight: "80px",
                 }}>
@@ -299,11 +420,10 @@ export default function CategoryPage() {
 
                 {/* Image Container */}
                 <div
-                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl mb-1.5 flex-shrink-0 overflow-hidden transition-all duration-200 shadow-sm ${
-                    isSelected
-                      ? "ring-2 ring-green-600 ring-offset-2 bg-white"
-                      : "bg-neutral-50 border border-neutral-100 group-hover:shadow-md"
-                  }`}>
+                  className={`w-14 h-14 rounded-2xl flex items-center justify-center text-xl mb-1.5 flex-shrink-0 overflow-hidden transition-all duration-200 shadow-sm ${isSelected
+                    ? "ring-2 ring-green-600 ring-offset-2 bg-white"
+                    : "bg-neutral-50 border border-neutral-100 group-hover:shadow-md"
+                    }`}>
                   {subcat.image ? (
                     <img
                       src={subcat.image}
@@ -326,11 +446,10 @@ export default function CategoryPage() {
 
                 {/* Text Label */}
                 <span
-                  className={`text-[10px] text-center leading-tight px-1 transition-colors ${
-                    isSelected
-                      ? "font-bold text-green-700"
-                      : "text-neutral-500 group-hover:text-neutral-900"
-                  }`}
+                  className={`text-[10px] text-center leading-tight px-1 transition-colors ${isSelected
+                    ? "font-bold text-green-700"
+                    : "text-neutral-500 group-hover:text-neutral-900"
+                    }`}
                   style={{
                     wordBreak: "break-word",
                     maxWidth: "100%",
@@ -387,7 +506,10 @@ export default function CategoryPage() {
             {/* Filters Button */}
             <button
               onClick={() => setIsFiltersOpen(true)}
-              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 transition-colors flex-shrink-0 whitespace-nowrap">
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${appliedFilters.length > 0 || appliedPriceRange[1] < 10000
+                ? "bg-green-50 border-green-200 text-green-700"
+                : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                }`}>
               <svg
                 width="12"
                 height="12"
@@ -405,11 +527,21 @@ export default function CategoryPage() {
                 />
               </svg>
               <span>Filters</span>
+              {(appliedFilters.length > 0 || appliedPriceRange[1] < 10000) && (
+                <span className="ml-1 bg-green-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full">
+                  {appliedFilters.length + (appliedPriceRange[1] < 10000 ? 1 : 0)}
+                </span>
+              )}
               <span className="text-neutral-500 text-[10px] ml-0.5">▾</span>
             </button>
 
             {/* Sort Button */}
-            <button className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-md hover:bg-neutral-50 transition-colors flex-shrink-0 whitespace-nowrap">
+            <button
+              onClick={() => setIsSortOpen(true)}
+              className={`flex items-center gap-1 px-2 py-1 text-xs font-medium border rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${sortBy !== "default"
+                ? "bg-green-50 border-green-200 text-green-700"
+                : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                }`}>
               <svg
                 width="12"
                 height="12"
@@ -426,6 +558,9 @@ export default function CategoryPage() {
                 />
               </svg>
               <span>Sort</span>
+              {sortBy !== "default" && (
+                <span className="ml-1 text-[10px] text-green-600 font-bold">•</span>
+              )}
               <span className="text-neutral-500 text-[10px] ml-0.5">▾</span>
             </button>
 
@@ -439,11 +574,10 @@ export default function CategoryPage() {
                   <button
                     key={subId}
                     onClick={() => setSelectedSubcategory(subId)}
-                    className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${
-                      isSelected
-                        ? "bg-white border border-neutral-300 text-neutral-900"
-                        : "bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-                    }`}>
+                    className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${isSelected
+                      ? "bg-white border border-neutral-300 text-neutral-900"
+                      : "bg-white border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                      }`}>
                     <span className="text-sm flex-shrink-0">
                       {subcat.image ? (
                         <img
@@ -558,67 +692,114 @@ export default function CategoryPage() {
                   <div className="w-24 border-r border-neutral-200 flex-shrink-0 bg-neutral-50">
                     <button
                       onClick={() => setSelectedFilterCategory("Type")}
-                      className={`w-full px-3 py-3 text-left text-sm font-medium transition-colors ${
-                        selectedFilterCategory === "Type"
-                          ? "bg-green-50 text-green-700"
-                          : "text-neutral-600 hover:bg-neutral-100"
-                      }`}>
+                      className={`w-full px-3 py-3 text-left text-sm font-medium transition-colors ${selectedFilterCategory === "Type"
+                        ? "bg-green-50 text-green-700"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                        }`}>
                       Type
                     </button>
                     <button
-                      onClick={() => setSelectedFilterCategory("Properties")}
-                      className={`w-full px-3 py-3 text-left text-sm font-medium transition-colors ${
-                        selectedFilterCategory === "Properties"
-                          ? "bg-green-50 text-green-700"
-                          : "text-neutral-600 hover:bg-neutral-100"
-                      }`}>
-                      Properties
+                      onClick={() => setSelectedFilterCategory("Price")}
+                      className={`w-full px-3 py-3 text-left text-sm font-medium transition-colors ${selectedFilterCategory === "Price"
+                        ? "bg-green-50 text-green-700"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                        }`}>
+                      Price
                     </button>
                   </div>
 
                   {/* Right Column - Filter Options */}
                   <div className="flex-1 overflow-y-auto">
-                    <div className="p-4">
-                      {filteredOptions.map((option) => {
-                        const isChecked = selectedFilters.includes(option.name);
-                        return (
-                          <button
-                            key={option.name}
-                            onClick={() => handleFilterToggle(option.name)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 rounded-lg transition-colors">
-                            <span className="text-xl flex-shrink-0 w-6 h-6 flex items-center justify-center">
-                              {option.icon}
-                            </span>
-                            <span className="flex-1 text-left text-sm font-medium text-neutral-700">
-                              {option.name}
-                            </span>
-                            <span className="text-sm text-neutral-500">
-                              ({option.count})
-                            </span>
-                            <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 ml-2">
-                              {isChecked ? (
-                                <div className="w-5 h-5 border-2 border-green-600 bg-green-600 rounded-sm flex items-center justify-center">
-                                  <svg
-                                    className="w-3 h-3 text-white"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24">
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={3}
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                </div>
-                              ) : (
-                                <div className="w-5 h-5 border-2 border-neutral-300 rounded-sm bg-white"></div>
-                              )}
+                    {selectedFilterCategory === "Price" ? (
+                      <div className="p-4 space-y-6">
+                        <h3 className="text-sm font-medium text-neutral-900 mb-2">Price Range</h3>
+                        <div className="px-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max="10000"
+                            step="100"
+                            value={priceRange[1]}
+                            onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])}
+                            className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-green-600"
+                          />
+                          <div className="flex justify-between items-center mt-3">
+                            <div className="border border-neutral-300 rounded px-2 py-1 text-sm text-neutral-700 w-24 text-center">
+                              ₹{priceRange[0]}
                             </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+                            <span className="text-neutral-400">-</span>
+                            <div className="border border-neutral-300 rounded px-2 py-1 text-sm text-neutral-700 w-24 text-center">
+                              ₹{priceRange[1]}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="text-xs text-neutral-500 font-medium uppercase tracking-wider">Quick Select</div>
+                          <div className="flex flex-wrap gap-2">
+                            {[500, 1000, 2000, 5000].map(max => (
+                              <button
+                                key={max}
+                                onClick={() => setPriceRange([0, max])}
+                                className={`px-3 py-1.5 text-xs border rounded-full transition-colors ${priceRange[1] === max
+                                  ? 'bg-green-600 text-white border-green-600'
+                                  : 'bg-white text-neutral-600 border-neutral-300 hover:border-green-600'
+                                  }`}
+                              >
+                                Under ₹{max}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4">
+                        {filteredOptions.length > 0 ? (
+                          filteredOptions.map((option) => {
+                            const isChecked = selectedFilters.includes(option.name);
+                            return (
+                              <button
+                                key={option.name}
+                                onClick={() => handleFilterToggle(option.name)}
+                                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-neutral-50 rounded-lg transition-colors">
+                                <span className="text-xl flex-shrink-0 w-6 h-6 flex items-center justify-center">
+                                  {option.icon}
+                                </span>
+                                <span className="flex-1 text-left text-sm font-medium text-neutral-700">
+                                  {option.name}
+                                </span>
+                                <span className="text-sm text-neutral-500">
+                                  ({option.count})
+                                </span>
+                                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 ml-2">
+                                  {isChecked ? (
+                                    <div className="w-5 h-5 border-2 border-green-600 bg-green-600 rounded-sm flex items-center justify-center">
+                                      <svg
+                                        className="w-3 h-3 text-white"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={3}
+                                          d="M5 13l4 4L19 7"
+                                        />
+                                      </svg>
+                                    </div>
+                                  ) : (
+                                    <div className="w-5 h-5 border-2 border-neutral-300 rounded-sm bg-white"></div>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-8 text-neutral-500 text-sm">
+                            No filters found matching "{filterSearchQuery}"
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -631,14 +812,65 @@ export default function CategoryPage() {
                   </button>
                   <button
                     onClick={handleApplyFilters}
-                    className={`flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors ${
-                      selectedFilters.length > 0
-                        ? "bg-green-600 text-white hover:bg-green-700"
-                        : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                    }`}
-                    disabled={selectedFilters.length === 0}>
+                    className="flex-1 px-4 py-2.5 rounded-lg font-medium text-sm transition-colors bg-green-600 text-white hover:bg-green-700">
                     Apply
                   </button>
+                </div>
+              </motion.div>
+            </div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Sort Modal */}
+      <AnimatePresence>
+        {isSortOpen && (
+          <>
+            <div className="fixed inset-0 z-[100]">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setIsSortOpen(false)}
+              />
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-neutral-200 flex justify-between items-center">
+                  <h2 className="text-base font-bold text-neutral-900">Sort By</h2>
+                  <button onClick={() => setIsSortOpen(false)} className="text-neutral-500 p-1">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-4 space-y-2">
+                  {sortOptions.map((option) => (
+                    <button
+                      key={option.id}
+                      onClick={() => {
+                        setSortBy(option.id);
+                        setIsSortOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${sortBy === option.id
+                        ? "bg-green-50 text-green-700"
+                        : "text-neutral-700 hover:bg-neutral-50"
+                        }`}
+                    >
+                      {option.label}
+                      {sortBy === option.id && (
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  ))}
                 </div>
               </motion.div>
             </div>
