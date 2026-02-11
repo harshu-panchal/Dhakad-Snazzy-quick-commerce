@@ -82,11 +82,13 @@ router.post('/verify', authenticate, requireUserType('Customer'), async (req: Re
             });
         }
 
+        const io = req.app.get('io');
         const result = await capturePayment(
             orderId,
             razorpayOrderId,
             razorpayPaymentId,
-            razorpaySignature
+            razorpaySignature,
+            io
         );
 
         if (!result.success) {
@@ -117,7 +119,8 @@ router.post('/webhook', async (req: Request, res: Response) => {
             });
         }
 
-        const result = await handleWebhook(req.body, signature);
+        const io = req.app.get('io');
+        const result = await handleWebhook(req.body, signature, io);
 
         if (!result.success) {
             return res.status(400).json(result);

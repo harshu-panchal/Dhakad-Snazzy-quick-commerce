@@ -68,12 +68,22 @@ export default function Checkout() {
   const [hasAppliedCouponBefore, setHasAppliedCouponBefore] = useState(false);
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
 
+  // Delivery Option State
+  const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
+    "Standard",
+  );
+
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
     if (selectedAddress?.latitude && selectedAddress?.longitude) {
-      refreshCart(selectedAddress.latitude, selectedAddress.longitude, deliveryOption);
+      refreshCart(
+        selectedAddress.latitude,
+        selectedAddress.longitude,
+        deliveryOption,
+      );
     }
-  }, [selectedAddress, deliveryOption]);
+  }, [selectedAddress, deliveryOption, refreshCart]);
+
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<ApiCoupon[]>([]);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -112,11 +122,6 @@ export default function Checkout() {
   // Razorpay Payment State
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
-
-  // Delivery Option State
-  const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
-    "Standard",
-  );
 
   // Check if user has placeholder data (needs profile completion)
   const isPlaceholderUser =
@@ -617,9 +622,7 @@ export default function Checkout() {
   };
 
   return (
-    <div
-      className="bg-white min-h-screen flex flex-col opacity-100"
-      style={{ opacity: 1, height: "1250px" }}>
+    <div className="bg-white min-h-screen flex flex-col">
       {/* Party Popper Animation */}
       <PartyPopper
         show={showPartyPopper}

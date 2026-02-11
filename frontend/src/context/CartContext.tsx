@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useMemo, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, ReactNode, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLocation } from '../hooks/useLocation';
@@ -91,7 +91,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [items]);
 
   // Helper to sync cart from API
-  const fetchCart = async (lat?: number, lng?: number, deliveryOption?: string) => {
+  const fetchCart = useCallback(async (lat?: number, lng?: number, deliveryOption?: string) => {
     if (!isAuthenticated || user?.userType !== 'Customer') {
       // If we cleared it above but had things in localStorage, we keep them for guests?
       // For now, if logged out, we clear if it was an authenticated session.
@@ -112,12 +112,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
         deliveryOption: deliveryOption
       });
       if (response && response.data && response.data.items) {
-        setItems(mapApiItemsToState(response.data.items));
+        const newItems = mapApiItemsToState(response.data.items);
+        // Attach debug info to the new items array
+        (newItems as any).debug_config = response.data.debug_config;
+        (newItems as any).backendTotal = response.data.backendTotal;
+
+        setItems(newItems);
         setEstimatedFee(response.data.estimatedDeliveryFee);
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
-        (items as any).debug_config = response.data.debug_config; // Hack to pass it through
-        (items as any).backendTotal = response.data.backendTotal; // Hack to pass backend total
       } else {
         setItems([]);
         setEstimatedFee(undefined);
@@ -129,7 +132,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
 
   // Load cart on auth change
   useEffect(() => {
@@ -439,9 +442,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshCart = async (latitude?: number, longitude?: number, deliveryOption?: string) => {
+  const refreshCart = useCallback(async (latitude?: number, longitude?: number, deliveryOption?: string) => {
     await fetchCart(latitude, longitude, deliveryOption);
-  };
+  }, [fetchCart]);
 
   return (
     <CartContext.Provider

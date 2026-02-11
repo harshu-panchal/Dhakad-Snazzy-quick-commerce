@@ -54,6 +54,18 @@ export default function GoogleMapsAutocomplete({
     libraries: libraries,
   });
 
+  // use refs to access latest props in event listeners without re-initializing
+  const onChangeRef = useRef(onChange);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
   // Update local input value when prop changes
   useEffect(() => {
     setInputValue(value);
@@ -98,13 +110,17 @@ export default function GoogleMapsAutocomplete({
         const place = autocomplete.getPlace();
 
         if (!place.geometry || !place.geometry.location) {
+          // If no geometry (e.g. user hit enter on text without selecting), 
+          // we might want to just keep the text or show error.
+          // Ideally we shouldn't error if they just typed something valid but google didn't autocomplete it yet.
+          // But here we are inside place_changed.
           setError('No location details found for this place');
           return;
         }
 
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
-        const rawAddress = place.formatted_address || place.name || value;
+        const rawAddress = place.formatted_address || place.name || valueRef.current;
         const address = cleanAddress(rawAddress);
         const placeName = place.name || address;
 
@@ -124,7 +140,9 @@ export default function GoogleMapsAutocomplete({
         }
 
         setInputValue(address);
-        onChange(address, lat, lng, placeName, { city, state });
+        if (onChangeRef.current) {
+          onChangeRef.current(address, lat, lng, placeName, { city, state });
+        }
         setError('');
       });
     } catch (err: unknown) {
@@ -132,7 +150,7 @@ export default function GoogleMapsAutocomplete({
       console.error('Autocomplete initialization error:', err);
       setError(`Failed to initialize autocomplete: ${errorMessage}`);
     }
-  }, [onChange, value]);
+  }, []); // No dependencies to prevent re-initialization
 
   useEffect(() => {
     if (isLoaded && inputRef.current && !autocompleteRef.current) {
@@ -140,13 +158,16 @@ export default function GoogleMapsAutocomplete({
     }
 
     return () => {
-       if (autocompleteRef.current) {
+      if (autocompleteRef.current) {
         try {
           window.google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
         } catch {
-           // Ignore
+          // Ignore
         }
-       }
+        // Do NOT set autocompleteRef.current to null here if we want to persist it across renders 
+        // unless the component is actually unmounting.
+        // But the cleanup runs on unmount.
+      }
     }
   }, [isLoaded, initializeAutocomplete]);
 

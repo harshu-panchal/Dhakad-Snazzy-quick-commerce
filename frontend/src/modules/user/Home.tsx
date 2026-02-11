@@ -268,6 +268,32 @@ export default function Home() {
       {/* Main content */}
       <div
         className="bg-neutral-50 -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
+        {/* Bestsellers Section - Moved above Home Sections (Unlimited Fashion) */}
+        {activeTab === "all" && (
+          <div className="mt-2 md:mt-4">
+            <CategoryTileSection
+              title="Bestsellers"
+              tiles={
+                homeData.bestsellers && homeData.bestsellers.length > 0
+                  ? homeData.bestsellers
+                    .slice(0, 6)
+                    .map((card: any) => {
+                      return {
+                        id: card.id,
+                        categoryId: card.categoryId,
+                        name: card.name || "Category",
+                        productImages: card.productImages || [],
+                        productCount: card.productCount || 0,
+                      };
+                    })
+                  : []
+              }
+              columns={3}
+              showProductCount={true}
+            />
+          </div>
+        )}
+
         {/* Dynamic Home Sections - Render sections created by admin */}
         {homeData.homeSections && homeData.homeSections.length > 0 && (
           <>
@@ -354,29 +380,7 @@ export default function Home() {
         {/* Bestsellers Section */}
         {activeTab === "all" && (
           <>
-            <div className="mt-2 md:mt-4">
-              <CategoryTileSection
-                title="Bestsellers"
-                tiles={
-                  homeData.bestsellers && homeData.bestsellers.length > 0
-                    ? homeData.bestsellers
-                      .slice(0, 6)
-                      .map((card: any) => {
-                        // Bestseller cards have categoryId and productImages array from backend
-                        return {
-                          id: card.id,
-                          categoryId: card.categoryId,
-                          name: card.name || "Category",
-                          productImages: card.productImages || [],
-                          productCount: card.productCount || 0,
-                        };
-                      })
-                    : []
-                }
-                columns={3}
-                showProductCount={true}
-              />
-            </div>
+
 
             {/* Featured this week Section */}
             <FeaturedThisWeek />

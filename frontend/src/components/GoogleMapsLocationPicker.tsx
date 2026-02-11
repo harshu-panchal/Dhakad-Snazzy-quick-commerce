@@ -183,9 +183,12 @@ export default function GoogleMapsLocationPicker({
             {/* Fixed Center Pin Overlay */}
             <div
                 className="absolute top-1/2 left-1/2 z-10 pointer-events-none"
-                style={{ transform: 'translate(-50%, -100%)' }}
+                style={{ transform: 'translate(-50%, -91.6%)' }} /* Align point (12, 22) of 24x24 grid at center */
             >
                 <div className="flex flex-col items-center">
+                    {/* Tiny target dot at exact center for reference */}
+                    <div className="w-1 h-1 bg-black/40 rounded-full absolute top-[91.6%] left-1/2 -translate-x-1/2 -translate-y-1/2" />
+
                     {/* Pin icon */}
                     <svg
                         width="40"
@@ -209,6 +212,63 @@ export default function GoogleMapsLocationPicker({
                     />
                 </div>
             </div>
+
+            {/* Locate Me Button */}
+            <button
+                onClick={(e) => {
+                    e.preventDefault();
+                    if (!navigator.geolocation) return;
+
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.innerHTML = '<div class="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>';
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            const newPos = { lat: latitude, lng: longitude };
+
+                            // Let onIdle handle state sync and geocoding by only panning the map
+                            if (mapRef.current) {
+                                mapRef.current.panTo(newPos);
+                                mapRef.current.setZoom(18);
+                            }
+                            btn.disabled = false;
+                            btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+                        },
+                        (error) => {
+                            console.error('Error getting location:', error);
+                            btn.disabled = false;
+                            btn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+                        },
+                        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                    );
+                }}
+                className="absolute right-3 top-3 z-20 bg-white p-2.5 rounded-full shadow-md hover:bg-neutral-50 active:scale-95 transition-all border border-neutral-200 text-blue-600 flex items-center justify-center group"
+                title="Use current location"
+            >
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                >
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="3" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+            </button>
 
             {/* Instruction overlay */}
             <div className="absolute bottom-2 left-2 right-2 z-10">

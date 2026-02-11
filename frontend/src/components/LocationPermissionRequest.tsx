@@ -100,16 +100,21 @@ export default function LocationPermissionRequest({
             });
           });
 
-          if (result && result.formatted_address) {
-            finalAddress = result.formatted_address;
+          if (result) {
+            // we do NOT overwrite finalAddress here because we want to keep the name/address 
+            // the user specifically selected from the autocomplete (e.g. "Indore" instead of "123 Street, Indore")
 
-            // Update components
+            // Check if we need to fill in missing components
             if (result.address_components) {
-              city = ''; state = ''; pincode = '';
+              // Only fill if empty to respect autocomplete data structure if it was present
+              const hasCity = !!city;
+              const hasState = !!state;
+              const hasPincode = !!pincode;
+
               result.address_components.forEach((comp: any) => {
-                if (comp.types.includes('locality')) city = comp.long_name;
-                if (comp.types.includes('administrative_area_level_1')) state = comp.long_name;
-                if (comp.types.includes('postal_code')) pincode = comp.long_name;
+                if (!hasCity && comp.types.includes('locality')) city = comp.long_name;
+                if (!hasState && comp.types.includes('administrative_area_level_1')) state = comp.long_name;
+                if (!hasPincode && comp.types.includes('postal_code')) pincode = comp.long_name;
               });
             }
             isResolved = true;
