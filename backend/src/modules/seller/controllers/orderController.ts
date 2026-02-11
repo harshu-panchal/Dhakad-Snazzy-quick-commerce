@@ -283,6 +283,7 @@ export const updateOrderStatus = asyncHandler(
     // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery)
     if (status === 'Accepted' && previousStatus !== 'Accepted' && order.deliveryOption === 'Instant') {
       try {
+        console.log(`\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`);
         const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
         if (io) {
           // Need to fetch full order with details for the notification service
@@ -295,11 +296,19 @@ export const updateOrderStatus = asyncHandler(
 
           if (fullOrder) {
             await notifyDeliveryBoysOfNewOrder(io, fullOrder);
-            console.log(`Delivery notification triggered for Instant order ${order.orderNumber}`);
+            console.log(`✅ [SELLER] Delivery notification broadcast initiated for ${order.orderNumber}`);
+          } else {
+            console.error(`❌ [SELLER] Could not fetch full order details for ${order._id}`);
           }
+        } else {
+          console.error(`❌ [SELLER] Socket.io instance (io) not found in app`);
         }
       } catch (notifyError) {
-        console.error('Error notifying delivery boys on seller acceptance:', notifyError);
+        console.error('❌ [SELLER ERROR] Error notifying delivery boys:', notifyError);
+      }
+    } else {
+      if (status === 'Accepted') {
+        console.log(`ℹ️ [SELLER] Order ${order.orderNumber} accepted, but broadcast skipped. Type: ${order.deliveryOption}, Prev Status: ${previousStatus}`);
       }
     }
 
