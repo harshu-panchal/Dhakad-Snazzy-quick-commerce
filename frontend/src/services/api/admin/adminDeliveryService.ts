@@ -27,6 +27,7 @@ export interface DeliveryBoy {
   cashCollected: number;
   status: "Active" | "Inactive";
   available: "Available" | "Not Available";
+  profileImage?: string;
   currentLocation?: {
     latitude: number;
     longitude: number;
