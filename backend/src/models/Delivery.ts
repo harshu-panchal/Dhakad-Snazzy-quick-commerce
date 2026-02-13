@@ -11,6 +11,7 @@ export interface IDelivery extends Document {
   address: string;
   city: string;
   pincode?: string;
+  profileImage?: string;
 
   // Documents (URLs pointing to cloud storage)
   drivingLicense?: string;
@@ -109,6 +110,10 @@ const DeliverySchema = new Schema<IDelivery>(
       type: String,
       trim: true,
     },
+    profileImage: {
+      type: String,
+      trim: true,
+    },
 
     // Documents (URLs)
     drivingLicense: {
@@ -180,7 +185,6 @@ const DeliverySchema = new Schema<IDelivery>(
       },
       coordinates: {
         type: [Number], // [longitude, latitude]
-        index: "2dsphere",
       },
     },
     balance: {
@@ -218,6 +222,9 @@ const DeliverySchema = new Schema<IDelivery>(
   },
 );
 
+// Create geospatial index on location field
+DeliverySchema.index({ location: "2dsphere" });
+
 // Hash password before saving
 DeliverySchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
@@ -242,7 +249,7 @@ DeliverySchema.methods.comparePassword = async function (
 
 const Delivery =
   (mongoose.models.Delivery as mongoose.Model<IDelivery>) ||
-  mongoose.model<IDelivery>("Delivery", DeliverySchema);
+  mongoose.model<IDelivery>("Delivery", DeliverySchema, "deliveries");
 
 // Register Alias for refPath 'DELIVERY_BOY'
 if (!(mongoose.models.DELIVERY_BOY as mongoose.Model<IDelivery>)) {
