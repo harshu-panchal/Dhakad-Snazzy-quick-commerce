@@ -38,6 +38,13 @@ export default function AdminAssignDeliveryBoy() {
             if (receivedRes.success) combinedOrders = [...combinedOrders, ...receivedRes.data];
             if (acceptedRes.success) combinedOrders = [...combinedOrders, ...acceptedRes.data];
 
+            // Sort orders by date descending (newest first)
+            combinedOrders.sort((a, b) => {
+                const dateA = new Date(a.orderDate || a.createdAt || 0).getTime();
+                const dateB = new Date(b.orderDate || b.createdAt || 0).getTime();
+                return dateB - dateA;
+            });
+
             setOrders(combinedOrders);
 
             if (deliveryBoysRes.success) {
@@ -243,6 +250,15 @@ export default function AdminAssignDeliveryBoy() {
                                                     </div>
                                                     <p className="text-sm text-neutral-900 font-medium mt-1">{order.customerName}</p>
                                                     <p className="text-xs text-neutral-500 truncate max-w-[250px]">{order.deliveryAddress?.address}</p>
+                                                    {order.deliveryBoyStatus === "Assigned" && order.deliveryBoy && (
+                                                        <div className="mt-1 flex items-center gap-1 text-xs text-green-700 bg-green-50 w-fit px-1.5 py-0.5 rounded">
+                                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                                <circle cx="12" cy="7" r="4"></circle>
+                                                            </svg>
+                                                            Assigned: <span className="font-bold">{(order.deliveryBoy as any).name || "Unknown"}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-1">
@@ -252,14 +268,29 @@ export default function AdminAssignDeliveryBoy() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 md:ml-4">
-                                                <button
-                                                    onClick={() => handleAssignClick(order)}
-                                                    className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${order.deliveryBoyStatus === "Assigned"
-                                                        ? "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
-                                                        : "bg-green-600 text-white hover:bg-green-700 shadow-sm shadow-green-200"
-                                                        }`}>
-                                                    {order.deliveryBoyStatus === "Assigned" ? "Re-assign" : "Assign Now"}
-                                                </button>
+                                                {/* Logic for Instant Order Broadcasting State */}
+                                                {order.deliveryOption === "Instant" && order.status === "Accepted" && (!order.deliveryBoyStatus || (order.deliveryBoyStatus as string) === "Not Assigned") ? (
+                                                    <button
+                                                        onClick={() => handleAssignClick(order)}
+                                                        className="flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-2"
+                                                        title="System is broadcasting this order to partners. You can manually assign if needed.">
+                                                        <span className="relative flex h-2 w-2">
+                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                        </span>
+                                                        Broadcasting...
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleAssignClick(order)}
+                                                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${order.deliveryBoyStatus === "Assigned"
+                                                            ? "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                                                            : "bg-green-600 text-white hover:bg-green-700 shadow-sm shadow-green-200"
+                                                            }`}>
+                                                        {order.deliveryBoyStatus === "Assigned" ? "Change Driver" : "Assign Now"}
+                                                    </button>
+                                                )}
+
                                                 <Link
                                                     to={`/admin/orders/${order._id}`}
                                                     className="p-2 text-neutral-400 hover:text-neutral-900 transition-colors">

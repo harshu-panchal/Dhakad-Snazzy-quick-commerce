@@ -64,7 +64,10 @@ export const useDeliveryOrderNotifications = () => {
             }));
 
             // Join delivery notification room
-            socket.emit('join-delivery-notifications', user.id);
+            // CRITICAL FIX: Ensure ID is a string. Mongoose ObjectIds can sometimes be objects in JS.
+            const userId = String(user.id);
+            console.log(`📡 [SOCKET] Connected. Joining delivery-notifications for UserID: ${userId}`);
+            socket.emit('join-delivery-notifications', userId);
         });
 
         socket.on('joined-notifications-room', (data: any) => {

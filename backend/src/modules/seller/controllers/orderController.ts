@@ -281,6 +281,8 @@ export const updateOrderStatus = asyncHandler(
     await order.save();
 
     // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery)
+    console.log(`🔍 [DEBUG] Checking Notification Trigger: NewStatus=${status}, PrevStatus=${previousStatus}, Option=${order.deliveryOption}`);
+
     if (status === 'Accepted' && previousStatus !== 'Accepted' && order.deliveryOption === 'Instant') {
       try {
         console.log(`\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`);

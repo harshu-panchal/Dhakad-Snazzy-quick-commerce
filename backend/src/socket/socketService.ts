@@ -198,14 +198,16 @@ export const initializeSocket = (httpServer: HttpServer) => {
 
         // Delivery boy joins notification room
         socket.on('join-delivery-notifications', (deliveryBoyId: string) => {
-            // Normalize deliveryBoyId to string to ensure consistent room naming
             const normalizedDeliveryBoyId = String(deliveryBoyId).trim();
-            console.log(`🔔 Delivery boy ${normalizedDeliveryBoyId} joined notifications room`);
+            console.log(`🔌 [SOCKET JOIN] Request: 'join-delivery-notifications'`);
+            console.log(`   - Raw ID:`, deliveryBoyId, `OfType:`, typeof deliveryBoyId);
+            console.log(`   - Normalized ID: ${normalizedDeliveryBoyId}`);
+            console.log(`   - Room: delivery-${normalizedDeliveryBoyId}`);
 
             socket.join('delivery-notifications');
             socket.join(`delivery-${normalizedDeliveryBoyId}`);
 
-            console.log(`✅ Delivery boy ${normalizedDeliveryBoyId} joined rooms: delivery-notifications, delivery-${normalizedDeliveryBoyId}`);
+            console.log(`✅ [SOCKET JOIN] Delivery boy ${normalizedDeliveryBoyId} joined delivery-notifications`);
 
             // Send confirmation that they joined successfully
             socket.emit('joined-notifications-room', {
@@ -322,12 +324,12 @@ export const initializeSocket = (httpServer: HttpServer) => {
                             tracking.eta = eta;
                             // Only update status if it's a spatial status (nearby/in_transit), don't override Delivered/Picked Up
                             if (tracking.status !== 'delivered' && tracking.status !== 'picked_up' && tracking.status !== 'idle') {
-                                 tracking.status = status as any;
+                                tracking.status = status as any;
                             }
                         }
                         await tracking.save();
                     } catch (dbError) {
-                         console.error('Error syncing location to DB:', dbError);
+                        console.error('Error syncing location to DB:', dbError);
                     }
                 }
             } catch (err) {

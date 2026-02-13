@@ -7,6 +7,7 @@ export interface DeliveryBoy {
   _id: string;
   name: string;
   mobile: string;
+  profileImage?: string;
   dateOfBirth?: string;
   address: string;
   city: string;

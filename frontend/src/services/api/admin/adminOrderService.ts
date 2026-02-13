@@ -49,6 +49,7 @@ export interface Order {
   paymentId?: string;
   status:
   | "Received"
+  | "Accepted"
   | "Pending"
   | "Processed"
   | "Shipped"
@@ -57,6 +58,7 @@ export interface Order {
   | "Cancelled"
   | "Rejected"
   | "Returned";
+  deliveryOption?: "Instant" | "Standard";
   deliveryBoy?: string | { _id: string; name: string; mobile: string; email?: string };
   deliveryBoyStatus?:
   | "Assigned"
