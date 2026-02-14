@@ -181,7 +181,6 @@ const DeliverySchema = new Schema<IDelivery>(
       type: {
         type: String,
         enum: ["Point"],
-        default: "Point",
       },
       coordinates: {
         type: [Number], // [longitude, latitude]

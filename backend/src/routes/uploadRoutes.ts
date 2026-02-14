@@ -18,7 +18,8 @@ import { asyncHandler } from "../utils/asyncHandler";
 const router = Router();
 
 // All upload routes require authentication
-router.use(authenticate);
+// All upload routes require authentication - REMOVED to allow public document upload for registration
+// router.use(authenticate);
 
 /**
  * POST /api/v1/upload/image
@@ -26,6 +27,7 @@ router.use(authenticate);
  */
 router.post(
   "/image",
+  authenticate,
   requireUserType("Admin", "Seller"),
   uploadSingleImage.single("image"),
   handleUploadError,
@@ -56,6 +58,7 @@ router.post(
  */
 router.post(
   "/images",
+  authenticate, // Added manual auth check
   requireUserType("Admin", "Seller"),
   uploadMultipleImages.array("images", 10), // Max 10 images
   handleUploadError,
@@ -92,7 +95,7 @@ router.post(
  */
 router.post(
   "/document",
-  authenticate, // All authenticated users can upload documents
+  // authenticate, // Removed to allow unauthenticated uploads for registration
   uploadDocument.single("document"),
   handleUploadError,
   asyncHandler(async (req: Request, res: Response) => {
@@ -103,14 +106,25 @@ router.post(
       });
     }
 
-    // Determine folder based on user type
+    // Determine folder based on user type or request body
     let folder: string = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
-    const userType = (req as any).user?.userType;
+    const user = (req as any).user;
 
-    if (userType === "Delivery") {
-      folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
-    } else if (userType === "Seller") {
-      folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+    if (user) {
+      if (user.userType === "Delivery") {
+        folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
+      } else if (user.userType === "Seller") {
+        folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+      }
+    } else {
+      // Allow valid folders from body if not authenticated (for registration)
+      const bodyFolder = req.body.folder;
+      if (
+        bodyFolder &&
+        Object.values(CLOUDINARY_FOLDERS).includes(bodyFolder)
+      ) {
+        folder = bodyFolder;
+      }
     }
 
     // Check if it's an image or PDF
@@ -135,7 +149,7 @@ router.post(
  */
 router.post(
   "/documents",
-  authenticate,
+  // authenticate, // Removed
   uploadMultipleDocuments.array("documents", 5), // Max 5 documents
   handleUploadError,
   asyncHandler(async (req: Request, res: Response) => {
@@ -146,14 +160,25 @@ router.post(
       });
     }
 
-    // Determine folder based on user type
+    // Determine folder based on user type or request body
     let folder: string = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
-    const userType = (req as any).user?.userType;
+    const user = (req as any).user;
 
-    if (userType === "Delivery") {
-      folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
-    } else if (userType === "Seller") {
-      folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+    if (user) {
+      if (user.userType === "Delivery") {
+        folder = CLOUDINARY_FOLDERS.DELIVERY_DOCUMENTS;
+      } else if (user.userType === "Seller") {
+        folder = CLOUDINARY_FOLDERS.SELLER_DOCUMENTS;
+      }
+    } else {
+      // Allow valid folders from body if not authenticated (for registration)
+      const bodyFolder = req.body.folder;
+      if (
+        bodyFolder &&
+        Object.values(CLOUDINARY_FOLDERS).includes(bodyFolder)
+      ) {
+        folder = bodyFolder;
+      }
     }
 
     const files = (req as any).files as any[];
@@ -182,6 +207,7 @@ router.post(
  */
 router.delete(
   "/:publicId",
+  authenticate, // Manually added auth
   requireUserType("Admin", "Seller"),
   asyncHandler(async (req: Request, res: Response) => {
     const { publicId } = req.params;
