@@ -75,7 +75,6 @@ export interface Order {
   cancellationReason?: string;
   cancelledAt?: string;
   cancelledBy?: string | { firstName: string; lastName: string };
-  deliveryOption?: "Instant" | "Standard";
   createdAt?: string;
   updatedAt?: string;
 }
