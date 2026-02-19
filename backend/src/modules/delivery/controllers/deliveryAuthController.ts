@@ -12,9 +12,10 @@ import { asyncHandler } from "../../../utils/asyncHandler";
  * Send SMS OTP to delivery mobile number
  */
 export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile } = req.body;
+  const rawMobile = req.body.mobile;
+  const mobile = rawMobile != null ? String(rawMobile).trim().replace(/\D/g, '').slice(0, 10) : '';
 
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+  if (!mobile || mobile.length !== 10) {
     return res.status(400).json({
       success: false,
       message: "Valid 10-digit mobile number is required",
