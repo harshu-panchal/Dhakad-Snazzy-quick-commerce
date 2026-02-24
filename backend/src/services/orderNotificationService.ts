@@ -354,20 +354,38 @@ export async function notifyDeliveryBoysOfNewOrder(
         console.log(`\n🚀 [NOTIFICATION] Starting broadcast for Order: ${order.orderNumber} (ID: ${order._id})`);
         console.log(`📍 [NOTIFICATION] Delivery Option: ${order.deliveryOption}`);
 
-        // Find delivery boys near seller locations (within service radius)
-        let nearbyDeliveryBoyIds = await findDeliveryBoysNearSellerLocations(order);
+        let nearbyDeliveryBoyIds: mongoose.Types.ObjectId[] = [];
+
+        // STRATEGY: For "Instant" orders, we want to maximize acceptance speed.
+        // The user requested: "sare avaliable delivery boy ko notification jana chahiye" (All available delivery boys should get notification)
+        if (order.deliveryOption === 'Instant') {
+            console.log('⚡ [INSTANT] Order detected. Broadcasting to ALL ONLINE & ACTIVE delivery boys immediately.');
+            nearbyDeliveryBoyIds = await findAvailableDeliveryBoys();
+        } else {
+            // For Standard/other orders, stick to radius logic
+            nearbyDeliveryBoyIds = await findDeliveryBoysNearSellerLocations(order);
+
+            // Fallback for Standard orders if nobody nearby
+            if (nearbyDeliveryBoyIds.length === 0) {
+                console.log('⚠️ [NOTIFICATION] No nearby delivery boys found. Falling back to ALL ONLINE drivers.');
+                nearbyDeliveryBoyIds = await findAvailableDeliveryBoys();
+            }
+        }
 
         if (nearbyDeliveryBoyIds.length === 0) {
-            console.log('⚠️ [NOTIFICATION] No available delivery boys found to notify (including fallback)');
+            console.log('⚠️ [NOTIFICATION] No available delivery boys found to notify.');
             return;
         }
 
         // Fetch names for logging clarity
         const potentialBoys = await Delivery.find({ _id: { $in: nearbyDeliveryBoyIds } }).select('name _id');
-        console.log(`📍 [NOTIFICATION] Potential drivers found (${nearbyDeliveryBoyIds.length}):`);
+        console.log(`📍 [NOTIFICATION] Target drivers (${nearbyDeliveryBoyIds.length}):`);
         potentialBoys.forEach(pb => console.log(`   - ${pb.name} (${pb._id})`));
 
         // --- FILTER BUSY DELIVERY BOYS ---
+        // For Instant orders, we might want to skip this check if urgency > capacity, 
+        // but generally we shouldn't spam busy drivers unless configured otherwise.
+        // Leaving filter intact for now to prevent over-assignment.
         const activeOrders = await Order.find({
             deliveryBoy: { $in: nearbyDeliveryBoyIds },
             deliveryBoyStatus: { $in: ['Assigned', 'Picked Up', 'In Transit'] },
@@ -376,7 +394,7 @@ export async function notifyDeliveryBoysOfNewOrder(
 
         if (activeOrders.length > 0) {
             const busyIdsSet = new Set(activeOrders.map(o => o.deliveryBoy?.toString()).filter(Boolean));
-            console.log(`ℹ️ [NOTIFICATION] Busy drivers detected:`);
+            console.log(`ℹ️ [NOTIFICATION] Busy drivers detected (will be skipped):`);
             activeOrders.forEach(o => {
                 if (o.deliveryBoy) {
                     console.log(`   - Driver ${o.deliveryBoy} is busy with Order ${o.orderNumber}`);
@@ -387,7 +405,7 @@ export async function notifyDeliveryBoysOfNewOrder(
             console.log(`ℹ️ [NOTIFICATION] Drivers remaining after "Busy" filter: ${nearbyDeliveryBoyIds.length}`);
 
             if (nearbyDeliveryBoyIds.length === 0) {
-                console.log('⚠️ [NOTIFICATION] All nearby delivery boys are currently busy.');
+                console.log('⚠️ [NOTIFICATION] All targeted delivery boys are currently busy.');
                 return;
             }
         }
@@ -413,74 +431,50 @@ export async function notifyDeliveryBoysOfNewOrder(
             shipping: order.shipping,
             deliveryBoyEarning: deliveryBoyEarning,
             createdAt: order.createdAt,
+            type: order.deliveryOption // passed to FE to show "Instant" tag
         };
 
         const orderId = order._id.toString();
         const notifiedIds = new Set<string>();
 
-        // Notify ALL nearby delivery boys via ALL available channels
+        // Notify ALL targeted delivery boys
         for (const id of nearbyDeliveryBoyIds) {
             const idString = id.toString().trim();
             notifiedIds.add(idString);
-            console.log(`\n🔔 [NOTIFICATION] Attempting to notify Delivery Boy: ${idString}`);
 
-            // 1. Socket emit
+            // 1. Socket emit (Room: delivery-{id})
             const roomName = `delivery-${idString}`;
-            const room = io.sockets.adapter.rooms.get(roomName);
-
-            console.log(`📡 [Socket] Checking room: ${roomName}. Found: ${!!room}, Size: ${room ? room.size : 0}`);
-
-            // Always attempt emission, even if room check fails (sometimes adapter.rooms is tricky)
             io.to(roomName).emit('new-order', orderData);
-            console.log(`📤 [Socket] Emitted 'new-order' event to room: ${roomName}`);
+            console.log(`📤 [Socket] Emitted 'new-order' to ${idString}`);
 
-            // 2. FCM Push Notification
-            try {
-                console.log(`📲 [Push] Attempting FCM for ${idString}...`);
-                await sendNotificationToUser(idString, 'Delivery', {
-                    title: 'New Instant Order Available',
-                    body: `Order #${order.orderNumber} is available. Earning: ₹${deliveryBoyEarning}`,
-                    data: { orderId: order._id.toString(), type: 'NEW_ORDER' },
-                    icon: 'notification_icon'
-                });
-                console.log(`✅ [Push] FCM Notification sent to ${idString}`);
-            } catch (pushError) {
-                console.error(`❌ [Push] Failed for ${idString}:`, (pushError as any).message);
-            }
-
-            // 3. Database Notification
-            try {
-                console.log(`💾 [DB] Saving notification for ${idString}...`);
-                await sendNotification(
-                    'Delivery',
-                    idString,
-                    'New Instant Order Available',
-                    `Order #${order.orderNumber} is available. Earning: ₹${deliveryBoyEarning}`,
-                    {
-                        type: 'Order',
-                        link: `/delivery/orders/${order._id}`,
-                        priority: 'High'
-                    }
-                );
-                console.log(`✅ [DB] Notification saved for ${idString}`);
-            } catch (dbNotifError) {
-                console.error(`❌ [DB] Failed for ${idString}:`, (dbNotifError as any).message);
-            }
+            // 2. Database Notification (Persist it)
+            // We use Fire-and-Forget for speed here, or await if reliability is critical. 
+            // Await ensures we don't overwhelm DB connection if thousands of drivers.
+            await sendNotification(
+                'Delivery',
+                idString,
+                'New Order Request',
+                `New ${order.deliveryOption} Order #${order.orderNumber} is available. Earning: ₹${deliveryBoyEarning}`,
+                {
+                    type: 'Order',
+                    link: `/delivery/orders/${order._id}`,
+                    priority: 'High'
+                }
+            ).catch(err => console.error(`❌ [DB Notif Error] ${idString}:`, err.message));
         }
 
-        if (notifiedIds.size === 0) {
-            console.log('⚠️ [NOTIFICATION] Failed to notify any delivery boys');
-            return;
+        // Also emit to the global 'delivery-notifications' room as a backup/monitor
+        // io.to('delivery-notifications').emit('new-order-monitor', orderData);
+
+        if (notifiedIds.size > 0) {
+            notificationStates.set(orderId, {
+                orderId,
+                notifiedDeliveryBoys: notifiedIds,
+                rejectedDeliveryBoys: new Set(),
+                acceptedBy: null,
+            });
+            console.log(`\n📢 [SUCCESS] Broadcast complete. Notified ${notifiedIds.size} delivery boys.\n`);
         }
-
-        notificationStates.set(orderId, {
-            orderId,
-            notifiedDeliveryBoys: notifiedIds,
-            rejectedDeliveryBoys: new Set(),
-            acceptedBy: null,
-        });
-
-        console.log(`\n📢 [SUCCESS] Broadcast complete. Notified ${notifiedIds.size} delivery boys.\n`);
     } catch (error) {
         console.error('❌ [NOTIFICATION ERROR] Error in broadcast:', error);
     }
@@ -489,6 +483,7 @@ export async function notifyDeliveryBoysOfNewOrder(
 
 /**
  * Handle order acceptance by a delivery boy
+ * Implements "First-Come-First-Serve" logic atomically.
  */
 export async function handleOrderAcceptance(
     io: SocketIOServer,
@@ -496,91 +491,91 @@ export async function handleOrderAcceptance(
     deliveryBoyId: string
 ): Promise<{ success: boolean; message: string }> {
     try {
-        const state = notificationStates.get(orderId);
         const normalizedDeliveryBoyId = String(deliveryBoyId).trim();
+        console.log(`👉 [ACCEPT REQUEST] Driver ${normalizedDeliveryBoyId} attempting to accept Order ${orderId}`);
 
-        // 1. In-Memory Check (Preferred)
-        if (state) {
-            // Check if already accepted in memory
-            if (state.acceptedBy) {
-                return { success: false, message: 'Order already accepted by another delivery boy' };
+        // 1. ATOMIC ASSIGNMENT: Try to find AND update the order in one go.
+        // We look for an order that matches ID AND (has no deliveryBoy OR deliveryBoy satisfies idempotency)
+        // Actually, for true atomic "first one wins", we condition on deliveryBoy being null/undefined.
+
+        // Handling Idempotency first (Optimization):
+        // Check if this driver ALREADY has it. This requires a read, but it's safe.
+        const existingOrder = await Order.findById(orderId).select('deliveryBoy status');
+        if (existingOrder && existingOrder.deliveryBoy && existingOrder.deliveryBoy.toString() === normalizedDeliveryBoyId) {
+            console.log(`✅ [ACCEPT] Idempotent success. Order already assigned to this driver.`);
+            if (existingOrder.status !== 'Processed') {
+                existingOrder.status = 'Processed';
+                await existingOrder.save();
             }
-
-            // Check if this delivery boy was notified
-            if (!state.notifiedDeliveryBoys.has(normalizedDeliveryBoyId)) {
-                console.warn(`⚠️ Delivery boy ${normalizedDeliveryBoyId} not in notified list for acceptance of order ${orderId}. Notified:`, Array.from(state.notifiedDeliveryBoys));
-                return { success: false, message: 'You were not notified about this order' };
-            }
-
-            // Check if this delivery boy already rejected
-            if (state.rejectedDeliveryBoys.has(normalizedDeliveryBoyId)) {
-                return { success: false, message: 'You have already rejected this order' };
-            }
-
-            // Mark as accepted in memory
-            state.acceptedBy = normalizedDeliveryBoyId;
-        } else {
-            console.log(`⚠️ Notification state missing for order ${orderId}. Checking database for fallback...`);
-            // 2. Database Fallback (For server restarts/stale notifications)
-            // We skip "notified" and "rejected" checks because that data is lost.
-            // We assume if they have the ID, they were notified effectively.
+            return { success: true, message: 'Order accepted successfully' };
         }
 
-        // Update order in database
-        const order = await Order.findById(orderId);
-        if (!order) {
-            return { success: false, message: 'Order not found' };
+        // The Race Condition Fix:
+        // Update ONLY if `deliveryBoy` is currently null/undefined.
+        const updatedOrder = await Order.findOneAndUpdate(
+            {
+                _id: orderId,
+                deliveryBoy: { $exists: false } // Check strictly for unassigned 
+                // Or: deliveryBoy: null 
+            },
+            {
+                $set: {
+                    deliveryBoy: new mongoose.Types.ObjectId(normalizedDeliveryBoyId),
+                    deliveryBoyStatus: 'Assigned',
+                    assignedAt: new Date(),
+                    status: 'Processed'
+                }
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedOrder) {
+            // If update returned null, it means either:
+            // a) Order doesn't exist
+            // b) Order ALREADY has a deliveryBoy (the filter failed)
+
+            // Re-fetch to see which case it is
+            const checkOrder = await Order.findById(orderId);
+            if (!checkOrder) {
+                return { success: false, message: 'Order not found' };
+            }
+            if (checkOrder.deliveryBoy) {
+                console.log(`⛔ [ACCEPT FAIL] Race condition lost. Order already taken by ${checkOrder.deliveryBoy}`);
+                return { success: false, message: 'Order already accepted by another delivery partner' };
+            }
+            return { success: false, message: 'Failed to assign order due to unknown error' };
         }
 
-        // Check if order already has a delivery boy assigned
-        if (order.deliveryBoy) {
-            return { success: false, message: 'Order already assigned to another delivery boy' };
-        }
+        // 2. SUCCESS PATH
+        console.log(`🏆 [ACCEPT WINNER] Order ${orderId} successfully assigned to ${normalizedDeliveryBoyId}`);
 
-        // Assign order to delivery boy
-        order.deliveryBoy = new mongoose.Types.ObjectId(normalizedDeliveryBoyId);
-        order.deliveryBoyStatus = 'Assigned';
-        order.assignedAt = new Date();
-        order.status = 'Processed'; // Mark as processed when assigned
+        // 3. BROADCAST "TAKEN" STATUS
+        // Tell everyone (including the winner) that the order is taken.
+        // The frontend for the winner should handle the success response to navigate.
+        // The frontend for OTHERS should remove the popup.
 
-        await order.save();
-
-        // Emit order-accepted event to stop notifications for all delivery boys
         io.to('delivery-notifications').emit('order-accepted', {
             orderId,
             acceptedBy: normalizedDeliveryBoyId,
         });
 
-        // Also emit to individual rooms (notifiedId is already a string from Set)
+        // Also emit to specific driver rooms if they aren't listening to global (redundancy)
+        const state = notificationStates.get(orderId);
         if (state) {
-            for (const notifiedId of state.notifiedDeliveryBoys) {
-                const notifiedIdString = String(notifiedId).trim();
-                io.to(`delivery-${notifiedIdString}`).emit('order-accepted', {
-                    orderId,
-                    acceptedBy: normalizedDeliveryBoyId,
-                });
-            }
-            // Clean up notification state
+            state.acceptedBy = normalizedDeliveryBoyId;
+            // Clean up memory state
             notificationStates.delete(orderId);
-        } else {
-            // If no state, we can't emit to specific originally notified list,
-            // but 'delivery-notifications' room covers the general case.
-            // We can also try to emit to the accepting delivery boy just in case
-            io.to(`delivery-${normalizedDeliveryBoyId}`).emit('order-accepted', {
-                orderId,
-                acceptedBy: normalizedDeliveryBoyId,
-            });
         }
 
-        // Emit delivery-boy-accepted event to customer for tracking
+        // Notify Customer
         io.to(`order-${orderId}`).emit('delivery-boy-accepted', {
             orderId,
             deliveryBoyId: normalizedDeliveryBoyId,
-            message: 'Delivery boy accepted your order. Tracking started.',
+            message: 'Your order has been accepted by a delivery partner!',
         });
 
-        console.log(`✅ Order ${orderId} accepted by delivery boy ${normalizedDeliveryBoyId} ${state ? '(Memory)' : '(DB Fallback)'}`);
         return { success: true, message: 'Order accepted successfully' };
+
     } catch (error) {
         console.error('Error handling order acceptance:', error);
         return { success: false, message: 'Error accepting order' };

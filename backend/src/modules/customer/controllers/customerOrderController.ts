@@ -462,7 +462,7 @@ export const createOrder = async (req: Request, res: Response) => {
                         await notifySellersOfOrderUpdate(io, savedOrder, 'NEW_ORDER');
                         console.log(`ðŸ“¢ [COD] Immediate seller notification sent for order ${savedOrder.orderNumber}`);
                     } else {
-                        console.log(`â³ [Online] Seller notification deferred for order ${savedOrder.orderNumber} until payment success`);
+                        console.log(`⏳ [Online] Seller notification deferred for order ${savedOrder.orderNumber} until payment success`);
                     }
                 }
             }

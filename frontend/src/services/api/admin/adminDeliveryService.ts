@@ -7,6 +7,7 @@ export interface DeliveryBoy {
   _id: string;
   name: string;
   mobile: string;
+  profileImage?: string;
   dateOfBirth?: string;
   address: string;
   city: string;
@@ -27,7 +28,6 @@ export interface DeliveryBoy {
   cashCollected: number;
   status: "Active" | "Inactive";
   available: "Available" | "Not Available";
-  profileImage?: string;
   currentLocation?: {
     latitude: number;
     longitude: number;

@@ -164,7 +164,7 @@ async function testCustomerSignup() {
 
   if (result.success && result.data?.data?.token) {
     // Test OTP sending
-    const otpResult = await testEndpoint('POST', '/auth/customer/send-otp', {
+    const otpResult = await testEndpoint('POST', '/auth/customer/send-sms-otp', {
       mobile: testData.customer.mobile,
     });
 
@@ -176,10 +176,12 @@ async function testCustomerSignup() {
       otpResult.success ? undefined : otpResult.error
     );
 
+    const sessionId = otpResult.data?.sessionId;
     // Test OTP verification (using default OTP in development)
-    const verifyResult = await testEndpoint('POST', '/auth/customer/verify-otp', {
+    const verifyResult = await testEndpoint('POST', '/auth/customer/verify-sms-otp', {
       mobile: testData.customer.mobile,
       otp: '123456', // Default OTP in development
+      ...(sessionId && { sessionId }),
     });
 
     recordTest(
@@ -319,7 +321,7 @@ async function testAdminAuth() {
 
 async function testErrorCases() {
   // Test invalid mobile number
-  const invalidMobileResult = await testEndpoint('POST', '/auth/customer/send-otp', {
+  const invalidMobileResult = await testEndpoint('POST', '/auth/customer/send-sms-otp', {
     mobile: '123', // Invalid mobile
   });
 
@@ -347,9 +349,10 @@ async function testErrorCases() {
   );
 
   // Test invalid OTP
-  const invalidOTPResult = await testEndpoint('POST', '/auth/customer/verify-otp', {
+  const invalidOTPResult = await testEndpoint('POST', '/auth/customer/verify-sms-otp', {
     mobile: testData.customer.mobile,
     otp: '999999', // Invalid OTP
+    sessionId: 'OTP_SESSION_' + testData.customer.mobile,
   });
 
   recordTest(

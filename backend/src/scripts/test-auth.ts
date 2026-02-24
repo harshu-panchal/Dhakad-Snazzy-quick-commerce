@@ -466,7 +466,7 @@ async function testCustomerSendOTP() {
   const customer = testUsers.customer[0];
 
   // Test 1: Send OTP to existing customer
-  let result = await apiRequest('POST', '/auth/customer/send-otp', { mobile: customer.mobile });
+  let result = await apiRequest('POST', '/auth/customer/send-sms-otp', { mobile: customer.mobile });
   if (result.success && result.data.success) {
     addResult('Customer Send OTP - Valid Mobile', 'PASS', 'OTP sent successfully');
   } else {
@@ -474,7 +474,7 @@ async function testCustomerSendOTP() {
   }
 
   // Test 2: Non-existent customer
-  result = await apiRequest('POST', '/auth/customer/send-otp', { mobile: '7999999999' });
+  result = await apiRequest('POST', '/auth/customer/send-sms-otp', { mobile: '7999999999' });
   if (!result.success && result.status === 404) {
     addResult('Customer Send OTP - Non-existent Mobile', 'PASS', 'Correctly rejected non-existent customer');
   } else {
@@ -493,7 +493,8 @@ async function testCustomerVerifyOTP() {
   const customer = testUsers.customer[0];
 
   // Send OTP first
-  await apiRequest('POST', '/auth/customer/send-otp', { mobile: customer.mobile });
+  const sendResult = await apiRequest('POST', '/auth/customer/send-sms-otp', { mobile: customer.mobile });
+  const sessionId = sendResult.data?.sessionId;
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Debug: Check if OTP exists in database
@@ -507,9 +508,10 @@ async function testCustomerVerifyOTP() {
   const actualOTP = otpRecord.otp;
 
   // Test 1: Verify with correct OTP
-  let result = await apiRequest('POST', '/auth/customer/verify-otp', {
+  let result = await apiRequest('POST', '/auth/customer/verify-sms-otp', {
     mobile: customer.mobile,
     otp: actualOTP,
+    sessionId: sessionId || 'OTP_SESSION_' + customer.mobile,
   });
   if (result.success && result.data.success && result.data.data.token) {
     addResult('Customer Verify OTP - Valid OTP', 'PASS', 'Login successful with valid OTP');
@@ -518,13 +520,15 @@ async function testCustomerVerifyOTP() {
   }
 
   // Send OTP again
-  await apiRequest('POST', '/auth/customer/send-otp', { mobile: customer.mobile });
+  const sendResult2 = await apiRequest('POST', '/auth/customer/send-sms-otp', { mobile: customer.mobile });
+  const sessionId2 = sendResult2.data?.sessionId;
   await new Promise(resolve => setTimeout(resolve, 1000));
 
   // Test 2: Invalid OTP
-  result = await apiRequest('POST', '/auth/customer/verify-otp', {
+  result = await apiRequest('POST', '/auth/customer/verify-sms-otp', {
     mobile: customer.mobile,
     otp: '000000',
+    sessionId: sessionId2 || 'OTP_SESSION_' + customer.mobile,
   });
   if (!result.success && result.status === 401) {
     addResult('Customer Verify OTP - Invalid OTP', 'PASS', 'Correctly rejected invalid OTP');

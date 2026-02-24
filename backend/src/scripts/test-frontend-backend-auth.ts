@@ -113,7 +113,7 @@ async function testCORS() {
 
   try {
     // Test OPTIONS preflight request
-    const preflightResult = await axios.options(`${API_BASE}/auth/customer/send-otp`, {
+    const preflightResult = await axios.options(`${API_BASE}/auth/customer/send-sms-otp`, {
       headers: {
         'Origin': FRONTEND_URL,
         'Access-Control-Request-Method': 'POST',
@@ -134,7 +134,7 @@ async function testCORS() {
         'PASS',
         `CORS headers present: ${corsHeaders['access-control-allow-origin']}`,
         corsHeaders,
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'OPTIONS'
       );
     } else {
@@ -143,13 +143,13 @@ async function testCORS() {
         'WARN',
         'CORS headers missing or incomplete',
         corsHeaders,
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'OPTIONS'
       );
     }
 
     // Test actual request with Origin header
-    const actualRequest = await apiRequest('POST', '/auth/customer/send-otp', { mobile: '9999999999' }, undefined, FRONTEND_URL);
+    const actualRequest = await apiRequest('POST', '/auth/customer/send-sms-otp', { mobile: '9999999999' }, undefined, FRONTEND_URL);
 
     if (actualRequest.headers['access-control-allow-origin']) {
       addResult(
@@ -157,7 +157,7 @@ async function testCORS() {
         'PASS',
         `CORS allows origin: ${actualRequest.headers['access-control-allow-origin']}`,
         { origin: FRONTEND_URL },
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'POST'
       );
     } else {
@@ -166,7 +166,7 @@ async function testCORS() {
         'WARN',
         'CORS headers not present in response',
         { origin: FRONTEND_URL },
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'POST'
       );
     }
@@ -228,7 +228,7 @@ async function testCustomerAuthFlow() {
     console.log('  → Step 2: Sending OTP...');
     await new Promise(resolve => setTimeout(resolve, 500)); // Small delay to ensure customer exists
 
-    const sendOTPResult = await apiRequest('POST', '/auth/customer/send-otp', {
+    const sendOTPResult = await apiRequest('POST', '/auth/customer/send-sms-otp', {
       mobile: testMobile,
     });
 
@@ -238,7 +238,7 @@ async function testCustomerAuthFlow() {
         'PASS',
         'OTP sent successfully',
         { message: sendOTPResult.data.message },
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'POST'
       );
     } else {
@@ -247,10 +247,12 @@ async function testCustomerAuthFlow() {
         'FAIL',
         'Failed to send OTP',
         sendOTPResult.data,
-        '/auth/customer/send-otp',
+        '/auth/customer/send-sms-otp',
         'POST'
       );
     }
+
+    const sessionId = sendOTPResult.data?.sessionId;
 
     // Step 3: Verify OTP (as frontend would)
     console.log('  → Step 3: Verifying OTP...');
@@ -273,9 +275,10 @@ async function testCustomerAuthFlow() {
       return;
     }
 
-    const verifyOTPResult = await apiRequest('POST', '/auth/customer/verify-otp', {
+    const verifyOTPResult = await apiRequest('POST', '/auth/customer/verify-sms-otp', {
       mobile: testMobile,
       otp: otpRecord.otp,
+      sessionId: sessionId || 'OTP_SESSION_' + testMobile,
     });
 
     if (verifyOTPResult.success && verifyOTPResult.data.success && verifyOTPResult.data.data?.token) {
@@ -285,7 +288,7 @@ async function testCustomerAuthFlow() {
         'PASS',
         'OTP verified and token received',
         { hasToken: !!newToken, userData: verifyOTPResult.data.data.user },
-        '/auth/customer/verify-otp',
+        '/auth/customer/verify-sms-otp',
         'POST'
       );
       authToken = newToken;
@@ -295,7 +298,7 @@ async function testCustomerAuthFlow() {
         'FAIL',
         'OTP verification failed',
         verifyOTPResult.data,
-        '/auth/customer/verify-otp',
+        '/auth/customer/verify-sms-otp',
         'POST'
       );
     }
@@ -448,7 +451,7 @@ async function testErrorHandling() {
   console.log('\n⚠️  Testing Error Handling...');
 
   // Test 1: Invalid mobile format
-  const invalidMobileResult = await apiRequest('POST', '/auth/customer/send-otp', {
+  const invalidMobileResult = await apiRequest('POST', '/auth/customer/send-sms-otp', {
     mobile: '12345', // Invalid format
   });
 
@@ -458,7 +461,7 @@ async function testErrorHandling() {
       'PASS',
       'Correctly rejected invalid mobile format',
       { status: invalidMobileResult.status, message: invalidMobileResult.data.message },
-      '/auth/customer/send-otp',
+      '/auth/customer/send-sms-otp',
       'POST'
     );
   } else {
@@ -467,7 +470,7 @@ async function testErrorHandling() {
       'FAIL',
       'Should reject invalid mobile format',
       invalidMobileResult.data,
-      '/auth/customer/send-otp',
+      '/auth/customer/send-sms-otp',
       'POST'
     );
   }
@@ -499,9 +502,10 @@ async function testErrorHandling() {
   }
 
   // Test 3: Invalid OTP
-  const invalidOTPResult = await apiRequest('POST', '/auth/customer/verify-otp', {
+  const invalidOTPResult = await apiRequest('POST', '/auth/customer/verify-sms-otp', {
     mobile: '9999999999',
     otp: '000000', // Invalid OTP
+    sessionId: 'OTP_SESSION_9999999999',
   });
 
   if (!invalidOTPResult.success && (invalidOTPResult.status === 401 || invalidOTPResult.status === 400)) {
@@ -510,7 +514,7 @@ async function testErrorHandling() {
       'PASS',
       'Correctly rejected invalid OTP',
       { status: invalidOTPResult.status },
-      '/auth/customer/verify-otp',
+      '/auth/customer/verify-sms-otp',
       'POST'
     );
   } else {
@@ -519,7 +523,7 @@ async function testErrorHandling() {
       'FAIL',
       'Should reject invalid OTP',
       invalidOTPResult.data,
-      '/auth/customer/verify-otp',
+      '/auth/customer/verify-sms-otp',
       'POST'
     );
   }

@@ -25,10 +25,12 @@ export interface VerifyOTPResponse {
 }
 
 /**
- * Send SMS OTP to customer mobile number
+ * Send SMS OTP to customer mobile number.
+ * Mobile must be 10-digit string (e.g. "9755620716"). Backend normalizes and sends as 91XXXXXXXXXX to SMS gateway.
  */
 export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
-  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile });
+  const mobileStr = String(mobile ?? '').replace(/\D/g, '').slice(0, 10);
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile: mobileStr });
   return response.data;
 };
 
