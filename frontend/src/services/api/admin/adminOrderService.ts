@@ -1,6 +1,5 @@
 import api from "../config";
 
-
 import { ApiResponse } from "./types";
 
 export interface OrderItem {
@@ -48,24 +47,28 @@ export interface Order {
   paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded";
   paymentId?: string;
   status:
-  | "Received"
-  | "Accepted"
-  | "Pending"
-  | "Processed"
-  | "Shipped"
-  | "Out for Delivery"
-  | "Delivered"
-  | "Cancelled"
-  | "Rejected"
-  | "Returned";
+    | "Received"
+    | "Accepted"
+    | "Pending"
+    | "Processed"
+    | "Shipped"
+    | "Picked up"
+    | "On the way"
+    | "Out for Delivery"
+    | "Delivered"
+    | "Cancelled"
+    | "Rejected"
+    | "Returned";
   deliveryOption?: "Instant" | "Standard";
-  deliveryBoy?: string | { _id: string; name: string; mobile: string; email?: string };
+  deliveryBoy?:
+    | string
+    | { _id: string; name: string; mobile: string; email?: string };
   deliveryBoyStatus?:
-  | "Assigned"
-  | "Picked Up"
-  | "In Transit"
-  | "Delivered"
-  | "Failed";
+    | "Assigned"
+    | "Picked Up"
+    | "In Transit"
+    | "Delivered"
+    | "Failed";
   assignedAt?: string;
   trackingNumber?: string;
   estimatedDeliveryDate?: string;
@@ -134,7 +137,7 @@ export interface ExportOrdersParams {
  * Get all orders
  */
 export const getAllOrders = async (
-  params?: GetOrdersParams
+  params?: GetOrdersParams,
 ): Promise<ApiResponse<Order[]>> => {
   const response = await api.get<ApiResponse<Order[]>>("/admin/orders", {
     params,
@@ -147,11 +150,11 @@ export const getAllOrders = async (
  */
 export const getOrdersByStatus = async (
   status: string,
-  params?: { page?: number; limit?: number }
+  params?: { page?: number; limit?: number },
 ): Promise<ApiResponse<Order[]>> => {
   const response = await api.get<ApiResponse<Order[]>>(
     `/admin/orders/status/${status}`,
-    { params }
+    { params },
   );
   return response.data;
 };
@@ -169,11 +172,11 @@ export const getOrderById = async (id: string): Promise<ApiResponse<Order>> => {
  */
 export const updateOrderStatus = async (
   id: string,
-  data: UpdateOrderStatusData
+  data: UpdateOrderStatusData,
 ): Promise<ApiResponse<Order>> => {
   const response = await api.patch<ApiResponse<Order>>(
     `/admin/orders/${id}/status`,
-    data
+    data,
   );
   return response.data;
 };
@@ -183,11 +186,11 @@ export const updateOrderStatus = async (
  */
 export const assignDeliveryBoy = async (
   id: string,
-  data: AssignDeliveryBoyData
+  data: AssignDeliveryBoyData,
 ): Promise<ApiResponse<Order>> => {
   const response = await api.patch<ApiResponse<Order>>(
     `/admin/orders/${id}/assign-delivery`,
-    data
+    data,
   );
   return response.data;
 };
@@ -197,11 +200,11 @@ export const assignDeliveryBoy = async (
  */
 export const processReturnRequest = async (
   id: string,
-  data: ProcessReturnRequestData
+  data: ProcessReturnRequestData,
 ): Promise<ApiResponse<ReturnRequest>> => {
   const response = await api.patch<ApiResponse<ReturnRequest>>(
     `/admin/returns/${id}/process`,
-    data
+    data,
   );
   return response.data;
 };
@@ -210,7 +213,7 @@ export const processReturnRequest = async (
  * Export orders to CSV
  */
 export const exportOrders = async (
-  params?: ExportOrdersParams
+  params?: ExportOrdersParams,
 ): Promise<Blob> => {
   const response = await api.get("/admin/orders/export/csv", {
     params,
