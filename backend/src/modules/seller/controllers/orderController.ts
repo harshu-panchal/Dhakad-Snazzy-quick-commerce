@@ -10,109 +10,132 @@ import { Server as SocketIOServer } from "socket.io";
 /**
  * Get seller's orders with filters, sorting, and pagination
  */
-export const getOrders = asyncHandler(
-  async (req: Request, res: Response) => {
-    const sellerId = (req as any).user.userId;
-    const {
-      dateFrom,
-      dateTo,
-      status,
-      search,
-      page = "1",
-      limit = "10",
-      sortBy = "orderDate",
-      sortOrder = "desc",
-    } = req.query;
+export const getOrders = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const {
+    dateFrom,
+    dateTo,
+    status,
+    search,
+    page = "1",
+    limit = "10",
+    sortBy = "orderDate",
+    sortOrder = "desc",
+  } = req.query;
 
-    // Find all order IDs that contain items from this seller
-    const orderItems = await OrderItem.find({ seller: sellerId }).distinct("order");
+  // Find all order IDs that contain items from this seller
+  const orderItems = await OrderItem.find({ seller: sellerId }).distinct(
+    "order",
+  );
 
-    // Build query - filter by orders containing this seller's items
-    const query: any = { _id: { $in: orderItems } };
+  // Build query - filter by orders containing this seller's items
+  const query: any = { _id: { $in: orderItems } };
 
-    // Date range filter
-    if (dateFrom || dateTo) {
-      query.orderDate = {};
-      if (dateFrom) {
-        query.orderDate.$gte = new Date(dateFrom as string);
-      }
-      if (dateTo) {
-        query.orderDate.$lte = new Date(dateTo as string);
-      }
+  // Date range filter
+  if (dateFrom || dateTo) {
+    query.orderDate = {};
+    if (dateFrom) {
+      query.orderDate.$gte = new Date(dateFrom as string);
     }
+    if (dateTo) {
+      query.orderDate.$lte = new Date(dateTo as string);
+    }
+  }
 
-    // Status filter
-    if (status && status !== 'All Status') {
+  // Status filter
+  if (status && status !== "All Status") {
+    if (status === "Tracking") {
+      // Include orders where a delivery boy is assigned and the order is still active
+      query.deliveryBoy = { $exists: true, $ne: null };
+      query.status = {
+        $nin: ["Delivered", "Cancelled", "Rejected", "Returned"],
+      };
+    } else {
       // Map frontend status to backend status
       const statusMapping: Record<string, string> = {
-        'Pending': 'Pending',
-        'Accepted': 'Accepted',
-        'On the way': 'On the way',
-        'Delivered': 'Delivered',
-        'Cancelled': 'Cancelled',
-        'Rejected': 'Rejected',
+        Pending: "Pending",
+        Accepted: "Accepted",
+        "On the way": "On the way",
+        Delivered: "Delivered",
+        Cancelled: "Cancelled",
+        Rejected: "Rejected",
       };
       query.status = statusMapping[status as string] || status;
     }
-
-    // Search filter
-    if (search) {
-      query.$or = [
-        { orderId: { $regex: search, $options: "i" } },
-        { invoiceNumber: { $regex: search, $options: "i" } },
-        { 'deliveryAddress.name': { $regex: search, $options: "i" } },
-        { 'deliveryAddress.phone': { $regex: search, $options: "i" } },
-      ];
-    }
-
-    // Pagination
-    const pageNum = parseInt(page as string);
-    const limitNum = parseInt(limit as string);
-    const skip = (pageNum - 1) * limitNum;
-
-    // Sort
-    const sort: any = {};
-    sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
-
-    // Get orders with populated customer and delivery info
-    const orders = await Order.find(query)
-      .populate("customer", "name email phone")
-      .populate("deliveryBoy", "name mobile")
-      .sort(sort)
-      .skip(skip)
-      .limit(limitNum);
-
-    // Get total count for pagination
-    const total = await Order.countDocuments(query);
-
-    // Format response for frontend
-    const formattedOrders = orders.map(order => ({
-      id: order._id,
-      orderId: order.orderNumber,
-      deliveryDate: order.estimatedDeliveryDate
-        ? order.estimatedDeliveryDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
-        : order.orderDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-      orderDate: order.orderDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }),
-      status: order.status === 'On the way' ? 'On the way' : order.status,
-      amount: order.total,
-      customerName: (order.customer as any)?.name || order.customerName || '',
-      customerPhone: (order.customer as any)?.phone || order.customerPhone || '',
-      deliveryBoyName: (order.deliveryBoy as any)?.name || '',
-    }));
-
-    return res.status(200).json({
-      success: true,
-      message: "Orders fetched successfully",
-      data: formattedOrders,
-      pagination: {
-        page: pageNum,
-        limit: limitNum,
-        total,
-        pages: Math.ceil(total / limitNum),
-      },
-    });
   }
-);
+
+  // Search filter
+  if (search) {
+    query.$or = [
+      { orderNumber: { $regex: search, $options: "i" } },
+      { invoiceNumber: { $regex: search, $options: "i" } },
+      { "deliveryAddress.name": { $regex: search, $options: "i" } },
+      { "deliveryAddress.phone": { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Pagination
+  const pageNum = parseInt(page as string);
+  const limitNum = parseInt(limit as string);
+  const skip = (pageNum - 1) * limitNum;
+
+  // Sort
+  const sort: any = {};
+  sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
+
+  // Get orders with populated customer and delivery info
+  const orders = await Order.find(query)
+    .populate("customer", "name email phone")
+    .populate("deliveryBoy", "name mobile")
+    .sort(sort)
+    .skip(skip)
+    .limit(limitNum);
+
+  // Get total count for pagination
+  const total = await Order.countDocuments(query);
+
+  // Format response for frontend
+  const formattedOrders = orders.map((order) => ({
+    id: order._id,
+    orderId: order.orderNumber,
+    deliveryDate: order.estimatedDeliveryDate
+      ? order.estimatedDeliveryDate.toLocaleDateString("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        })
+      : order.orderDate.toLocaleDateString("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        }),
+    orderDate: order.orderDate.toLocaleString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    status: order.status === "On the way" ? "On the way" : order.status,
+    amount: order.total,
+    customerName: (order.customer as any)?.name || order.customerName || "",
+    customerPhone: (order.customer as any)?.phone || order.customerPhone || "",
+    deliveryBoyName: (order.deliveryBoy as any)?.name || "",
+    deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
+  }));
+
+  return res.status(200).json({
+    success: true,
+    message: "Orders fetched successfully",
+    data: formattedOrders,
+    pagination: {
+      page: pageNum,
+      limit: limitNum,
+      total,
+      pages: Math.ceil(total / limitNum),
+    },
+  });
+});
 
 /**
  * Get order by ID with populated order items, customer, and delivery info
@@ -152,8 +175,8 @@ export const getOrderById = asyncHandler(
 
     // Format order items for frontend
     // Format order items for frontend
-    const formattedItems = orderItems.map(item => {
-      let unit = item.variation || 'N/A';
+    const formattedItems = orderItems.map((item) => {
+      let unit = item.variation || "N/A";
       let variationMatched = false;
 
       // Try to resolve variation value from product if it exists
@@ -162,12 +185,16 @@ export const getOrderById = asyncHandler(
       if (product && product.variations && Array.isArray(product.variations)) {
         // 1. Try to match by ID or Value if validation is present
         if (item.variation) {
-          const variationById = product.variations.find((v: any) => v._id.toString() === item.variation);
+          const variationById = product.variations.find(
+            (v: any) => v._id.toString() === item.variation,
+          );
           if (variationById) {
             unit = variationById.value;
             variationMatched = true;
           } else {
-            const variationByValue = product.variations.find((v: any) => v.value === item.variation);
+            const variationByValue = product.variations.find(
+              (v: any) => v.value === item.variation,
+            );
             if (variationByValue) {
               unit = variationByValue.value;
               variationMatched = true;
@@ -177,7 +204,10 @@ export const getOrderById = asyncHandler(
 
         // 2. Fallback: If not matched yet (even if we have a value like '250'), try to recover
         if (!variationMatched) {
-          const variationByPrice = product.variations.find((v: any) => v.price === item.unitPrice || v.discPrice === item.unitPrice);
+          const variationByPrice = product.variations.find(
+            (v: any) =>
+              v.price === item.unitPrice || v.discPrice === item.unitPrice,
+          );
           if (variationByPrice) {
             unit = variationByPrice.value;
             variationMatched = true;
@@ -190,8 +220,8 @@ export const getOrderById = asyncHandler(
 
       return {
         srNo: item._id.toString().slice(-4), // Use last 4 chars of ID as srNo
-        product: item.productName || 'Unknown Product',
-        soldBy: (item.seller as any)?.storeName || 'N/A',
+        product: item.productName || "Unknown Product",
+        soldBy: (item.seller as any)?.storeName || "N/A",
         unit: unit,
         price: item.unitPrice || 0,
         tax: 0,
@@ -204,22 +234,28 @@ export const getOrderById = asyncHandler(
     // Format order data for frontend
     const orderDetail = {
       id: order._id,
-      invoiceNumber: order.invoiceNumber || order.orderNumber || 'N/A',
-      orderDate: order.orderDate ? order.orderDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      deliveryDate: order.estimatedDeliveryDate ? order.estimatedDeliveryDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      timeSlot: order.timeSlot || 'N/A',
-      status: order.status === 'On the way' ? 'Out For Delivery' : order.status,
-      customerName: (order.customer as any)?.name || order.customerName || '',
-      customerEmail: (order.customer as any)?.email || order.customerEmail || '',
-      customerPhone: (order.customer as any)?.phone || order.customerPhone || '',
-      deliveryBoyName: (order.deliveryBoy as any)?.name || '',
-      deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || '',
+      invoiceNumber: order.invoiceNumber || order.orderNumber || "N/A",
+      orderDate: order.orderDate
+        ? order.orderDate.toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      deliveryDate: order.estimatedDeliveryDate
+        ? order.estimatedDeliveryDate.toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      timeSlot: order.timeSlot || "N/A",
+      status: order.status === "On the way" ? "Out For Delivery" : order.status,
+      customerName: (order.customer as any)?.name || order.customerName || "",
+      customerEmail:
+        (order.customer as any)?.email || order.customerEmail || "",
+      customerPhone:
+        (order.customer as any)?.phone || order.customerPhone || "",
+      deliveryBoyName: (order.deliveryBoy as any)?.name || "",
+      deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
       items: formattedItems,
       subtotal: order.subtotal || 0,
       tax: order.tax || 0,
       grandTotal: order.total || 0,
-      paymentMethod: order.paymentMethod || 'N/A',
-      paymentStatus: order.paymentStatus || 'Pending',
+      paymentMethod: order.paymentMethod || "N/A",
+      paymentStatus: order.paymentStatus || "Pending",
       deliveryAddress: order.deliveryAddress || {},
     };
 
@@ -228,7 +264,7 @@ export const getOrderById = asyncHandler(
       message: "Order details fetched successfully",
       data: orderDetail,
     });
-  }
+  },
 );
 
 /**
@@ -241,21 +277,31 @@ export const updateOrderStatus = asyncHandler(
     const { status } = req.body;
 
     // Validate allowed status updates for seller
-    const allowedStatuses = ['Accepted', 'On the way', 'Delivered', 'Cancelled', 'Rejected'];
+    const allowedStatuses = [
+      "Accepted",
+      "On the way",
+      "Delivered",
+      "Cancelled",
+      "Rejected",
+    ];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid status. Seller can only update to: ${allowedStatuses.join(', ')}`,
+        message: `Invalid status. Seller can only update to: ${allowedStatuses.join(", ")}`,
       });
     }
 
     // Check if this seller has items in this order
-    const sellerItems = await OrderItem.findOne({ order: id, seller: sellerId });
+    const sellerItems = await OrderItem.findOne({
+      order: id,
+      seller: sellerId,
+    });
 
     if (!sellerItems) {
       return res.status(404).json({
         success: false,
-        message: "Order not found or you are not authorized to manage this order",
+        message:
+          "Order not found or you are not authorized to manage this order",
       });
     }
 
@@ -281,39 +327,54 @@ export const updateOrderStatus = asyncHandler(
     await order.save();
 
     // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery)
-    if (status === 'Accepted' && previousStatus !== 'Accepted' && order.deliveryOption === 'Instant') {
+    if (
+      status === "Accepted" &&
+      previousStatus !== "Accepted" &&
+      order.deliveryOption === "Instant"
+    ) {
       try {
-        console.log(`\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`);
-        const io: SocketIOServer = (req.app.get("io") as SocketIOServer);
+        console.log(
+          `\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`,
+        );
+        const io: SocketIOServer = req.app.get("io") as SocketIOServer;
         if (io) {
           // Need to fetch full order with details for the notification service
           const fullOrder = await Order.findById(order._id)
             .populate({
-              path: 'items',
-              populate: { path: 'seller' }
+              path: "items",
+              populate: { path: "seller" },
             })
             .lean();
 
           if (fullOrder) {
             await notifyDeliveryBoysOfNewOrder(io, fullOrder);
-            console.log(`✅ [SELLER] Delivery notification broadcast initiated for ${order.orderNumber}`);
+            console.log(
+              `✅ [SELLER] Delivery notification broadcast initiated for ${order.orderNumber}`,
+            );
           } else {
-            console.error(`❌ [SELLER] Could not fetch full order details for ${order._id}`);
+            console.error(
+              `❌ [SELLER] Could not fetch full order details for ${order._id}`,
+            );
           }
         } else {
           console.error(`❌ [SELLER] Socket.io instance (io) not found in app`);
         }
       } catch (notifyError) {
-        console.error('❌ [SELLER ERROR] Error notifying delivery boys:', notifyError);
+        console.error(
+          "❌ [SELLER ERROR] Error notifying delivery boys:",
+          notifyError,
+        );
       }
     } else {
-      if (status === 'Accepted') {
-        console.log(`ℹ️ [SELLER] Order ${order.orderNumber} accepted, but broadcast skipped. Type: ${order.deliveryOption}, Prev Status: ${previousStatus}`);
+      if (status === "Accepted") {
+        console.log(
+          `ℹ️ [SELLER] Order ${order.orderNumber} accepted, but broadcast skipped. Type: ${order.deliveryOption}, Prev Status: ${previousStatus}`,
+        );
       }
     }
 
     // If order is delivered, credit seller's balance
-    if (status === 'Delivered' && previousStatus !== 'Delivered') {
+    if (status === "Delivered" && previousStatus !== "Delivered") {
       const seller = await Seller.findById(sellerId);
       if (seller) {
         // Calculate net earning (sale amount - commission)
@@ -329,10 +390,10 @@ export const updateOrderStatus = asyncHandler(
         await WalletTransaction.create({
           sellerId,
           amount: netEarning,
-          type: 'Credit',
+          type: "Credit",
           description: `Earnings from Order #${order.orderNumber}`,
           reference: `ORD-${order.orderNumber}-${Date.now()}`,
-          status: 'Completed'
+          status: "Completed",
         });
       }
     }
@@ -345,5 +406,5 @@ export const updateOrderStatus = asyncHandler(
         status: order.status,
       },
     });
-  }
+  },
 );

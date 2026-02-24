@@ -5,6 +5,8 @@ import Otp from '../models/Otp';
 const SMS_INDIA_HUB_API_KEY = process.env.SMS_INDIA_HUB_API_KEY;
 const SMS_INDIA_HUB_SENDER_ID = process.env.SMS_INDIA_HUB_SENDER_ID;
 const SMS_INDIA_HUB_DLT_TEMPLATE_ID = process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID;
+// Set this to your EXACT DLT-registered template text, using {OTP} as the placeholder
+const SMS_INDIA_HUB_DLT_TEMPLATE_TEXT = process.env.SMS_INDIA_HUB_DLT_TEMPLATE_TEXT;
 const SMS_INDIA_HUB_API_URL = 'http://cloud.smsindiahub.in/vendorsms/pushsms.aspx';
 const API_TIMEOUT = 30000; // 30 seconds
 
@@ -71,9 +73,19 @@ function normalizeMobileNumber(mobile: string): string {
 
 /**
  * Build DLT-compliant message
+ * Uses SMS_INDIA_HUB_DLT_TEMPLATE_TEXT env var if set (replace {OTP} with the actual code).
+ * The template text must EXACTLY match what is registered on the SMS India HUB DLT portal.
  */
 function buildOtpMessage(otp: string): string {
-  const appName = process.env.APP_NAME || 'dhakadsnazzy';
+  const appName = process.env.APP_NAME || 'Dhakad Snazzy';
+
+  if (SMS_INDIA_HUB_DLT_TEMPLATE_TEXT && SMS_INDIA_HUB_DLT_TEMPLATE_TEXT.trim()) {
+    return SMS_INDIA_HUB_DLT_TEMPLATE_TEXT
+      .trim()
+      .replace(/{APP_NAME}/g, appName)
+      .replace(/{OTP}/g, otp);
+  }
+
   return `Welcome to the ${appName} powered by SMSINDIAHUB. Your OTP for registration is ${otp}`;
 }
 
@@ -128,6 +140,22 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
   if (SMS_INDIA_HUB_DLT_TEMPLATE_ID?.trim()) {
     params.DLT_TE_ID = SMS_INDIA_HUB_DLT_TEMPLATE_ID.trim();
   }
+
+  // Add Entity ID (PE ID) if available
+  const entityId = process.env.SMS_INDIA_HUB_ENTITY_ID;
+  if (entityId?.trim()) {
+    params.EntityId = entityId.trim();
+  }
+
+  // Debug logging for DLT Template issues
+  console.log('--- SMS DLT Debug Info ---');
+  console.log('Template ID:', params.DLT_TE_ID);
+  console.log('Entity ID (PE ID):', params.EntityId);
+  console.log('Message Content:', params.msg);
+  console.log('Sender ID:', params.sid);
+  console.log('Mobile:', params.msisdn);
+  console.log('gwid:', params.gwid);
+  console.log('--------------------------');
 
   const response = await axios.get<SmsIndiaHubResponse>(SMS_INDIA_HUB_API_URL, {
     params,

@@ -27,7 +27,16 @@ export const getAllOrders = asyncHandler(
 
     const query: any = {};
 
-    if (status) query.status = status;
+    if (status) {
+      if (status === "Tracking") {
+        query.deliveryBoy = { $exists: true, $ne: null };
+        query.status = {
+          $nin: ["Delivered", "Cancelled", "Rejected", "Returned"],
+        };
+      } else {
+        query.status = status;
+      }
+    }
     if (paymentStatus) query.paymentStatus = paymentStatus;
     if (dateFrom || dateTo) {
       query.orderDate = {};
@@ -55,7 +64,13 @@ export const getAllOrders = asyncHandler(
       Order.find(query)
         .populate("customer", "name email phone")
         .populate("deliveryBoy", "name mobile")
-        .populate("items")
+        .populate({
+          path: "items",
+          populate: {
+            path: "seller",
+            select: "sellerName storeName",
+          },
+        })
         .sort({ orderDate: -1 })
         .skip(skip)
         .limit(parseInt(limit as string)),
@@ -73,7 +88,7 @@ export const getAllOrders = asyncHandler(
         pages: Math.ceil(total / parseInt(limit as string)),
       },
     });
-  }
+  },
 );
 
 /**
@@ -113,7 +128,7 @@ export const getOrderById = asyncHandler(
       message: "Order fetched successfully",
       data: order,
     });
-  }
+  },
 );
 
 /**
@@ -173,7 +188,6 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
-
     // Trigger notification if status is "Processed" (Confirmed) or if paymentStatus changed to "Paid"
     if (status === "Processed" || order.paymentStatus === "Paid") {
       const io: SocketIOServer = req.app.get("io");
@@ -184,7 +198,8 @@ export const updateOrderStatus = asyncHandler(
 
     // Distribute commissions if order is delivered
     if (status === "Delivered") {
-      const { distributeCommissions } = await import("../../../services/commissionService");
+      const { distributeCommissions } =
+        await import("../../../services/commissionService");
       try {
         await distributeCommissions(id);
       } catch (error) {
@@ -197,7 +212,7 @@ export const updateOrderStatus = asyncHandler(
       message: "Order status updated successfully",
       data: order,
     });
-  }
+  },
 );
 
 /**
@@ -255,7 +270,7 @@ export const assignDeliveryBoy = asyncHandler(
         assignedBy: req.user?.userId,
         status: "Assigned",
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     const updatedOrder = await Order.findById(id)
@@ -274,7 +289,7 @@ export const assignDeliveryBoy = asyncHandler(
       message: "Delivery boy assigned successfully",
       data: updatedOrder,
     });
-  }
+  },
 );
 
 /**
@@ -331,7 +346,7 @@ export const getOrdersByStatus = asyncHandler(
         pages: Math.ceil(total / parseInt(limit as string)),
       },
     });
-  }
+  },
 );
 
 /**
@@ -451,7 +466,7 @@ export const getReturnRequests = asyncHandler(
         pages: Math.ceil(total / parseInt(limit as string)),
       },
     });
-  }
+  },
 );
 
 /**
@@ -485,7 +500,7 @@ export const getReturnRequestById = asyncHandler(
       message: "Return request details fetched successfully",
       data: returnRequest,
     });
-  }
+  },
 );
 
 /**
@@ -539,11 +554,12 @@ export const processReturnRequest = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: `Return request ${status ? status.toLowerCase() : "updated"
-        } successfully`,
+      message: `Return request ${
+        status ? status.toLowerCase() : "updated"
+      } successfully`,
       data: updatedReturn,
     });
-  }
+  },
 );
 
 /**
@@ -602,8 +618,8 @@ export const exportOrders = asyncHandler(
     res.setHeader("Content-Type", "text/csv");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=orders_${Date.now()}.csv`
+      `attachment; filename=orders_${Date.now()}.csv`,
     );
     res.send(csvContent);
-  }
+  },
 );

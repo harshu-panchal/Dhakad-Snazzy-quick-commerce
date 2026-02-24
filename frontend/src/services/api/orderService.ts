@@ -16,6 +16,7 @@ export interface Order {
   customerName?: string;
   customerPhone?: string;
   deliveryBoyName?: string;
+  deliveryBoyPhone?: string;
 }
 
 export interface OrderItem {
