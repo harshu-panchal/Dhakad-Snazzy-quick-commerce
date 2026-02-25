@@ -119,6 +119,9 @@ export default function Checkout() {
     "Online",
   );
 
+  // Order Processing State
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+
   // Razorpay Payment State
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
@@ -206,7 +209,7 @@ export default function Checkout() {
               typeof product.categoryId === "string"
                 ? product.categoryId
                 : (product.categoryId as any)._id ||
-                (product.categoryId as any).id;
+                  (product.categoryId as any).id;
           }
 
           if (catId) {
@@ -271,19 +274,36 @@ export default function Checkout() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
         <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-6">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-neutral-400">
-            <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-            <path d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="text-neutral-400">
+            <path
+              d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
           </svg>
         </div>
-        <h2 className="text-xl font-bold text-neutral-900 mb-2">Your cart is empty</h2>
+        <h2 className="text-xl font-bold text-neutral-900 mb-2">
+          Your cart is empty
+        </h2>
         <p className="text-neutral-500 text-center mb-8 max-w-xs">
           Looks like you haven't added anything to your cart yet.
         </p>
         <button
           onClick={() => navigate("/")}
-          className="bg-green-600 text-white font-semibold py-3 px-8 rounded-lg hover:bg-green-700 transition-colors"
-        >
+          className="bg-green-600 text-white font-semibold py-3 px-8 rounded-lg hover:bg-green-700 transition-colors">
           Start Shopping
         </button>
       </div>
@@ -376,11 +396,11 @@ export default function Checkout() {
   const grandTotal = Math.max(
     0,
     discountedTotal +
-    handlingCharge +
-    deliveryCharge +
-    finalTipAmount +
-    giftPackagingFee -
-    currentCouponDiscount,
+      handlingCharge +
+      deliveryCharge +
+      finalTipAmount +
+      giftPackagingFee -
+      currentCouponDiscount,
   );
 
   const handleApplyCoupon = async (coupon: ApiCoupon) => {
@@ -517,6 +537,7 @@ export default function Checkout() {
       deliveryOption: deliveryOption,
     };
 
+    setIsProcessingOrder(true);
     try {
       // Create the order
       const placedId = await addOrder(order);
@@ -543,6 +564,8 @@ export default function Checkout() {
         error.response?.data?.message ||
         "Failed to place order. Please try again.";
       alert(errorMessage);
+    } finally {
+      setIsProcessingOrder(false);
     }
   };
 
@@ -599,7 +622,10 @@ export default function Checkout() {
       showGlobalToast("Location and address updated successfully!");
     } catch (err: any) {
       console.error(err);
-      showGlobalToast(err.response?.data?.message || 'Failed to update location', 'error');
+      showGlobalToast(
+        err.response?.data?.message || "Failed to update location",
+        "error",
+      );
     } finally {
       setIsUpdatingLocation(false);
     }
@@ -646,7 +672,7 @@ export default function Checkout() {
     } catch (error: any) {
       setProfileError(
         error.response?.data?.message ||
-        "Failed to update profile. Please try again.",
+          "Failed to update profile. Please try again.",
       );
     } finally {
       setIsUpdatingProfile(false);
@@ -742,12 +768,13 @@ export default function Checkout() {
                       !profileFormData.name.trim() ||
                       !profileFormData.email.trim()
                     }
-                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${isUpdatingProfile ||
+                    className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+                      isUpdatingProfile ||
                       !profileFormData.name.trim() ||
                       !profileFormData.email.trim()
-                      ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                      : "bg-green-600 text-white hover:bg-green-700"
-                      }`}>
+                        ? "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}>
                     {isUpdatingProfile ? "Saving..." : "Save & Continue"}
                   </button>
                 </div>
@@ -980,170 +1007,78 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Ordering for someone else */}
-      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 bg-neutral-50 border-b border-neutral-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-neutral-700">
-            Ordering for someone else?
-          </span>
+      {/* Saved Address Section */}
+      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200">
+        <div className="mb-2">
+          <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
+            Delivery Address
+          </h3>
+          <p className="text-[10px] text-neutral-600">
+            Set precise location for faster delivery
+          </p>
+        </div>
+
+        {/* Set Location on Map Button */}
+        <div className="mt-2.5">
           <button
-            onClick={() =>
-              navigate("/checkout/address", {
-                state: {
-                  editAddress: savedAddress,
-                },
-              })
-            }
-            className="text-xs text-green-600 font-medium hover:text-green-700 transition-colors">
-            Add details
+            onClick={() => {
+              // Prioritize saved address if available, then current GPS location (matches homepage header)
+              setMapLocation({
+                lat: selectedAddress?.latitude || userLocation?.latitude || 0,
+                lng: selectedAddress?.longitude || userLocation?.longitude || 0,
+              });
+              setShowMapPicker(true);
+            }}
+            className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${
+              isMapSelected
+                ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
+                : "text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400"
+            }`}>
+            {isMapSelected ? (
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            ) : (
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle
+                  cx="12"
+                  cy="10"
+                  r="3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+            {isMapSelected
+              ? "Precise Location Selected"
+              : selectedAddress?.latitude
+                ? "Update Precise Location on Map"
+                : "Set Exact Location on Map"}
           </button>
         </div>
       </div>
-
-      {/* Saved Address Section */}
-      {savedAddress && (
-        <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200">
-          <div className="mb-2">
-            <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
-              Delivery Address
-            </h3>
-            <p className="text-[10px] text-neutral-600">
-              Select or edit your saved address
-            </p>
-          </div>
-
-          <div
-            className={`border rounded-lg p-2.5 cursor-pointer transition-all ${selectedAddress && !isMapSelected
-              ? "border-green-600 bg-green-50"
-              : "border-neutral-300 bg-white"
-              }`}
-            onClick={() => {
-              setSelectedAddress(savedAddress);
-              setIsMapSelected(false);
-            }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <div
-                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAddress && !isMapSelected
-                      ? "border-green-600 bg-green-600"
-                      : "border-neutral-400"
-                      }`}>
-                    {selectedAddress && !isMapSelected && (
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg">
-                        <path
-                          d="M20 6L9 17l-5-5"
-                          stroke="white"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  <span className="text-xs font-semibold text-neutral-900">
-                    {savedAddress.name}
-                  </span>
-                </div>
-                <p className="text-[10px] text-neutral-600 mb-0.5">
-                  {savedAddress.phone}
-                </p>
-                <p className="text-[10px] text-neutral-600">
-                  {savedAddress.flat ? `${savedAddress.flat}, ` : ""}
-                  {savedAddress.street}
-                  {savedAddress.landmark ? (
-                    <>
-                      ,{" "}
-                      <span className="font-medium text-green-700">
-                        Near {savedAddress.landmark}
-                      </span>
-                    </>
-                  ) : (
-                    ""
-                  )}
-                  , {savedAddress.city} - {savedAddress.pincode}
-                </p>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate("/checkout/address", {
-                    state: {
-                      editAddress: savedAddress,
-                    },
-                  });
-                }}
-                className="text-xs text-green-600 font-medium ml-2">
-                Edit
-              </button>
-            </div>
-          </div>
-          {/* Set Location on Map Button */}
-          <div className="mt-2.5">
-            <button
-              onClick={() => {
-                // Prioritize saved address if available, then current GPS location (matches homepage header)
-                setMapLocation({
-                  lat: selectedAddress?.latitude || userLocation?.latitude || 0,
-                  lng: selectedAddress?.longitude || userLocation?.longitude || 0,
-                });
-                setShowMapPicker(true);
-              }}
-              className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${isMapSelected
-                ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
-                : "text-green-600 hover:text-green-700 bg-green-50 border-2 border-green-300 hover:bg-green-100 hover:border-green-400"
-                }`}>
-              {isMapSelected ? (
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
-              ) : (
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <circle
-                    cx="12"
-                    cy="10"
-                    r="3"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              )}
-              {isMapSelected
-                ? "Precise Location Selected"
-                : selectedAddress?.latitude
-                  ? "Update Precise Location on Map"
-                  : "Set Exact Location on Map"}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Product Card */}
       <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 bg-white border-b border-neutral-200">
@@ -1642,10 +1577,11 @@ export default function Checkout() {
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => setDeliveryOption("Standard")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${deliveryOption === "Standard"
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-              }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              deliveryOption === "Standard"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Standard" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1665,15 +1601,18 @@ export default function Checkout() {
               </svg>
             </div>
             <span className="text-xs font-bold">Standard Delivery</span>
-            <p className="text-[8px] mt-0.5 opacity-70">(Expected in 30-45 mins)</p>
+            <p className="text-[8px] mt-0.5 opacity-70">
+              (Expected in 2-4 days)
+            </p>
           </button>
 
           <button
             onClick={() => setDeliveryOption("Instant")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${deliveryOption === "Instant"
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-              }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              deliveryOption === "Instant"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1689,7 +1628,9 @@ export default function Checkout() {
               </svg>
             </div>
             <span className="text-xs font-bold">Instant Delivery</span>
-            <p className="text-[8px] mt-0.5 opacity-70">(Expected in 10-15 mins)</p>
+            <p className="text-[8px] mt-0.5 opacity-70">
+              (Expected in 10-15 mins)
+            </p>
           </button>
         </div>
       </div>
@@ -1702,10 +1643,11 @@ export default function Checkout() {
         <div className="grid grid-cols-2 gap-3">
           <button
             onClick={() => setPaymentMethod("Online")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === "Online"
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-              }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              paymentMethod === "Online"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "Online" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1729,10 +1671,11 @@ export default function Checkout() {
 
           <button
             onClick={() => setPaymentMethod("COD")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === "COD"
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-              }`}>
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+              paymentMethod === "COD"
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+            }`}>
             <div
               className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "COD" ? "bg-green-600" : "bg-neutral-100"}`}>
               <svg
@@ -1985,10 +1928,11 @@ export default function Checkout() {
               setTipAmount(20);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 20 && !showCustomTipInput
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-300 bg-white text-neutral-700"
-              }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 20 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             😊 ₹20
           </button>
           <button
@@ -1996,10 +1940,11 @@ export default function Checkout() {
               setTipAmount(30);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 30 && !showCustomTipInput
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-300 bg-white text-neutral-700"
-              }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 30 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             🤩 ₹30
           </button>
           <button
@@ -2007,10 +1952,11 @@ export default function Checkout() {
               setTipAmount(50);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${tipAmount === 50 && !showCustomTipInput
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-300 bg-white text-neutral-700"
-              }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              tipAmount === 50 && !showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             😍 ₹50
           </button>
           <button
@@ -2018,10 +1964,11 @@ export default function Checkout() {
               setShowCustomTipInput(true);
               setTipAmount(null);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${showCustomTipInput
-              ? "border-green-600 bg-green-50 text-green-700"
-              : "border-neutral-300 bg-white text-neutral-700"
-              }`}>
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+              showCustomTipInput
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-neutral-300 bg-white text-neutral-700"
+            }`}>
             🎁 Custom
           </button>
         </div>
@@ -2066,16 +2013,18 @@ export default function Checkout() {
       <div className="px-4 py-2 border-b border-neutral-200">
         <button
           onClick={() => setGiftPackaging(!giftPackaging)}
-          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${giftPackaging
-            ? "bg-green-50 border-2 border-green-600"
-            : "bg-neutral-50 border-2 border-transparent hover:bg-neutral-100"
-            }`}>
+          className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${
+            giftPackaging
+              ? "bg-green-50 border-2 border-green-600"
+              : "bg-neutral-50 border-2 border-transparent hover:bg-neutral-100"
+          }`}>
           <div className="flex items-center gap-2">
             <div
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${giftPackaging
-                ? "border-green-600 bg-green-600"
-                : "border-neutral-400 bg-white"
-                }`}>
+              className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                giftPackaging
+                  ? "border-green-600 bg-green-600"
+                  : "border-neutral-400 bg-white"
+              }`}>
               {giftPackaging && (
                 <svg
                   width="12"
@@ -2354,12 +2303,13 @@ export default function Checkout() {
                   return (
                     <div
                       key={coupon._id}
-                      className={`border-2 rounded-lg p-2.5 transition-all ${isSelected
-                        ? "border-green-600 bg-green-50"
-                        : meetsMinOrder
-                          ? "border-neutral-200 bg-white"
-                          : "border-neutral-200 bg-neutral-50 opacity-60"
-                        }`}>
+                      className={`border-2 rounded-lg p-2.5 transition-all ${
+                        isSelected
+                          ? "border-green-600 bg-green-50"
+                          : meetsMinOrder
+                            ? "border-neutral-200 bg-white"
+                            : "border-neutral-200 bg-neutral-50 opacity-60"
+                      }`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
@@ -2403,10 +2353,11 @@ export default function Checkout() {
                               meetsMinOrder && handleApplyCoupon(coupon)
                             }
                             disabled={!meetsMinOrder || isValidatingCoupon}
-                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${meetsMinOrder
-                              ? "bg-green-600 text-white hover:bg-green-700"
-                              : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                              }`}>
+                            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                              meetsMinOrder
+                                ? "bg-green-600 text-white hover:bg-green-700"
+                                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                            }`}>
                             {isValidatingCoupon ? "..." : "Apply"}
                           </button>
                         )}
@@ -2425,24 +2376,26 @@ export default function Checkout() {
         {selectedAddress ? (
           <button
             onClick={handlePlaceOrder}
-            disabled={cart.items.length === 0}
-            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${cart.items.length > 0
-              ? "bg-green-600 text-white hover:bg-green-700"
-              : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-              }`}>
-            Place Order
+            disabled={cart.items.length === 0 || isProcessingOrder}
+            className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
+              cart.items.length > 0 && !isProcessingOrder
+                ? "bg-green-600 text-white hover:bg-green-700"
+                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+            }`}>
+            {isProcessingOrder ? "Processing..." : "Place Order"}
           </button>
         ) : (
           <button
-            onClick={() =>
-              navigate("/checkout/address", {
-                state: {
-                  editAddress: savedAddress,
-                },
-              })
-            }
+            onClick={() => {
+              // Prioritize current GPS location
+              setMapLocation({
+                lat: userLocation?.latitude || 0,
+                lng: userLocation?.longitude || 0,
+              });
+              setShowMapPicker(true);
+            }}
             className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors">
-            Choose address at next step
+            Set location on map to proceed
           </button>
         )}
       </div>
