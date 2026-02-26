@@ -81,6 +81,9 @@ export const getAllDeliveryBoys = asyncHandler(
 
     if (status) query.status = status;
     if (available) query.available = available;
+    if (req.query.isOnline !== undefined) {
+      query.isOnline = req.query.isOnline === "true";
+    }
     if (search) {
       query.$or = [
         { name: { $regex: search as string, $options: "i" } },

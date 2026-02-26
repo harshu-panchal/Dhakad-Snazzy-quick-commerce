@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
-import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller } from '../../../services/api/sellerService';
+import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerCategoryCommissions } from '../../../services/api/sellerService';
+import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/headerCategoryService';
 import SellerServiceMap from '../components/SellerServiceMap';
 
 interface Seller {
@@ -15,6 +16,10 @@ interface Seller {
     balance: number;
     commission: number;
     categories: string[];
+    categoryCommissions?: Array<{
+        headerCategory: string;
+        commissionRate: number;
+    }>;
     status: 'Approved' | 'Pending' | 'Rejected';
     needApproval: boolean;
     // Additional fields from signup
@@ -56,6 +61,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         balance: seller.balance || 0,
         commission: seller.commission || 0,
         categories: seller.categories || [],
+        categoryCommissions: seller.categoryCommissions || [],
         status: seller.status,
         needApproval: seller.status === 'Pending',
         category: seller.category,
@@ -108,6 +114,14 @@ export default function AdminManageSellerList() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isUpdatingRadius, setIsUpdatingRadius] = useState(false);
     const [newRadius, setNewRadius] = useState<number>(10);
+
+    // Category Commission Modal state
+    const [commissionModalSeller, setCommissionModalSeller] = useState<Seller | null>(null);
+    const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
+    const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
+    const [commissionRates, setCommissionRates] = useState<Record<string, number>>({});
+    const [isSavingCommissions, setIsSavingCommissions] = useState(false);
+    const [commissionSuccess, setCommissionSuccess] = useState('');
 
     // Fetch sellers from backend
     useEffect(() => {
@@ -264,6 +278,73 @@ export default function AdminManageSellerList() {
             setTimeout(() => setError(''), 3000);
         } finally {
             setIsUpdatingRadius(false);
+        }
+    };
+
+    const handleOpenCommissionModal = async (seller: Seller) => {
+        setCommissionModalSeller(seller);
+        setIsCommissionModalOpen(true);
+        setCommissionSuccess('');
+
+        // Fetch header categories
+        try {
+            const hcList = await getHeaderCategoriesAdmin();
+            setHeaderCategories(hcList);
+
+            // Initialize rates from seller's existing categoryCommissions
+            const rates: Record<string, number> = {};
+            hcList.forEach(hc => {
+                const existing = seller.categoryCommissions?.find(
+                    cc => cc.headerCategory === hc._id
+                );
+                rates[hc._id] = existing?.commissionRate ?? 0;
+            });
+            setCommissionRates(rates);
+        } catch (err) {
+            console.error('Error fetching header categories:', err);
+            setHeaderCategories([]);
+        }
+    };
+
+    const handleSaveCommissions = async () => {
+        if (!commissionModalSeller) return;
+
+        try {
+            setIsSavingCommissions(true);
+            const categoryCommissions = Object.entries(commissionRates).map(
+                ([headerCategory, commissionRate]) => ({
+                    headerCategory,
+                    commissionRate,
+                })
+            );
+
+            const response = await updateSellerCategoryCommissions(
+                commissionModalSeller._id,
+                categoryCommissions
+            );
+
+            if (response.success) {
+                // Update local seller data
+                setSellers(prev =>
+                    prev.map(s =>
+                        s._id === commissionModalSeller._id
+                            ? { ...s, categoryCommissions }
+                            : s
+                    )
+                );
+                setCommissionModalSeller({
+                    ...commissionModalSeller,
+                    categoryCommissions,
+                });
+                setCommissionSuccess('Commissions saved successfully!');
+                setTimeout(() => setCommissionSuccess(''), 3000);
+            }
+        } catch (err: any) {
+            console.error('Error saving commissions:', err);
+            setError(err.response?.data?.message || 'Failed to save commissions');
+            setTimeout(() => setError(''), 3000);
+        } finally {
+            setIsSavingCommissions(false);
         }
     };
 
@@ -524,7 +605,15 @@ export default function AdminManageSellerList() {
                                     {displayedSellers.map((seller) => (
                                         <tr key={seller._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
                                             <td className="p-4 align-middle">{seller.id || seller._id.slice(-6)}</td>
-                                            <td className="p-4 align-middle">{seller.name}</td>
+                                            <td className="p-4 align-middle">
+                                                <button
+                                                    onClick={() => handleOpenCommissionModal(seller)}
+                                                    className="text-teal-700 hover:text-teal-900 font-medium hover:underline transition-colors text-left"
+                                                    title="Click to manage category commissions"
+                                                >
+                                                    {seller.name}
+                                                </button>
+                                            </td>
                                             <td className="p-4 align-middle">{seller.storeName}</td>
                                             <td className="p-4 align-middle">
                                                 <div className="text-xs">
@@ -1052,6 +1141,111 @@ export default function AdminManageSellerList() {
                                 className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded text-sm font-medium transition-colors"
                             >
                                 Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Category Commission Modal */}
+            {isCommissionModalOpen && commissionModalSeller && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                        {/* Header */}
+                        <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-neutral-900">Category Commissions</h3>
+                                <p className="text-sm text-neutral-500 mt-0.5">
+                                    {commissionModalSeller.name} — {commissionModalSeller.storeName}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => { setIsCommissionModalOpen(false); setCommissionModalSeller(null); setCommissionSuccess(''); }}
+                                className="text-neutral-400 hover:text-neutral-600 transition-colors"
+                            >
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto px-6 py-4">
+                            {commissionSuccess && (
+                                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+                                    {commissionSuccess}
+                                </div>
+                            )}
+
+                            {headerCategories.length === 0 ? (
+                                <div className="text-center py-8 text-neutral-500">
+                                    <p>No header categories found.</p>
+                                    <p className="text-xs mt-1">Please add header categories first.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {headerCategories.map((hc) => (
+                                        <div
+                                            key={hc._id}
+                                            className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg border border-neutral-200"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center">
+                                                    <span className="text-teal-700 font-bold text-sm">
+                                                        {hc.name.charAt(0).toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-neutral-900">{hc.name}</p>
+                                                    <p className="text-xs text-neutral-500">{hc.status}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.5"
+                                                    value={commissionRates[hc._id] ?? 0}
+                                                    onChange={(e) => {
+                                                        const val = parseFloat(e.target.value) || 0;
+                                                        setCommissionRates(prev => ({ ...prev, [hc._id]: Math.min(100, Math.max(0, val)) }));
+                                                    }}
+                                                    className="w-20 px-3 py-2 border border-neutral-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                                                />
+                                                <span className="text-sm font-medium text-neutral-600">%</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-3">
+                            <button
+                                onClick={() => { setIsCommissionModalOpen(false); setCommissionModalSeller(null); setCommissionSuccess(''); }}
+                                className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveCommissions}
+                                disabled={isSavingCommissions || headerCategories.length === 0}
+                                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isSavingCommissions ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                        Saving...
+                                    </>
+                                ) : (
+                                    'Save Commissions'
+                                )}
                             </button>
                         </div>
                     </div>

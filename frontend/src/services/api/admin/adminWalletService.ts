@@ -17,9 +17,11 @@ export interface WalletTransaction {
   _id: string; // Mongoose ID
   type: string; // Credit/Debit
   userType: string;
+  userName?: string;
   amount: number;
   description: string;
   status: string;
+  reference: string;
   createdAt: string;
   relatedOrder?: { orderNumber: string };
 }
@@ -57,7 +59,38 @@ export interface SellerTransaction {
   description: string;
 }
 
+export interface WalletSummaryUser {
+  _id: string;
+  name: string;
+  mobile: string;
+  balance: number;
+  cashCollected: number;
+  profileImage?: string;
+}
+
 // API METHODS
+
+/**
+ * Get Wallet Summary (balances) for all Delivery Boys
+ */
+export const getWalletSummary = async (): Promise<ApiResponse<WalletSummaryUser[]>> => {
+  const response = await api.get<ApiResponse<WalletSummaryUser[]>>("/admin/wallet/summary");
+  return response.data;
+};
+
+/**
+ * Create Manual Transfer
+ */
+export const createManualTransfer = async (data: {
+  userId: string;
+  userType: 'DELIVERY_BOY' | 'SELLER';
+  amount: number;
+  type: 'Credit' | 'Debit';
+  description: string;
+}): Promise<ApiResponse<any>> => {
+  const response = await api.post<ApiResponse<any>>("/admin/wallet/transfer", data);
+  return response.data;
+};
 
 /**
  * Get Financial Dashboard Stats

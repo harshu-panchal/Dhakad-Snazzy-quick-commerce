@@ -357,8 +357,99 @@ export const processWithdrawalWrapper = asyncHandler(
     } else {
       return res.status(400).json({
         success: false,
-        message: 'Invalid action. Must be "Approve", "Reject", or "Complete"',
       });
     }
   },
 );
+
+/**
+ * Get Wallet Summary for all Delivery Boys (how much Admin owes them)
+ */
+export const getWalletSummary = asyncHandler(async (req: Request, res: Response) => {
+  const Delivery = (await import("../../../models/Delivery")).default;
+
+  const deliveryBoys = await Delivery.find({ status: "Active" })
+    .select("name mobile balance cashCollected profileImage")
+    .sort({ balance: -1 });
+
+  return res.status(200).json({
+    success: true,
+    data: deliveryBoys
+  });
+});
+
+/**
+ * Create Manual Wallet Transfer (Credit/Debit)
+ */
+export const createManualTransfer = asyncHandler(async (req: Request, res: Response) => {
+  const { userId, userType, amount, type, description } = req.body;
+
+  if (!userId || !userType || !amount || !type || !description) {
+    return res.status(400).json({
+      success: false,
+      message: "Required fields: userId, userType, amount, type, description"
+    });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    let user;
+    if (userType === 'DELIVERY_BOY') {
+      const Delivery = (await import("../../../models/Delivery")).default;
+      user = await Delivery.findById(userId).session(session);
+    } else {
+      const Seller = (await import("../../../models/Seller")).default;
+      user = await Seller.findById(userId).session(session);
+    }
+
+    if (!user) {
+      throw new Error(`${userType} not found`);
+    }
+
+    // Update balance
+    if (type === 'Credit') {
+      user.balance += amount;
+    } else {
+      if (user.balance < amount) {
+        throw new Error("Insufficient balance for debit");
+      }
+      user.balance -= amount;
+    }
+
+    await user.save({ session });
+
+    // Create transaction record
+    const reference = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    await WalletTransaction.create([{
+      userId,
+      userType,
+      amount,
+      type,
+      description,
+      status: 'Completed',
+      reference
+    }], { session });
+
+    await session.commitTransaction();
+
+    return res.status(201).json({
+      success: true,
+      message: "Transfer processed successfully",
+      data: {
+        newBalance: user.balance,
+        reference
+      }
+    });
+
+  } catch (error: any) {
+    await session.abortTransaction();
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to process transfer"
+    });
+  } finally {
+    session.endSession();
+  }
+});

@@ -7,18 +7,17 @@ import AppSettings from "../models/AppSettings";
 import { creditWallet } from "./walletManagementService";
 import mongoose from "mongoose";
 import Category from "../models/Category";
-import SubCategory from "../models/SubCategory";
 import Product from "../models/Product";
 import WalletTransaction from "../models/WalletTransaction";
 
 /**
  * Get the effective commission rate for a product/item
- * Priority: 1. SubSubCategory -> 2. SubCategory -> 3. Category -> 4. Seller -> 5. Global
+ * New Priority: Seller's categoryCommissions[headerCategoryId] → 0 (no commission)
  */
 export const getOrderItemCommissionRate = async (
   productIdOrProduct: string | any,
   sellerId?: string,
-  settings?: any,
+  _settings?: any,
 ): Promise<number> => {
   try {
     // If productIdOrProduct is already an object (product), use it
@@ -33,57 +32,53 @@ export const getOrderItemCommissionRate = async (
       product = await Product.findById(productIdOrProduct);
     }
 
-    if (!product) return 10; // Default fallback
+    if (!product) return 0; // No product = no commission
 
-    // 1. Check SubSubCategory
-    if (product.subSubCategory) {
-      const subSubCat =
-        typeof product.subSubCategory === "object" &&
-        product.subSubCategory !== null
-          ? product.subSubCategory
-          : await Category.findById(product.subSubCategory);
-      if (subSubCat?.commissionRate && subSubCat.commissionRate > 0) {
-        return subSubCat.commissionRate;
-      }
-    }
+    const finalSellerId = sellerId || product.seller.toString();
 
-    // 2. Check SubCategory
-    if (product.subcategory) {
-      const subCat =
-        typeof product.subcategory === "object" && product.subcategory !== null
-          ? product.subcategory
-          : await SubCategory.findById(product.subcategory);
-      if (subCat?.commissionRate && subCat.commissionRate > 0) {
-        return subCat.commissionRate;
-      }
-    }
+    // Find the product's headerCategoryId
+    let headerCategoryId = product.headerCategoryId;
 
-    // 3. Check Category
-    if (product.category) {
+    // If product doesn't have headerCategoryId directly, look it up from Category
+    if (!headerCategoryId && product.category) {
       const cat =
         typeof product.category === "object" && product.category !== null
           ? product.category
           : await Category.findById(product.category);
-      if (cat?.commissionRate && cat.commissionRate > 0) {
-        return cat.commissionRate;
+      if (cat?.headerCategoryId) {
+        headerCategoryId = cat.headerCategoryId;
       }
     }
 
-    // 4. Check Seller specific rate
-    const finalSellerId = sellerId || product.seller.toString();
-    const seller = await Seller.findById(finalSellerId);
-    if (seller?.commission && seller.commission > 0) {
-      return seller.commission;
+    if (!headerCategoryId) {
+      console.log(
+        `[Commission] No headerCategoryId for product ${product._id}, returning 0%`,
+      );
+      return 0;
     }
 
-    // 5. Global Default
-    const finalSettings = settings || (await AppSettings.findOne());
-    return finalSettings?.globalCommissionRate !== undefined
-      ? finalSettings.globalCommissionRate
-      : 10;
+    // Look up seller's categoryCommissions for this headerCategory
+    const seller = await Seller.findById(finalSellerId);
+    if (!seller || !seller.categoryCommissions || seller.categoryCommissions.length === 0) {
+      console.log(
+        `[Commission] No categoryCommissions for seller ${finalSellerId}, returning 0%`,
+      );
+      return 0;
+    }
+
+    const headerCatIdStr = headerCategoryId.toString();
+    const entry = seller.categoryCommissions.find(
+      (cc: any) => cc.headerCategory.toString() === headerCatIdStr,
+    );
+
+    if (entry && entry.commissionRate > 0) {
+      return entry.commissionRate;
+    }
+
+    return 0; // No commission set for this category
   } catch (error) {
     console.error("Error calculating commission rate:", error);
-    return 10;
+    return 0;
   }
 };
 
@@ -1112,7 +1107,7 @@ export const processCODOrderDelivery = async (
         commissionRate: breakdown.deliveryDistanceKm
           ? breakdown.deliveryBoyCommission / breakdown.deliveryDistanceKm
           : (breakdown.deliveryBoyCommission / breakdown.totalDeliveryCharge) *
-            100,
+          100,
         commissionAmount: breakdown.deliveryBoyCommission,
         status: "Paid", // Delivery boy gets paid immediately
         paidAt: new Date(),
@@ -1155,6 +1150,20 @@ export const processCODOrderDelivery = async (
       }
 
       console.log(`[COD Delivery] Order ${order.orderNumber} fully processed.`);
+
+      // 4. Create a Pending Cash Collection record for Admin to track
+      const { default: CashCollection } = await import("../models/CashCollection");
+      await CashCollection.create([
+        {
+          deliveryBoy: order.deliveryBoy,
+          order: orderId,
+          amount: breakdown.totalOrderAmount,
+          remark: `Auto-generated from delivered COD order ${order.orderNumber}`,
+          status: "Pending"
+        }
+      ], { session });
+
+      console.log(`[COD Delivery] Pending Cash Collection record created for order ${order.orderNumber}`);
     }
 
     if (!useExternalSession) {

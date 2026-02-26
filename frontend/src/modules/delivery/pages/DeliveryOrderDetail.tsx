@@ -662,7 +662,7 @@ export default function DeliveryOrderDetail() {
                                                 <p className="text-sm text-neutral-600">{seller.address}, {seller.city}</p>
                                                 {distance !== undefined && (
                                                     <p className={`text-xs mt-1 font-medium ${withinRange ? 'text-green-600' :
-                                                            distance < 1000 ? 'text-yellow-600' : 'text-red-600'
+                                                        distance < 1000 ? 'text-yellow-600' : 'text-red-600'
                                                         }`}>
                                                         {distance < 1000 ? `${distance}m away` : `${(distance / 1000).toFixed(1)}km away`}
                                                     </p>
@@ -675,8 +675,8 @@ export default function DeliveryOrderDetail() {
                                                 onClick={() => handleSellerPickup(seller.sellerId)}
                                                 disabled={!withinRange || isLoading}
                                                 className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-all ${withinRange && !isLoading
-                                                        ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
-                                                        : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                                                    ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
+                                                    : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                                                     }`}
                                             >
                                                 {isLoading ? 'Confirming...' : withinRange ? 'Confirm Pickup' : 'Move within 500m to pickup'}
@@ -846,7 +846,7 @@ export default function DeliveryOrderDetail() {
                         {/* Distance indicator */}
                         {customerProximity && (
                             <p className={`text-xs mb-2 font-medium ${customerProximity.withinRange ? 'text-green-600' :
-                                    customerProximity.distance < 1000 ? 'text-yellow-600' : 'text-red-600'
+                                customerProximity.distance < 1000 ? 'text-yellow-600' : 'text-red-600'
                                 }`}>
                                 {customerProximity.distance < 1000
                                     ? `${customerProximity.distance}m from customer`
@@ -872,8 +872,8 @@ export default function DeliveryOrderDetail() {
                                     onClick={handleSendOtp}
                                     disabled={!getOtpEnabled || otpSending}
                                     className={`flex-1 py-3 rounded-xl font-semibold transition-all ${getOtpEnabled && !otpSending
-                                            ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
-                                            : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                                        ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
+                                        : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                                         }`}
                                 >
                                     {otpSending ? 'Sending...' : getOtpEnabled ? 'Get OTP' : 'Move within 500m to get OTP'}

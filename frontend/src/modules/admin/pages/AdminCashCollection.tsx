@@ -2,6 +2,7 @@
 import {
   getCashCollections,
   createCashCollection,
+  confirmCashCollection,
   type CashCollection,
   type CreateCashCollectionData,
 } from "../../../services/api/admin/adminDeliveryService";
@@ -15,15 +16,26 @@ export default function AdminCashCollection() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedDeliveryBoy, setSelectedDeliveryBoy] = useState("all");
-  const [selectedMethod, setSelectedMethod] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "Pending" | "Collected">("Pending");
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Add Cash Collection Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState<CreateCashCollectionData>({
+    deliveryBoyId: "",
+    orderId: "",
+    amount: 0,
+    remark: "",
+  });
+  const [addError, setAddError] = useState<string | null>(null);
 
   // Fetch delivery boys and cash collections on component mount
   useEffect(() => {
@@ -56,6 +68,10 @@ export default function AdminCashCollection() {
           params.deliveryBoyId = selectedDeliveryBoy;
         }
 
+        if (selectedStatus !== "all") {
+          params.status = selectedStatus;
+        }
+
         if (fromDate) {
           params.fromDate = fromDate;
         }
@@ -72,6 +88,12 @@ export default function AdminCashCollection() {
 
         if (cashResponse.success) {
           setCashCollections(cashResponse.data);
+          // Use server-side pagination total
+          if ((cashResponse as any).pagination?.total !== undefined) {
+            setTotalEntries((cashResponse as any).pagination.total);
+          } else {
+            setTotalEntries(cashResponse.data.length);
+          }
         } else {
           setError("Failed to load cash collections");
         }
@@ -93,6 +115,7 @@ export default function AdminCashCollection() {
     currentPage,
     entriesPerPage,
     selectedDeliveryBoy,
+    selectedStatus,
     fromDate,
     toDate,
     searchTerm,
@@ -107,17 +130,77 @@ export default function AdminCashCollection() {
     }
   };
 
-  // Note: Filtering is done server-side, so we just use the cashCollections as is
-  const displayedCollections = cashCollections;
-
-  // For pagination display (simplified - in real app, this would come from API)
-  const totalPages = Math.ceil(displayedCollections.length / entriesPerPage);
+  const totalPages = Math.ceil(totalEntries / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
-  const endIndex = startIndex + entriesPerPage;
+  const endIndex = Math.min(startIndex + entriesPerPage, totalEntries);
 
-  const handleAddCollection = async () => {
-    // For now, just show an alert. In a real app, this would open a modal to add a cash collection
-    alert("Add cash collection functionality would be implemented here");
+  const handleAddCollection = () => {
+    setAddForm({ deliveryBoyId: "", orderId: "", amount: 0, remark: "" });
+    setAddError(null);
+    setShowAddModal(true);
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.deliveryBoyId || !addForm.orderId || !addForm.amount) {
+      setAddError("Delivery Boy, Order ID, and Amount are required.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setAddError(null);
+
+      const response = await createCashCollection(addForm);
+      if (response.success) {
+        setShowAddModal(false);
+        // Refresh the list
+        setCurrentPage(1);
+        setSelectedStatus("Collected"); // Switch to collected to see the new manual entry
+      } else {
+        setAddError("Failed to create cash collection. Please try again.");
+      }
+    } catch (err: any) {
+      console.error("Error creating cash collection:", err);
+      setAddError(
+        err.response?.data?.message ||
+        "Failed to create cash collection. Please try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConfirmCollection = async (id: string) => {
+    if (!window.confirm("Are you sure you have received this cash from the delivery boy?")) return;
+
+    try {
+      setLoading(true);
+      const response = await confirmCashCollection(id);
+      if (response.success) {
+        // Refresh current view
+        const params: any = {
+          page: currentPage,
+          limit: entriesPerPage,
+          status: selectedStatus,
+          deliveryBoyId: selectedDeliveryBoy !== "all" ? selectedDeliveryBoy : undefined
+        };
+        const refreshResponse = await getCashCollections(params);
+        if (refreshResponse.success) {
+          setCashCollections(refreshResponse.data);
+          if ((refreshResponse as any).pagination?.total !== undefined) {
+            setTotalEntries((refreshResponse as any).pagination.total);
+          }
+        }
+      } else {
+        alert("Failed to confirm collection");
+      }
+    } catch (err: any) {
+      console.error("Error confirming collection:", err);
+      alert(err.response?.data?.message || "Failed to confirm collection");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleExport = () => {
@@ -128,6 +211,7 @@ export default function AdminCashCollection() {
       "Total",
       "Amount Collected",
       "Remark",
+      "Status",
       "Date",
     ];
     const csvContent = [
@@ -140,7 +224,8 @@ export default function AdminCashCollection() {
           collection.total.toFixed(2),
           collection.amount.toFixed(2),
           `"${collection.remark || ""}"`,
-          new Date(collection.collectedAt).toLocaleDateString(),
+          collection.status,
+          collection.collectedAt ? new Date(collection.collectedAt).toLocaleDateString() : 'N/A',
         ].join(",")
       ),
     ].join("\n");
@@ -163,8 +248,6 @@ export default function AdminCashCollection() {
     setToDate("");
   };
 
-  const methods = ["All", "Cash", "Card", "Online"];
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -172,7 +255,9 @@ export default function AdminCashCollection() {
         <h1 className="text-white text-xl sm:text-2xl font-semibold">
           Delivery Boy Cash Collection List
         </h1>
-        <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
+        <button
+          onClick={handleAddCollection}
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
           <svg
             width="16"
             height="16"
@@ -185,7 +270,7 @@ export default function AdminCashCollection() {
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          Add Cash Collection
+          Add Manual Collection
         </button>
       </div>
 
@@ -196,73 +281,25 @@ export default function AdminCashCollection() {
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
             {/* Left Side Filters */}
             <div className="flex flex-col sm:flex-row gap-3 flex-1 flex-wrap">
-              {/* From - To Date */}
+              {/* Date Filter */}
               <div className="flex items-center gap-2">
                 <label className="text-sm text-neutral-700 whitespace-nowrap">
-                  From - To Date:
+                  Date:
                 </label>
                 <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400">
-                      <rect
-                        x="3"
-                        y="4"
-                        width="18"
-                        height="18"
-                        rx="2"
-                        ry="2"></rect>
-                      <line x1="16" y1="2" x2="16" y2="6"></line>
-                      <line x1="8" y1="2" x2="8" y2="6"></line>
-                      <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    <input
-                      type="text"
-                      value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
-                      placeholder="MM/DD/YYYY"
-                      className="pl-10 pr-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[140px]"
-                    />
-                  </div>
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[140px]"
+                  />
                   <span className="text-neutral-500">-</span>
-                  <div className="relative">
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-neutral-400">
-                      <rect
-                        x="3"
-                        y="4"
-                        width="18"
-                        height="18"
-                        rx="2"
-                        ry="2"></rect>
-                      <line x1="16" y1="2" x2="16" y2="6"></line>
-                      <line x1="8" y1="2" x2="8" y2="6"></line>
-                      <line x1="3" y1="10" x2="21" y2="10"></line>
-                    </svg>
-                    <input
-                      type="text"
-                      value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
-                      placeholder="MM/DD/YYYY"
-                      className="pl-10 pr-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[140px]"
-                    />
-                  </div>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[140px]"
+                  />
                   <button
                     onClick={handleClearDate}
                     className="px-3 py-2 bg-neutral-700 hover:bg-neutral-800 text-white rounded text-sm transition-colors">
@@ -271,10 +308,28 @@ export default function AdminCashCollection() {
                 </div>
               </div>
 
-              {/* Filter by Delivery Boy */}
+              {/* Status Filter */}
               <div className="flex items-center gap-2">
                 <label className="text-sm text-neutral-700 whitespace-nowrap">
-                  Filter by Delivery Boy:
+                  Status:
+                </label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => {
+                    setSelectedStatus(e.target.value as any);
+                    setCurrentPage(1);
+                  }}
+                  className="px-3 py-2 border border-neutral-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[130px]">
+                  <option value="all">All Records</option>
+                  <option value="Pending">Pending (Due)</option>
+                  <option value="Collected">Collected (Paid)</option>
+                </select>
+              </div>
+
+              {/* Delivery Boy Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-neutral-700 whitespace-nowrap">
+                  Delivery Boy:
                 </label>
                 <select
                   value={selectedDeliveryBoy}
@@ -291,33 +346,10 @@ export default function AdminCashCollection() {
                   ))}
                 </select>
               </div>
-
-              {/* Filter by Method */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-neutral-700 whitespace-nowrap">
-                  Filter by Method:
-                </label>
-                <select
-                  value={selectedMethod}
-                  onChange={(e) => {
-                    setSelectedMethod(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="px-3 py-2 border border-neutral-300 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[100px]">
-                  {methods.map((method) => (
-                    <option
-                      key={method}
-                      value={method === "All" ? "all" : method}>
-                      {method}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
 
             {/* Right Side Controls */}
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-              {/* Per Page */}
               <div className="flex items-center gap-2">
                 <span className="text-sm text-neutral-700">Per Page:</span>
                 <select
@@ -334,40 +366,14 @@ export default function AdminCashCollection() {
                 </select>
               </div>
 
-              {/* Export Button */}
               <button
                 onClick={handleExport}
                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7 10 12 15 17 10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 Export
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round">
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
               </button>
 
-              {/* Search */}
               <div className="flex items-center gap-2">
-                <label className="text-sm text-neutral-700">Search:</label>
                 <input
                   type="text"
                   value={searchTerm}
@@ -375,7 +381,7 @@ export default function AdminCashCollection() {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder="Search:"
+                  placeholder="Search order ID..."
                   className="px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 min-w-[150px]"
                 />
               </div>
@@ -383,255 +389,95 @@ export default function AdminCashCollection() {
           </div>
         </div>
 
+        {/* Loading/Error States */}
+        {loading && <div className="px-6 py-8 text-center text-sm text-neutral-500">Loading...</div>}
+        {error && !loading && <div className="px-6 py-4 text-center text-sm text-red-600 bg-red-50">{error}</div>}
+
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
-            <thead className="bg-neutral-50 border-b border-neutral-200">
-              <tr>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("id")}>
-                  <div className="flex items-center gap-2">
-                    Id
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("name")}>
-                  <div className="flex items-center gap-2">
-                    Name
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("orderId")}>
-                  <div className="flex items-center gap-2">
-                    O. Id
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("total")}>
-                  <div className="flex items-center gap-2">
-                    Total
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("amount")}>
-                  <div className="flex items-center gap-2">
-                    Amount
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("remark")}>
-                  <div className="flex items-center gap-2">
-                    Remark
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th
-                  className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider cursor-pointer hover:bg-neutral-100"
-                  onClick={() => handleSort("dateTime")}>
-                  <div className="flex items-center gap-2">
-                    Date Time
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className="text-neutral-400">
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
-              {displayedCollections.length === 0 ? (
+        {!loading && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px]">
+              <thead className="bg-neutral-50 border-b border-neutral-200">
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 sm:px-6 py-8 text-center text-sm text-neutral-500">
-                    No data available in table
-                  </td>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Delivery Boy</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Order ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Remark</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">Action</th>
                 </tr>
-              ) : (
-                displayedCollections.map((collection) => (
-                  <tr key={collection._id} className="hover:bg-neutral-50">
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                      {collection._id.slice(-6)}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                      {collection.deliveryBoyName}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
-                      {collection.orderId}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
-                      ₹{collection.total.toFixed(2)}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
-                      ₹{collection.amount.toFixed(2)}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
-                      {collection.remark || '-'}
-                    </td>
-                    <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
-                      {new Date(collection.collectedAt).toLocaleString()}
+              </thead>
+              <tbody className="bg-white divide-y divide-neutral-200">
+                {cashCollections.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-neutral-500">
+                      No {selectedStatus === 'Pending' ? 'pending' : ''} cash collection records found.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="px-4 sm:px-6 py-3 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-          <div className="text-xs sm:text-sm text-neutral-700">
-            Showing {startIndex + 1} to{" "}
-            {Math.min(endIndex, cashCollections.length)} of{" "}
-            {cashCollections.length} entries
+                ) : (
+                  cashCollections.map((collection) => (
+                    <tr key={collection._id} className="hover:bg-neutral-50">
+                      <td className="px-6 py-4 text-sm text-neutral-900 font-medium">
+                        {collection.deliveryBoyName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-neutral-600">
+                        {collection.orderId}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-neutral-900 font-semibold">
+                        ₹{collection.amount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-neutral-600">
+                        {collection.remark || '-'}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${collection.status === 'Pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-green-100 text-green-700'
+                          }`}>
+                          {collection.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {collection.status === 'Pending' ? (
+                          <button
+                            onClick={() => handleConfirmCollection(collection._id)}
+                            className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded text-xs font-medium transition-colors"
+                          >
+                            Mark Collected
+                          </button>
+                        ) : (
+                          <span className="text-neutral-400 text-xs italic">
+                            Confirmed at {collection.collectedAt ? new Date(collection.collectedAt).toLocaleDateString() : 'N/A'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-          <div className="flex items-center gap-2">
+        )}
+
+        {/* Pagination */}
+        <div className="px-6 py-3 border-t border-neutral-200 flex items-center justify-between">
+          <div className="text-xs text-neutral-700">
+            Showing {totalEntries === 0 ? 0 : startIndex + 1} to {endIndex} of {totalEntries} entries
+          </div>
+          <div className="flex gap-2">
             <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1 || totalPages === 0}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === 1 || totalPages === 0
-                ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                : "text-neutral-700 hover:bg-neutral-50"
-                }`}
-              aria-label="Previous page">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M15 18L9 12L15 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="p-1 border rounded disabled:opacity-50"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
             </button>
             <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-              }
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages || totalPages === 0}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === totalPages || totalPages === 0
-                ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                : "text-neutral-700 hover:bg-neutral-50"
-                }`}
-              aria-label="Next page">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M9 18L15 12L9 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              className="p-1 border rounded disabled:opacity-50"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
             </button>
           </div>
         </div>
@@ -639,12 +485,70 @@ export default function AdminCashCollection() {
 
       {/* Footer */}
       <div className="bg-neutral-800 text-white text-center text-sm py-4">
-        Copyright Â© 2025. Developed By{" "}
-        <a href="#" className="text-blue-400 hover:text-blue-300">
-          Dhakad Snazzy - 10 Minute App
-        </a>
+        Copyright © 2025. Dhakad Snazzy - 10 Minute App
       </div>
+
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="bg-teal-600 px-6 py-4 flex items-center justify-between">
+              <h2 className="text-white text-lg font-semibold">Add Manual Collection</h2>
+              <button onClick={() => setShowAddModal(false)} className="text-white">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
+              {addError && <div className="p-3 bg-red-100 text-red-700 rounded text-sm">{addError}</div>}
+              <div>
+                <label className="block text-sm font-medium mb-1">Delivery Boy *</label>
+                <select
+                  className="w-full border rounded p-2 text-sm"
+                  value={addForm.deliveryBoyId}
+                  onChange={e => setAddForm({ ...addForm, deliveryBoyId: e.target.value })}
+                  required
+                >
+                  <option value="">Select Delivery Boy</option>
+                  {deliveryBoys.map(boy => <option key={boy._id} value={boy._id}>{boy.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Order ID *</label>
+                <input
+                  type="text" className="w-full border rounded p-2 text-sm"
+                  value={addForm.orderId}
+                  onChange={e => setAddForm({ ...addForm, orderId: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Amount (₹) *</label>
+                <input
+                  type="number" className="w-full border rounded p-2 text-sm"
+                  value={addForm.amount || ''}
+                  onChange={e => setAddForm({ ...addForm, amount: parseFloat(e.target.value) })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Remark</label>
+                <textarea
+                  className="w-full border rounded p-2 text-sm" rows={3}
+                  value={addForm.remark}
+                  onChange={e => setAddForm({ ...addForm, remark: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm">Cancel</button>
+                <button type="submit" disabled={submitting} className="bg-teal-600 text-white px-6 py-2 rounded text-sm font-medium hover:bg-teal-700">
+                  {submitting ? "Saving..." : "Save Entry"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

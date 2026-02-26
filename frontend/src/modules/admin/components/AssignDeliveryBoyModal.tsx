@@ -48,7 +48,9 @@ export default function AssignDeliveryBoyModal({
             setError(null);
             const response = await getDeliveryBoys({
                 status: 'Active',
-                limit: 100, // Get all active delivery boys
+                available: 'Available',
+                isOnline: true,
+                limit: 100, // Get all available & online delivery boys
             });
             if (response.success && response.data) {
                 setDeliveryBoys(response.data);
@@ -192,8 +194,8 @@ export default function AssignDeliveryBoyModal({
                                         <p className="text-xs">
                                             <span
                                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${selected.available === 'Available'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-red-100 text-red-800'
+                                                    ? 'bg-green-100 text-green-800'
+                                                    : 'bg-red-100 text-red-800'
                                                     }`}
                                             >
                                                 {selected.available}
@@ -219,8 +221,8 @@ export default function AssignDeliveryBoyModal({
                         onClick={handleAssign}
                         disabled={!selectedDeliveryBoyId || submitting || deliveryBoys.length === 0}
                         className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${!selectedDeliveryBoyId || submitting || deliveryBoys.length === 0
-                                ? 'bg-neutral-400 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700'
+                            ? 'bg-neutral-400 cursor-not-allowed'
+                            : 'bg-blue-600 hover:bg-blue-700'
                             }`}
                     >
                         {submitting ? 'Assigning...' : 'Assign Delivery Boy'}
