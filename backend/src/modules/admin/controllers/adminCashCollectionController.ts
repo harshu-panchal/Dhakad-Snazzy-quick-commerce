@@ -3,6 +3,8 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 import CashCollection from "../../../models/CashCollection";
 import Delivery from "../../../models/Delivery";
 import Order from "../../../models/Order";
+import { processPendingCODPayouts } from "../../../services/commissionService";
+import PlatformWallet from "../../../models/PlatformWallet";
 
 /**
  * Get all cash collections
@@ -157,9 +159,20 @@ export const createCashCollection = asyncHandler(
             collectedAt: new Date(),
         });
 
-        // Update delivery boy's cash collected
+        // Update delivery boy's cash collected and debt
         deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) - amount;
+        deliveryBoy.pendingAdminPayout = Math.max(0, (deliveryBoy.pendingAdminPayout || 0) - amount);
         await deliveryBoy.save();
+
+        // Update Platform Wallet
+        const platformWallet = await PlatformWallet.getWallet();
+        platformWallet.totalPlatformEarning += amount;
+        platformWallet.currentPlatformBalance += amount;
+        platformWallet.pendingFromDeliveryBoy = Math.max(0, platformWallet.pendingFromDeliveryBoy - amount);
+        await platformWallet.save();
+
+        // Distribute funds (Reconciliation)
+        await processPendingCODPayouts(deliveryBoyId, amount);
 
         const populatedCollection = await CashCollection.findById(collection._id)
             .populate("deliveryBoy", "name mobile")
@@ -203,11 +216,29 @@ export const confirmCashCollection = asyncHandler(
         collection.collectedAt = new Date();
         await collection.save();
 
-        // Update delivery boy's cash collected counter
+        // Update delivery boy's cash collected counter and pending debt
         const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
         if (deliveryBoy) {
+            // 1. Reduce physical cash counter
             deliveryBoy.cashCollected = Math.max(0, (deliveryBoy.cashCollected || 0) - collection.amount);
+
+            // 2. Reduce the financial debt (pendingAdminPayout)
+            const currentPending = deliveryBoy.pendingAdminPayout || 0;
+            deliveryBoy.pendingAdminPayout = Math.max(0, currentPending - collection.amount);
+
             await deliveryBoy.save();
+
+            // 3. Update Platform Wallet
+            const platformWallet = await PlatformWallet.getWallet();
+            platformWallet.totalPlatformEarning += collection.amount;
+            platformWallet.currentPlatformBalance += collection.amount;
+            platformWallet.pendingFromDeliveryBoy = Math.max(0, platformWallet.pendingFromDeliveryBoy - collection.amount);
+            await platformWallet.save();
+
+            // 4. Distribute funds to sellers (releases "Pending" commissions)
+            await processPendingCODPayouts(deliveryBoy._id.toString(), collection.amount);
+
+            console.log(`[Cash Collection] Reconciled ₹${collection.amount} for DB ${deliveryBoy.name}. New pending debt: ₹${deliveryBoy.pendingAdminPayout}`);
         }
 
         const populatedCollection = await CashCollection.findById(id)
@@ -244,10 +275,17 @@ export const updateCashCollection = asyncHandler(
         if (amount !== undefined && amount !== collection.amount && collection.status === "Collected") {
             const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
             if (deliveryBoy) {
-                const difference = collection.amount - amount;
-                deliveryBoy.cashCollected =
-                    (deliveryBoy.cashCollected || 0) + difference;
+                const difference = collection.amount - amount; // If new amount is smaller, diff is positive (restore debt)
+                deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) + difference;
+                deliveryBoy.pendingAdminPayout = Math.max(0, (deliveryBoy.pendingAdminPayout || 0) + difference);
                 await deliveryBoy.save();
+
+                // Sync Platform Wallet
+                const platformWallet = await PlatformWallet.getWallet();
+                platformWallet.totalPlatformEarning -= difference;
+                platformWallet.currentPlatformBalance -= difference;
+                platformWallet.pendingFromDeliveryBoy += difference;
+                await platformWallet.save();
             }
             collection.amount = amount;
         } else if (amount !== undefined) {
@@ -289,13 +327,20 @@ export const deleteCashCollection = asyncHandler(
             });
         }
 
-        // Restore the amount to delivery boy's cash collected (only if it was already deducted/collected)
+        // Restore the amount to delivery boy's cash collected and debt
         if (collection.status === "Collected") {
             const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
             if (deliveryBoy) {
-                deliveryBoy.cashCollected =
-                    (deliveryBoy.cashCollected || 0) + collection.amount;
+                deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) + collection.amount;
+                deliveryBoy.pendingAdminPayout = (deliveryBoy.pendingAdminPayout || 0) + collection.amount;
                 await deliveryBoy.save();
+
+                // Sync Platform Wallet
+                const platformWallet = await PlatformWallet.getWallet();
+                platformWallet.totalPlatformEarning -= collection.amount;
+                platformWallet.currentPlatformBalance -= collection.amount;
+                platformWallet.pendingFromDeliveryBoy += collection.amount;
+                await platformWallet.save();
             }
         }
 

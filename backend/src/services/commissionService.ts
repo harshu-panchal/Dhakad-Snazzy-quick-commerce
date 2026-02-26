@@ -633,9 +633,8 @@ export const processPendingCODPayouts = async (
 
       if (!deliveryComm) continue;
 
-      // Amount delivery boy owes for this order = Total - Delivery Commission
-      const orderAdminPayoutPart =
-        Math.round((order.total - deliveryComm.commissionAmount) * 100) / 100;
+      // Amount delivery boy owes for this order = Total Amount (since commission is credited to wallet)
+      const orderAdminPayoutPart = Math.round(order.total * 100) / 100;
 
       // We process the commission if the amount paid covers this order's part (with small epsilon)
       if (remainingAmount >= orderAdminPayoutPart - 0.01) {
@@ -935,7 +934,7 @@ export const calculateCODOrderBreakdown = async (
         breakdown.deliveryBoyCommission =
           order.deliveryDistanceKm * deliveryBoyKmRate;
 
-        // Admin gets the rest of the delivery charge
+        // Admin gets the rest of the delivery charge (possibly negative if they pay extra)
         breakdown.adminDeliveryCommission =
           breakdown.totalDeliveryCharge - breakdown.deliveryBoyCommission;
       } else {
@@ -949,29 +948,27 @@ export const calculateCODOrderBreakdown = async (
         breakdown.deliveryBoyCommission =
           (order.subtotal * deliveryBoyRate) / 100;
 
-        // Admin's portion of the shipping charge
-        breakdown.adminDeliveryCommission = Math.max(
-          0,
-          breakdown.totalDeliveryCharge,
-        );
+        // Use subtotal based delivery boy pay, but admin still keeps the full delivery charge 
+        // We will subtract the DB commission from total admin earning later
+        breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
       }
     } else {
       // No delivery boy assigned, all delivery charge goes to admin
       breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
     }
 
-    // 3. Calculate Total Admin Earning
-    // Admin Earning = Product Commission + Platform Fee + Admin's portion of Delivery Charge
-    breakdown.totalAdminEarning =
+    // 3. Calculate Total Admin Earning (NET PROFIT)
+    // Net Admin Earning = (Product Commission + Platform Fee + Total Delivery Charge) - Delivery Boy Pay
+    breakdown.totalAdminEarning = Math.max(0, (
       breakdown.adminProductCommission +
       breakdown.platformFee +
-      breakdown.adminDeliveryCommission;
+      breakdown.totalDeliveryCharge
+    ) - breakdown.deliveryBoyCommission);
 
     // 4. Calculate Amount Delivery Boy Owes Admin
-    // Delivery boy collects full order amount but keeps only their commission
-    // They owe: Total Order Amount - Their Commission
-    breakdown.amountDeliveryBoyOwesAdmin =
-      breakdown.totalOrderAmount - breakdown.deliveryBoyCommission;
+    // Delivery boy collects full order amount. 
+    // They owe the FULL amount back to the admin because their commission is credited to their wallet balance separately.
+    breakdown.amountDeliveryBoyOwesAdmin = breakdown.totalOrderAmount;
 
     console.log(`[COD Breakdown] Order ${order.orderNumber}:`, {
       productCost: breakdown.productCost,
