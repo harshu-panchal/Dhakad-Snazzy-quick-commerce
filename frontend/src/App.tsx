@@ -752,7 +752,16 @@ function App() {
                               <AppLayout>
                                 <Suspense fallback={<IconLoader forceShow />}>
                                   <Routes>
-                                    <Route path="/" element={<Home />} />
+                                    <Route
+                                      path="/"
+                                      element={
+                                        <ProtectedRoute
+                                          requiredUserType="Customer"
+                                          redirectTo="/login">
+                                          <Home />
+                                        </ProtectedRoute>
+                                      }
+                                    />
                                     <Route
                                       path="/user/home"
                                       element={<Home />}
