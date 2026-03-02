@@ -20,6 +20,7 @@ import {
   type SalesAnalytics,
   type TodaySales,
 } from "../../../services/api/admin/adminDashboardService";
+import { getFinancialDashboard, WalletStats } from "../../../services/api/admin/adminWalletService";
 
 export default function AdminDashboard() {
   const { isAuthenticated, token } = useAuth();
@@ -41,6 +42,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [financeStats, setFinanceStats] = useState<WalletStats | null>(null);
 
   // Fetch dashboard data on component mount
   useEffect(() => {
@@ -65,6 +67,7 @@ export default function AdminDashboard() {
           orderAnalyticsResponse,
           orderAnalyticsDailyResponse,
           todaySalesResponse,
+          financeStatsResponse,
         ] = await Promise.all([
           getDashboardStats(),
           getRecentOrders(10),
@@ -74,6 +77,7 @@ export default function AdminDashboard() {
           getOrderAnalytics("month"),
           getOrderAnalytics("day"),
           getTodaySales(),
+          getFinancialDashboard(),
         ]);
 
         if (statsResponse.success) {
@@ -109,6 +113,10 @@ export default function AdminDashboard() {
 
         if (todaySalesResponse.success) {
           setTodaySales(todaySalesResponse.data);
+        }
+
+        if (financeStatsResponse.success) {
+          setFinanceStats(financeStatsResponse.data);
         }
       } catch (err: any) {
         console.error("Error fetching dashboard data:", err);
@@ -350,6 +358,36 @@ export default function AdminDashboard() {
     </svg>
   );
 
+  const DollarSignIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23"></line>
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+    </svg>
+  );
+
+  const TrendingUpIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+      <polyline points="17 6 23 6 23 12"></polyline>
+    </svg>
+  );
+
+  const ClockIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+  );
+
+  const DeliveryIcon = () => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="3" width="15" height="13"></rect>
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+      <circle cx="5.5" cy="18.5" r="2.5"></circle>
+      <circle cx="18.5" cy="18.5" r="2.5"></circle>
+    </svg>
+  );
+
   // Transform sales analytics data for charts
   const salesThisMonth = salesAnalytics?.thisPeriod || [];
   const salesLastMonth = salesAnalytics?.lastPeriod || [];
@@ -503,6 +541,34 @@ export default function AdminDashboard() {
           title="Product low on Stock"
           value={stats.lowStockProducts}
           accentColor="#eab308"
+        />
+      </div>
+
+      {/* Financial Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <DashboardCard
+          icon={<DollarSignIcon />}
+          title="Total Revenue"
+          value={`₹${financeStats?.totalGMV?.toLocaleString("en-IN") || "0"}`}
+          accentColor="#3b82f6"
+        />
+        <DashboardCard
+          icon={<TrendingUpIcon />}
+          title="Admin Profit"
+          value={`₹${financeStats?.totalAdminEarnings?.toLocaleString("en-IN") || "0"}`}
+          accentColor="#16a34a"
+        />
+        <DashboardCard
+          icon={<ClockIcon />}
+          title="Seller Owed"
+          value={`₹${financeStats?.sellerPendingPayouts?.toLocaleString("en-IN") || "0"}`}
+          accentColor="#f59e0b"
+        />
+        <DashboardCard
+          icon={<DeliveryIcon />}
+          title="Delivery Owed"
+          value={`₹${financeStats?.deliveryPendingPayouts?.toLocaleString("en-IN") || "0"}`}
+          accentColor="#ef4444"
         />
       </div>
 
@@ -792,8 +858,8 @@ export default function AdminDashboard() {
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === 1
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Previous page">
                 <svg
@@ -819,8 +885,8 @@ export default function AdminDashboard() {
                 }
                 disabled={currentPage === totalPagesNewOrders}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === totalPagesNewOrders
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Next page">
                 <svg
@@ -993,8 +1059,8 @@ export default function AdminDashboard() {
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === 1
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Previous page">
                 <svg
@@ -1023,8 +1089,8 @@ export default function AdminDashboard() {
                 }
                 disabled={currentPage === totalPagesTopSellers}
                 className={`p-2 border border-neutral-300 rounded ${currentPage === totalPagesTopSellers
-                    ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
-                    : "text-neutral-700 hover:bg-neutral-50"
+                  ? "text-neutral-400 cursor-not-allowed bg-neutral-50"
+                  : "text-neutral-700 hover:bg-neutral-50"
                   }`}
                 aria-label="Next page">
                 <svg

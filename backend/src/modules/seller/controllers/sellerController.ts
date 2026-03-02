@@ -193,4 +193,60 @@ export const deleteSeller = asyncHandler(
   }
 );
 
+/**
+ * Update seller category commissions (Admin only)
+ * Sets per-header-category commission rates for a specific seller
+ */
+export const updateSellerCategoryCommissions = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { categoryCommissions } = req.body;
+
+    if (!Array.isArray(categoryCommissions)) {
+      return res.status(400).json({
+        success: false,
+        message: "categoryCommissions must be an array",
+      });
+    }
+
+    // Validate each entry
+    for (const entry of categoryCommissions) {
+      if (!entry.headerCategory) {
+        return res.status(400).json({
+          success: false,
+          message: "Each entry must have a headerCategory ID",
+        });
+      }
+      if (
+        entry.commissionRate === undefined ||
+        entry.commissionRate < 0 ||
+        entry.commissionRate > 100
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "commissionRate must be between 0 and 100",
+        });
+      }
+    }
+
+    const seller = await Seller.findByIdAndUpdate(
+      id,
+      { categoryCommissions },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Category commissions updated successfully",
+      data: seller,
+    });
+  }
+);
 

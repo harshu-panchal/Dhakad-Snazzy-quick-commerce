@@ -16,6 +16,10 @@ export interface Seller {
   balance: number;
   commission: number;
   categories: string[];
+  categoryCommissions?: Array<{
+    headerCategory: string;
+    commissionRate: number;
+  }>;
   status: "Approved" | "Pending" | "Rejected";
   category?: string;
   address?: string;
@@ -139,3 +143,18 @@ export const deleteSeller = async (id: string): Promise<ApiResponse<void>> => {
   const response = await api.delete<ApiResponse<void>>(`/sellers/${id}`);
   return response.data;
 };
+
+/**
+ * Update seller category commissions (Admin only)
+ */
+export const updateSellerCategoryCommissions = async (
+  sellerId: string,
+  categoryCommissions: Array<{ headerCategory: string; commissionRate: number }>
+): Promise<ApiResponse<Seller>> => {
+  const response = await api.put<ApiResponse<Seller>>(
+    `/sellers/${sellerId}/category-commissions`,
+    { categoryCommissions }
+  );
+  return response.data;
+};
+

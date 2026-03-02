@@ -31,7 +31,7 @@ export default function AdminAssignDeliveryBoy() {
             const [receivedRes, acceptedRes, deliveryBoysRes] = await Promise.all([
                 getOrdersByStatus("Received"),
                 getOrdersByStatus("Accepted"),
-                getDeliveryBoys({ available: "Available" }),
+                getDeliveryBoys({ status: "Active", available: "Available", isOnline: true }),
             ]);
 
             let combinedOrders: Order[] = [];

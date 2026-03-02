@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import WithdrawRequest from '../../../models/WithdrawRequest';
 import { debitWallet } from '../../../services/walletManagementService';
 import mongoose from 'mongoose';
+import PlatformWallet from '../../../models/PlatformWallet';
 
 /**
  * Get all withdrawal requests
@@ -182,6 +183,17 @@ export const completeWithdrawal = async (req: Request, res: Response) => {
             await session.abortTransaction();
             return res.status(400).json(debitResult);
         }
+
+        // Update Platform Wallet balance
+        const platformWallet = await PlatformWallet.getWallet();
+        platformWallet.currentPlatformBalance = Math.max(0, platformWallet.currentPlatformBalance - request.amount);
+        // Also update the aggregate counters to keep them in sync if used
+        if (request.userType === 'SELLER') {
+            platformWallet.sellerPendingPayouts = Math.max(0, platformWallet.sellerPendingPayouts - request.amount);
+        } else {
+            platformWallet.deliveryBoyPendingPayouts = Math.max(0, platformWallet.deliveryBoyPendingPayouts - request.amount);
+        }
+        await platformWallet.save({ session });
 
         // Update request
         request.status = 'Completed';

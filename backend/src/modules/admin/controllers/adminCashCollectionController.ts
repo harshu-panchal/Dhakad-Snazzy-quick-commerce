@@ -3,6 +3,8 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 import CashCollection from "../../../models/CashCollection";
 import Delivery from "../../../models/Delivery";
 import Order from "../../../models/Order";
+import { processPendingCODPayouts } from "../../../services/commissionService";
+import PlatformWallet from "../../../models/PlatformWallet";
 
 /**
  * Get all cash collections
@@ -15,12 +17,17 @@ export const getCashCollections = asyncHandler(
             deliveryBoyId,
             fromDate,
             toDate,
-            // search = "",
-            sortBy = "collectedAt",
+            status,
+            sortBy = "createdAt",
             sortOrder = "desc",
         } = req.query;
 
         const query: any = {};
+
+        // Filter by status
+        if (status) {
+            query.status = status;
+        }
 
         // Filter by delivery boy
         if (deliveryBoyId) {
@@ -59,9 +66,11 @@ export const getCashCollections = asyncHandler(
             deliveryBoyId: collection.deliveryBoy?._id,
             deliveryBoyName: collection.deliveryBoy?.name || "Unknown",
             orderId: collection.order?._id,
+            orderNumber: collection.order?.orderNumber || "Unknown",
             total: collection.order?.total || 0,
             amount: collection.amount,
             remark: collection.remark,
+            status: collection.status,
             collectedAt: collection.collectedAt,
             collectedBy: collection.collectedBy?.name || "Unknown",
         }));
@@ -108,7 +117,7 @@ export const getCashCollectionById = asyncHandler(
 );
 
 /**
- * Create cash collection
+ * Create cash collection (Manual Entry)
  */
 export const createCashCollection = asyncHandler(
     async (req: Request, res: Response) => {
@@ -145,13 +154,25 @@ export const createCashCollection = asyncHandler(
             order: orderId,
             amount,
             remark,
+            status: "Collected",
             collectedBy: req.user?.userId,
             collectedAt: new Date(),
         });
 
-        // Update delivery boy's cash collected
+        // Update delivery boy's cash collected and debt
         deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) - amount;
+        deliveryBoy.pendingAdminPayout = Math.max(0, (deliveryBoy.pendingAdminPayout || 0) - amount);
         await deliveryBoy.save();
+
+        // Update Platform Wallet
+        const platformWallet = await PlatformWallet.getWallet();
+        platformWallet.totalPlatformEarning += amount;
+        platformWallet.currentPlatformBalance += amount;
+        platformWallet.pendingFromDeliveryBoy = Math.max(0, platformWallet.pendingFromDeliveryBoy - amount);
+        await platformWallet.save();
+
+        // Distribute funds (Reconciliation)
+        await processPendingCODPayouts(deliveryBoyId, amount);
 
         const populatedCollection = await CashCollection.findById(collection._id)
             .populate("deliveryBoy", "name mobile")
@@ -161,6 +182,73 @@ export const createCashCollection = asyncHandler(
         return res.status(201).json({
             success: true,
             message: "Cash collection created successfully",
+            data: populatedCollection,
+        });
+    }
+);
+
+/**
+ * Confirm a pending cash collection (Admin received cash)
+ */
+export const confirmCashCollection = asyncHandler(
+    async (req: Request, res: Response) => {
+        const { id } = req.params;
+
+        const collection = await CashCollection.findById(id);
+
+        if (!collection) {
+            return res.status(404).json({
+                success: false,
+                message: "Cash collection not found",
+            });
+        }
+
+        if (collection.status === "Collected") {
+            return res.status(400).json({
+                success: false,
+                message: "Cash collection is already confirmed",
+            });
+        }
+
+        // Update status and collection info
+        collection.status = "Collected";
+        collection.collectedBy = req.user?.userId as any;
+        collection.collectedAt = new Date();
+        await collection.save();
+
+        // Update delivery boy's cash collected counter and pending debt
+        const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
+        if (deliveryBoy) {
+            // 1. Reduce physical cash counter
+            deliveryBoy.cashCollected = Math.max(0, (deliveryBoy.cashCollected || 0) - collection.amount);
+
+            // 2. Reduce the financial debt (pendingAdminPayout)
+            const currentPending = deliveryBoy.pendingAdminPayout || 0;
+            deliveryBoy.pendingAdminPayout = Math.max(0, currentPending - collection.amount);
+
+            await deliveryBoy.save();
+
+            // 3. Update Platform Wallet
+            const platformWallet = await PlatformWallet.getWallet();
+            platformWallet.totalPlatformEarning += collection.amount;
+            platformWallet.currentPlatformBalance += collection.amount;
+            platformWallet.pendingFromDeliveryBoy = Math.max(0, platformWallet.pendingFromDeliveryBoy - collection.amount);
+            await platformWallet.save();
+
+            // 4. Distribute funds to sellers (releases "Pending" commissions)
+            await processPendingCODPayouts(deliveryBoy._id.toString(), collection.amount);
+
+            console.log(`[Cash Collection] Reconciled ₹${collection.amount} for DB ${deliveryBoy.name}. New pending debt: ₹${deliveryBoy.pendingAdminPayout}`);
+        }
+
+        const populatedCollection = await CashCollection.findById(id)
+            .populate("deliveryBoy", "name mobile")
+            .populate("order", "orderNumber total")
+            .populate("collectedBy", "name");
+
+        return res.status(200).json({
+            success: true,
+            message: "Cash collection confirmed successfully",
             data: populatedCollection,
         });
     }
@@ -183,15 +271,24 @@ export const updateCashCollection = asyncHandler(
             });
         }
 
-        // If amount is being updated, adjust delivery boy's cash collected
-        if (amount !== undefined && amount !== collection.amount) {
+        // If amount is being updated, adjust delivery boy's cash collected (only if already collected)
+        if (amount !== undefined && amount !== collection.amount && collection.status === "Collected") {
             const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
             if (deliveryBoy) {
-                const difference = collection.amount - amount;
-                deliveryBoy.cashCollected =
-                    (deliveryBoy.cashCollected || 0) + difference;
+                const difference = collection.amount - amount; // If new amount is smaller, diff is positive (restore debt)
+                deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) + difference;
+                deliveryBoy.pendingAdminPayout = Math.max(0, (deliveryBoy.pendingAdminPayout || 0) + difference);
                 await deliveryBoy.save();
+
+                // Sync Platform Wallet
+                const platformWallet = await PlatformWallet.getWallet();
+                platformWallet.totalPlatformEarning -= difference;
+                platformWallet.currentPlatformBalance -= difference;
+                platformWallet.pendingFromDeliveryBoy += difference;
+                await platformWallet.save();
             }
+            collection.amount = amount;
+        } else if (amount !== undefined) {
             collection.amount = amount;
         }
 
@@ -230,12 +327,21 @@ export const deleteCashCollection = asyncHandler(
             });
         }
 
-        // Restore the amount to delivery boy's cash collected
-        const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
-        if (deliveryBoy) {
-            deliveryBoy.cashCollected =
-                (deliveryBoy.cashCollected || 0) + collection.amount;
-            await deliveryBoy.save();
+        // Restore the amount to delivery boy's cash collected and debt
+        if (collection.status === "Collected") {
+            const deliveryBoy = await Delivery.findById(collection.deliveryBoy);
+            if (deliveryBoy) {
+                deliveryBoy.cashCollected = (deliveryBoy.cashCollected || 0) + collection.amount;
+                deliveryBoy.pendingAdminPayout = (deliveryBoy.pendingAdminPayout || 0) + collection.amount;
+                await deliveryBoy.save();
+
+                // Sync Platform Wallet
+                const platformWallet = await PlatformWallet.getWallet();
+                platformWallet.totalPlatformEarning -= collection.amount;
+                platformWallet.currentPlatformBalance -= collection.amount;
+                platformWallet.pendingFromDeliveryBoy += collection.amount;
+                await platformWallet.save();
+            }
         }
 
         await CashCollection.findByIdAndDelete(id);

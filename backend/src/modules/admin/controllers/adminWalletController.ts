@@ -9,6 +9,9 @@ import {
   rejectWithdrawal,
   completeWithdrawal,
 } from "./adminWithdrawalController";
+import Seller from "../../../models/Seller";
+import Delivery from "../../../models/Delivery";
+import Order from "../../../models/Order";
 
 /**
  * Get Financial Dashboard Stats
@@ -25,13 +28,13 @@ export const getFinancialDashboard = asyncHandler(
     const platformWallet = await PlatformWallet.findOne();
 
     // 1. Calculate Real-time Seller Pending Payouts -> Sum of all Seller Balances
-    const sellerBalanceResult = await mongoose.model("Seller").aggregate([
+    const sellerBalanceResult = await Seller.aggregate([
       { $group: { _id: null, total: { $sum: "$balance" } } },
     ]);
     const realTimeSellerPending = sellerBalanceResult.length > 0 ? sellerBalanceResult[0].total : 0;
 
     // 2. Calculate Real-time Delivery Boy Pending Payouts & Debt
-    const deliveryBalanceResult = await mongoose.model("Delivery").aggregate([
+    const deliveryBalanceResult = await Delivery.aggregate([
       {
         $group: {
           _id: null,
@@ -57,6 +60,7 @@ export const getFinancialDashboard = asyncHandler(
           pendingFromDeliveryBoy: realTimePendingFromDeliveryBoy,
           sellerPendingPayouts: realTimeSellerPending,
           deliveryBoyPendingPayouts: realTimeDeliveryPendingPayouts,
+          deliveryPendingPayouts: realTimeDeliveryPendingPayouts,
 
           // Legacy fields for backward compatibility
           totalGMV: platformWallet.totalPlatformEarning,
@@ -78,12 +82,10 @@ export const getFinancialDashboard = asyncHandler(
     // 1. Total Platform Earnings (Net GMV)
     // Formula: Sum(Order.total) - Sum(Delivery Commissions)
     // This represents the total money that flows into the platform (Admin + Sellers)
-    const totalOrderAmountResult = await mongoose
-      .model("Order")
-      .aggregate([
-        { $match: { status: { $ne: "Cancelled" }, paymentStatus: "Paid" } },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]);
+    const totalOrderAmountResult = await Order.aggregate([
+      { $match: { status: { $ne: "Cancelled" }, paymentStatus: "Paid" } },
+      { $group: { _id: null, total: { $sum: "$total" } } },
+    ]);
     const totalOrderAmount =
       totalOrderAmountResult.length > 0 ? totalOrderAmountResult[0].total : 0;
 
@@ -139,7 +141,7 @@ export const getFinancialDashboard = asyncHandler(
       deliveryCommResult.length > 0 ? deliveryCommResult[0].total : 0;
 
     // C. Order Fees (Platform Fee + Shipping Charge)
-    const orderFeesResult = await mongoose.model("Order").aggregate([
+    const orderFeesResult = await Order.aggregate([
       { $match: { status: { $ne: "Cancelled" }, paymentStatus: "Paid" } },
       {
         $group: {
@@ -357,8 +359,121 @@ export const processWithdrawalWrapper = asyncHandler(
     } else {
       return res.status(400).json({
         success: false,
-        message: 'Invalid action. Must be "Approve", "Reject", or "Complete"',
       });
     }
   },
 );
+
+/**
+ * Get Wallet Summary for all Delivery Boys (how much Admin owes them)
+ */
+export const getWalletSummary = asyncHandler(async (_req: Request, res: Response) => {
+  const Delivery = (await import("../../../models/Delivery")).default;
+
+  const deliveryBoys = await Delivery.find({ status: "Active" })
+    .select("name mobile balance cashCollected profileImage")
+    .sort({ balance: -1 });
+
+  return res.status(200).json({
+    success: true,
+    data: deliveryBoys
+  });
+});
+
+/**
+ * Create Manual Wallet Transfer (Credit/Debit)
+ */
+export const createManualTransfer = asyncHandler(async (req: Request, res: Response) => {
+  const { userId, userType, amount, type, description } = req.body;
+
+  if (!userId || !userType || !amount || !type || !description) {
+    return res.status(400).json({
+      success: false,
+      message: "Required fields: userId, userType, amount, type, description"
+    });
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    let user;
+    if (userType === 'DELIVERY_BOY') {
+      const Delivery = (await import("../../../models/Delivery")).default;
+      user = await Delivery.findById(userId).session(session);
+    } else {
+      const Seller = (await import("../../../models/Seller")).default;
+      user = await Seller.findById(userId).session(session);
+    }
+
+    if (!user) {
+      throw new Error(`${userType} not found`);
+    }
+
+    // Update balance
+    if (type === 'Credit') {
+      user.balance += amount;
+    } else {
+      if (user.balance < amount) {
+        throw new Error("Insufficient balance for debit");
+      }
+      user.balance -= amount;
+    }
+
+    await user.save({ session });
+
+    // Create transaction record
+    const reference = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    await WalletTransaction.create([{
+      userId,
+      userType,
+      amount,
+      type,
+      description,
+      status: 'Completed',
+      reference
+    }], { session });
+
+    // Update Platform Wallet aggregates
+    const PlatformWallet = (await import("../../../models/PlatformWallet")).default;
+    const platformWallet = await PlatformWallet.findOne().session(session);
+    if (platformWallet) {
+      if (type === 'Credit') {
+        if (userType === 'SELLER') {
+          platformWallet.sellerPendingPayouts += amount;
+        } else {
+          platformWallet.deliveryBoyPendingPayouts += amount;
+        }
+      } else {
+        // Debit means money leaving the platform
+        platformWallet.currentPlatformBalance = Math.max(0, platformWallet.currentPlatformBalance - amount);
+        if (userType === 'SELLER') {
+          platformWallet.sellerPendingPayouts = Math.max(0, platformWallet.sellerPendingPayouts - amount);
+        } else {
+          platformWallet.deliveryBoyPendingPayouts = Math.max(0, platformWallet.deliveryBoyPendingPayouts - amount);
+        }
+      }
+      await platformWallet.save({ session });
+    }
+
+    await session.commitTransaction();
+
+    return res.status(201).json({
+      success: true,
+      message: "Transfer processed successfully",
+      data: {
+        newBalance: user.balance,
+        reference
+      }
+    });
+
+  } catch (error: any) {
+    await session.abortTransaction();
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to process transfer"
+    });
+  } finally {
+    session.endSession();
+  }
+});

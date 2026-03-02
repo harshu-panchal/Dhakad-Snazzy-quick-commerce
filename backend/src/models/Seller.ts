@@ -61,6 +61,12 @@ export interface ISeller extends Document {
   commission: number;
   commissionRate?: number; // Individual commission rate (overrides global setting)
 
+  // Per-category commission rates (set by admin per seller per header category)
+  categoryCommissions: Array<{
+    headerCategory: mongoose.Types.ObjectId;
+    commissionRate: number;
+  }>;
+
   // Status
   status: 'Approved' | 'Pending' | 'Rejected';
   balance: number;
@@ -264,6 +270,19 @@ const SellerSchema = new Schema<ISeller>(
       min: [0, 'Commission rate cannot be negative'],
       max: [100, 'Commission rate cannot exceed 100%'],
     },
+    categoryCommissions: [{
+      headerCategory: {
+        type: Schema.Types.ObjectId,
+        ref: 'HeaderCategory',
+        required: true,
+      },
+      commissionRate: {
+        type: Number,
+        default: 0,
+        min: [0, 'Commission rate cannot be negative'],
+        max: [100, 'Commission rate cannot exceed 100%'],
+      },
+    }],
 
     // Status
     status: {

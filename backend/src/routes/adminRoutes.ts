@@ -240,6 +240,8 @@ router.patch(
 router.get("/financial/dashboard", walletController.getFinancialDashboard);
 router.get("/wallet/earnings", walletController.getAdminEarnings);
 router.get("/wallet/transactions", walletController.getWalletTransactions);
+router.get("/wallet/summary", walletController.getWalletSummary);
+router.post("/wallet/transfer", walletController.createManualTransfer);
 router.get("/wallet/withdrawals", withdrawalController.getAllWithdrawals);
 router.post("/wallet/withdrawal/process", walletController.processWithdrawalWrapper);
 
@@ -268,6 +270,10 @@ router.post("/cash-collections", cashCollectionController.createCashCollection);
 router.put(
   "/cash-collections/:id",
   cashCollectionController.updateCashCollection
+);
+router.patch(
+  "/cash-collections/:id/confirm",
+  cashCollectionController.confirmCashCollection
 );
 router.delete(
   "/cash-collections/:id",

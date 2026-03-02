@@ -7,18 +7,17 @@ import AppSettings from "../models/AppSettings";
 import { creditWallet } from "./walletManagementService";
 import mongoose from "mongoose";
 import Category from "../models/Category";
-import SubCategory from "../models/SubCategory";
 import Product from "../models/Product";
 import WalletTransaction from "../models/WalletTransaction";
 
 /**
  * Get the effective commission rate for a product/item
- * Priority: 1. SubSubCategory -> 2. SubCategory -> 3. Category -> 4. Seller -> 5. Global
+ * New Priority: Seller's categoryCommissions[headerCategoryId] → 0 (no commission)
  */
 export const getOrderItemCommissionRate = async (
   productIdOrProduct: string | any,
   sellerId?: string,
-  settings?: any,
+  _settings?: any,
 ): Promise<number> => {
   try {
     // If productIdOrProduct is already an object (product), use it
@@ -33,57 +32,53 @@ export const getOrderItemCommissionRate = async (
       product = await Product.findById(productIdOrProduct);
     }
 
-    if (!product) return 10; // Default fallback
+    if (!product) return 0; // No product = no commission
 
-    // 1. Check SubSubCategory
-    if (product.subSubCategory) {
-      const subSubCat =
-        typeof product.subSubCategory === "object" &&
-        product.subSubCategory !== null
-          ? product.subSubCategory
-          : await Category.findById(product.subSubCategory);
-      if (subSubCat?.commissionRate && subSubCat.commissionRate > 0) {
-        return subSubCat.commissionRate;
-      }
-    }
+    const finalSellerId = sellerId || product.seller.toString();
 
-    // 2. Check SubCategory
-    if (product.subcategory) {
-      const subCat =
-        typeof product.subcategory === "object" && product.subcategory !== null
-          ? product.subcategory
-          : await SubCategory.findById(product.subcategory);
-      if (subCat?.commissionRate && subCat.commissionRate > 0) {
-        return subCat.commissionRate;
-      }
-    }
+    // Find the product's headerCategoryId
+    let headerCategoryId = product.headerCategoryId;
 
-    // 3. Check Category
-    if (product.category) {
+    // If product doesn't have headerCategoryId directly, look it up from Category
+    if (!headerCategoryId && product.category) {
       const cat =
         typeof product.category === "object" && product.category !== null
           ? product.category
           : await Category.findById(product.category);
-      if (cat?.commissionRate && cat.commissionRate > 0) {
-        return cat.commissionRate;
+      if (cat?.headerCategoryId) {
+        headerCategoryId = cat.headerCategoryId;
       }
     }
 
-    // 4. Check Seller specific rate
-    const finalSellerId = sellerId || product.seller.toString();
-    const seller = await Seller.findById(finalSellerId);
-    if (seller?.commission && seller.commission > 0) {
-      return seller.commission;
+    if (!headerCategoryId) {
+      console.log(
+        `[Commission] No headerCategoryId for product ${product._id}, returning 0%`,
+      );
+      return 0;
     }
 
-    // 5. Global Default
-    const finalSettings = settings || (await AppSettings.findOne());
-    return finalSettings?.globalCommissionRate !== undefined
-      ? finalSettings.globalCommissionRate
-      : 10;
+    // Look up seller's categoryCommissions for this headerCategory
+    const seller = await Seller.findById(finalSellerId);
+    if (!seller || !seller.categoryCommissions || seller.categoryCommissions.length === 0) {
+      console.log(
+        `[Commission] No categoryCommissions for seller ${finalSellerId}, returning 0%`,
+      );
+      return 0;
+    }
+
+    const headerCatIdStr = headerCategoryId.toString();
+    const entry = seller.categoryCommissions.find(
+      (cc: any) => cc.headerCategory.toString() === headerCatIdStr,
+    );
+
+    if (entry && entry.commissionRate > 0) {
+      return entry.commissionRate;
+    }
+
+    return 0; // No commission set for this category
   } catch (error) {
     console.error("Error calculating commission rate:", error);
-    return 10;
+    return 0;
   }
 };
 
@@ -638,9 +633,8 @@ export const processPendingCODPayouts = async (
 
       if (!deliveryComm) continue;
 
-      // Amount delivery boy owes for this order = Total - Delivery Commission
-      const orderAdminPayoutPart =
-        Math.round((order.total - deliveryComm.commissionAmount) * 100) / 100;
+      // Amount delivery boy owes for this order = Total Amount (since commission is credited to wallet)
+      const orderAdminPayoutPart = Math.round(order.total * 100) / 100;
 
       // We process the commission if the amount paid covers this order's part (with small epsilon)
       if (remainingAmount >= orderAdminPayoutPart - 0.01) {
@@ -940,7 +934,7 @@ export const calculateCODOrderBreakdown = async (
         breakdown.deliveryBoyCommission =
           order.deliveryDistanceKm * deliveryBoyKmRate;
 
-        // Admin gets the rest of the delivery charge
+        // Admin gets the rest of the delivery charge (possibly negative if they pay extra)
         breakdown.adminDeliveryCommission =
           breakdown.totalDeliveryCharge - breakdown.deliveryBoyCommission;
       } else {
@@ -954,29 +948,27 @@ export const calculateCODOrderBreakdown = async (
         breakdown.deliveryBoyCommission =
           (order.subtotal * deliveryBoyRate) / 100;
 
-        // Admin's portion of the shipping charge
-        breakdown.adminDeliveryCommission = Math.max(
-          0,
-          breakdown.totalDeliveryCharge,
-        );
+        // Use subtotal based delivery boy pay, but admin still keeps the full delivery charge 
+        // We will subtract the DB commission from total admin earning later
+        breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
       }
     } else {
       // No delivery boy assigned, all delivery charge goes to admin
       breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
     }
 
-    // 3. Calculate Total Admin Earning
-    // Admin Earning = Product Commission + Platform Fee + Admin's portion of Delivery Charge
-    breakdown.totalAdminEarning =
+    // 3. Calculate Total Admin Earning (NET PROFIT)
+    // Net Admin Earning = (Product Commission + Platform Fee + Total Delivery Charge) - Delivery Boy Pay
+    breakdown.totalAdminEarning = Math.max(0, (
       breakdown.adminProductCommission +
       breakdown.platformFee +
-      breakdown.adminDeliveryCommission;
+      breakdown.totalDeliveryCharge
+    ) - breakdown.deliveryBoyCommission);
 
     // 4. Calculate Amount Delivery Boy Owes Admin
-    // Delivery boy collects full order amount but keeps only their commission
-    // They owe: Total Order Amount - Their Commission
-    breakdown.amountDeliveryBoyOwesAdmin =
-      breakdown.totalOrderAmount - breakdown.deliveryBoyCommission;
+    // Delivery boy collects full order amount. 
+    // They owe the FULL amount back to the admin because their commission is credited to their wallet balance separately.
+    breakdown.amountDeliveryBoyOwesAdmin = breakdown.totalOrderAmount;
 
     console.log(`[COD Breakdown] Order ${order.orderNumber}:`, {
       productCost: breakdown.productCost,
@@ -1112,7 +1104,7 @@ export const processCODOrderDelivery = async (
         commissionRate: breakdown.deliveryDistanceKm
           ? breakdown.deliveryBoyCommission / breakdown.deliveryDistanceKm
           : (breakdown.deliveryBoyCommission / breakdown.totalDeliveryCharge) *
-            100,
+          100,
         commissionAmount: breakdown.deliveryBoyCommission,
         status: "Paid", // Delivery boy gets paid immediately
         paidAt: new Date(),
@@ -1155,6 +1147,20 @@ export const processCODOrderDelivery = async (
       }
 
       console.log(`[COD Delivery] Order ${order.orderNumber} fully processed.`);
+
+      // 4. Create a Pending Cash Collection record for Admin to track
+      const { default: CashCollection } = await import("../models/CashCollection");
+      await CashCollection.create([
+        {
+          deliveryBoy: order.deliveryBoy,
+          order: orderId,
+          amount: breakdown.totalOrderAmount,
+          remark: `Auto-generated from delivered COD order ${order.orderNumber}`,
+          status: "Pending"
+        }
+      ], { session });
+
+      console.log(`[COD Delivery] Pending Cash Collection record created for order ${order.orderNumber}`);
     }
 
     if (!useExternalSession) {

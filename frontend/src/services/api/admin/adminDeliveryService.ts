@@ -89,8 +89,9 @@ export interface CashCollection {
   total: number;
   amount: number;
   remark?: string;
-  collectedAt: string;
-  collectedBy: string;
+  status: "Pending" | "Collected";
+  collectedAt?: string;
+  collectedBy?: string;
 }
 
 export interface CreateCashCollectionData {
@@ -106,6 +107,7 @@ export interface GetDeliveryParams {
   search?: string;
   status?: "Active" | "Inactive";
   available?: "Available" | "Not Available";
+  isOnline?: boolean;
   city?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -117,6 +119,7 @@ export interface GetCashCollectionParams {
   deliveryBoyId?: string;
   fromDate?: string;
   toDate?: string;
+  status?: "Pending" | "Collected";
   search?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -249,6 +252,15 @@ export const getDeliveryBoyCashCollections = async (
   const response = await api.get<ApiResponse<CashCollection[]>>(
     `/admin/delivery/${deliveryBoyId}/cash-collections`,
     { params }
+  );
+  return response.data;
+};
+
+export const confirmCashCollection = async (
+  id: string
+): Promise<ApiResponse<CashCollection>> => {
+  const response = await api.patch<ApiResponse<CashCollection>>(
+    `/admin/cash-collections/${id}/confirm`
   );
   return response.data;
 };
