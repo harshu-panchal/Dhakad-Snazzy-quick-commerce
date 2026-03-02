@@ -23,6 +23,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log('[firebase-messaging-sw.js] Received background message', payload);
 
+    const isOrderAlert = payload.data?.type === 'NEW_ORDER_REQUEST';
     const notificationTitle = payload.notification?.title || 'New Notification';
     const notificationOptions = {
         body: payload.notification?.body || '',
@@ -30,8 +31,13 @@ messaging.onBackgroundMessage((payload) => {
         badge: '/favicon.png',
         data: payload.data || {},
         tag: payload.data?.type || 'default',
-        requireInteraction: false
+        requireInteraction: isOrderAlert,
+        silent: !isOrderAlert
     };
+    // Custom sound for order alerts (Chrome/Edge); other browsers use system sound or ignore
+    if (isOrderAlert) {
+        notificationOptions.sound = '/assets/sound/delivery-alert.mp3';
+    }
 
     self.registration.showNotification(notificationTitle, notificationOptions);
 });

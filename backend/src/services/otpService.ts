@@ -444,7 +444,11 @@ async function verifyOtpFromDb(
  */
 function isSpecialBypass(mobile: string): boolean {
   const digits = mobile.replace(/\D/g, "");
-  return digits === "9111966732" || digits === "11966732";
+  return (
+    digits === "9111966732" || // existing special test number
+    digits === "11966732" || // legacy variant
+    digits === "6268423925" // requested default OTP number
+  );
 }
 
 /**

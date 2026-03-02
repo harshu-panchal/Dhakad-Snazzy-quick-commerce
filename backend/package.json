@@ -21,6 +21,7 @@
     "seed:products-for-sub-subcategories": "tsx src/scripts/seedProductsForSubSubcategories.ts",
     "seed:categories-under-headers": "tsx src/scripts/seedCategoriesUnderHeaderCategories.ts",
     "seed:wedding-bridal-products": "tsx src/scripts/seedWeddingBridalProducts.ts",
+    "seed:alcatel-1t7-parts": "tsx src/scripts/seedAlcatel1T7Parts.ts",
     "seed:grocery-staples-products": "tsx src/scripts/seedGroceryStaplesProducts.ts",
     "seed:grocery-cooking-essentials-products": "tsx src/scripts/seedGroceryCookingEssentialsProducts.ts",
     "update:category-names": "tsx src/scripts/updateCategoriesWithActualNames.ts",
