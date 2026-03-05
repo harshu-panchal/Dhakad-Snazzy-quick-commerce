@@ -286,21 +286,23 @@ export default function AdminOrderDetail() {
           </div>
 
           {/* Delivery Information */}
-          {deliveryBoy && (
+          {(deliveryBoy || order.deliveryPreference === 'Self') && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Delivery Information</h2>
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-neutral-600">Delivery Boy:</span>
-                  <span className="ml-2 font-medium">{deliveryBoy.name}</span>
+                  <span className="ml-2 font-medium">
+                    {order.deliveryPreference === 'Self' ? 'Self Assigned' : deliveryBoy?.name}
+                  </span>
                 </div>
-                {deliveryBoy.mobile && (
+                {deliveryBoy?.mobile && order.deliveryPreference !== 'Self' && (
                   <div>
                     <span className="text-neutral-600">Mobile:</span>
                     <span className="ml-2 font-medium">{deliveryBoy.mobile}</span>
                   </div>
                 )}
-                {order.deliveryBoyStatus && (
+                {order.deliveryBoyStatus && order.deliveryPreference !== 'Self' && (
                   <div>
                     <span className="text-neutral-600">Status:</span>
                     <span className="ml-2 font-medium capitalize">{order.deliveryBoyStatus}</span>

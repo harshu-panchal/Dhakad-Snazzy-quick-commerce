@@ -100,15 +100,15 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     orderId: order.orderNumber,
     deliveryDate: order.estimatedDeliveryDate
       ? order.estimatedDeliveryDate.toLocaleDateString("en-US", {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
-        })
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      })
       : order.orderDate.toLocaleDateString("en-US", {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
-        }),
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      }),
     orderDate: order.orderDate.toLocaleString("en-US", {
       month: "2-digit",
       day: "2-digit",
@@ -120,8 +120,9 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     amount: order.total,
     customerName: (order.customer as any)?.name || order.customerName || "",
     customerPhone: (order.customer as any)?.phone || order.customerPhone || "",
-    deliveryBoyName: (order.deliveryBoy as any)?.name || "",
-    deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
+    deliveryBoyName: order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoy as any)?.name || "",
+    deliveryBoyPhone: order.deliveryPreference === 'Self' ? '' : (order.deliveryBoy as any)?.mobile || "",
+    deliveryPreference: order.deliveryPreference,
   }));
 
   return res.status(200).json({
@@ -248,8 +249,9 @@ export const getOrderById = asyncHandler(
         (order.customer as any)?.email || order.customerEmail || "",
       customerPhone:
         (order.customer as any)?.phone || order.customerPhone || "",
-      deliveryBoyName: (order.deliveryBoy as any)?.name || "",
-      deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
+      deliveryBoyName: order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoy as any)?.name || "",
+      deliveryBoyPhone: order.deliveryPreference === 'Self' ? '' : (order.deliveryBoy as any)?.mobile || "",
+      deliveryPreference: order.deliveryPreference,
       items: formattedItems,
       subtotal: order.subtotal || 0,
       tax: order.tax || 0,
@@ -274,7 +276,7 @@ export const updateOrderStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const sellerId = (req as any).user.userId;
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, deliveryPreference } = req.body;
 
     // Validate allowed status updates for seller
     const allowedStatuses = [
@@ -324,13 +326,19 @@ export const updateOrderStatus = asyncHandler(
 
     const previousStatus = order.status;
     order.status = status;
+
+    if (deliveryPreference && status === "Accepted") {
+      order.deliveryPreference = deliveryPreference;
+    }
+
     await order.save();
 
-    // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery)
+    // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery and auto-assignment)
     if (
       status === "Accepted" &&
       previousStatus !== "Accepted" &&
-      order.deliveryOption === "Instant"
+      order.deliveryOption === "Instant" &&
+      (!deliveryPreference || (deliveryPreference !== "Self" && deliveryPreference !== "Admin"))
     ) {
       try {
         console.log(

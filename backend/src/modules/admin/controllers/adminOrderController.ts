@@ -554,9 +554,8 @@ export const processReturnRequest = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: `Return request ${
-        status ? status.toLowerCase() : "updated"
-      } successfully`,
+      message: `Return request ${status ? status.toLowerCase() : "updated"
+        } successfully`,
       data: updatedReturn,
     });
   },
@@ -607,7 +606,7 @@ export const exportOrders = asyncHandler(
       order.paymentStatus,
       order.total.toString(),
       `${order.deliveryAddress.address}, ${order.deliveryAddress.city} - ${order.deliveryAddress.pincode}`,
-      order.deliveryBoy ? (order.deliveryBoy as any).name : "Not Assigned",
+      order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoy ? (order.deliveryBoy as any).name : "Not Assigned"),
     ]);
 
     const csvContent = [

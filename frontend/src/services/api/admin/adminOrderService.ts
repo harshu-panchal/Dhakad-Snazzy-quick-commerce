@@ -47,28 +47,29 @@ export interface Order {
   paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded";
   paymentId?: string;
   status:
-    | "Received"
-    | "Accepted"
-    | "Pending"
-    | "Processed"
-    | "Shipped"
-    | "Picked up"
-    | "On the way"
-    | "Out for Delivery"
-    | "Delivered"
-    | "Cancelled"
-    | "Rejected"
-    | "Returned";
+  | "Received"
+  | "Accepted"
+  | "Pending"
+  | "Processed"
+  | "Shipped"
+  | "Picked up"
+  | "On the way"
+  | "Out for Delivery"
+  | "Delivered"
+  | "Cancelled"
+  | "Rejected"
+  | "Returned";
   deliveryOption?: "Instant" | "Standard";
+  deliveryPreference?: "Self" | "Admin";
   deliveryBoy?:
-    | string
-    | { _id: string; name: string; mobile: string; email?: string };
+  | string
+  | { _id: string; name: string; mobile: string; email?: string };
   deliveryBoyStatus?:
-    | "Assigned"
-    | "Picked Up"
-    | "In Transit"
-    | "Delivered"
-    | "Failed";
+  | "Assigned"
+  | "Picked Up"
+  | "In Transit"
+  | "Delivered"
+  | "Failed";
   assignedAt?: string;
   trackingNumber?: string;
   estimatedDeliveryDate?: string;

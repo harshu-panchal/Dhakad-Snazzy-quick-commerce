@@ -362,8 +362,8 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
         : undefined,
     MessageDataCount:
       typeof data === "object" &&
-      data &&
-      Array.isArray((data as SmsIndiaHubResponse).MessageData)
+        data &&
+        Array.isArray((data as SmsIndiaHubResponse).MessageData)
         ? (data as SmsIndiaHubResponse).MessageData!.length
         : 0,
     raw: data,
@@ -469,7 +469,7 @@ function isDeveloperBypass(otp: string): boolean {
   return (
     (process.env.NODE_ENV !== "production" ||
       process.env.USE_MOCK_OTP === "true") &&
-    otp === "999999"
+    (otp === "999999" || otp === "9999" || otp === process.env.DEFAULT_OTP)
   );
 }
 

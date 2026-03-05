@@ -13,16 +13,22 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showAssignPopup, setShowAssignPopup] = useState(false);
+  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Admin');
 
-  const handleStatusUpdate = async (status: string) => {
+  const handleStatusUpdate = async (status: string, pref?: 'Self' | 'Admin') => {
     if (!notification) return;
     setLoading(true);
     try {
-      await updateOrderStatus(notification.orderId, { status: status as any });
+      const payload: any = { status: status as any };
+      if (pref) {
+        payload.deliveryPreference = pref;
+      }
+      await updateOrderStatus(notification.orderId, payload);
       onClose();
       // Optionally navigate to order detail or just close
       if (status === 'Accepted') {
-         navigate(`/seller/orders/${notification.orderId}`);
+        navigate(`/seller/orders/${notification.orderId}`);
       }
     } catch (error) {
       console.error('Error updating status:', error);
@@ -160,26 +166,26 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
         <div className="p-6 bg-neutral-50 border-t border-neutral-200">
 
           {notification.type === 'NEW_ORDER' ? (
-             <div className="flex gap-4">
-               <button
-                 onClick={() => handleStatusUpdate('Accepted')}
-                 disabled={loading}
-                 className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-teal-600 hover:bg-teal-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {loading ? 'Please wait...' : 'Accept Order'}
-               </button>
-               <button
-                 onClick={() => {
-                   if (window.confirm('Are you sure you want to reject this order?')) {
-                     handleStatusUpdate('Rejected');
-                   }
-                 }}
-                 disabled={loading}
-                 className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-red-600 hover:bg-red-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-               >
-                 {loading ? 'Please wait...' : 'Reject Order'}
-               </button>
-             </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowAssignPopup(true)}
+                disabled={loading}
+                className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-teal-600 hover:bg-teal-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Please wait...' : 'Accept Order'}
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to reject this order?')) {
+                    handleStatusUpdate('Rejected');
+                  }
+                }}
+                disabled={loading}
+                className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-red-600 hover:bg-red-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Please wait...' : 'Reject Order'}
+              </button>
+            </div>
           ) : (
             <button
               onClick={onClose}
@@ -190,6 +196,70 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
           )}
         </div>
       </div>
+
+      {/* Delivery Assignment Popup */}
+      {showAssignPopup && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
+            <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
+            <p className="text-neutral-600 mb-6 text-sm">
+              Please choose how you want to assign the delivery for this order.
+            </p>
+
+            <div className="space-y-3 mb-6 flex flex-col items-stretch">
+              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                <input
+                  type="radio"
+                  name="delivery_preference_alert"
+                  value="Self"
+                  checked={deliveryPreference === 'Self'}
+                  onChange={() => setDeliveryPreference('Self')}
+                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                />
+                <div className="ml-3 text-left">
+                  <span className="block text-sm font-medium text-neutral-900">Self Assign</span>
+                  <span className="block text-xs text-neutral-500">I will manage the delivery of this order myself</span>
+                </div>
+              </label>
+
+              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                <input
+                  type="radio"
+                  name="delivery_preference_alert"
+                  value="Admin"
+                  checked={deliveryPreference === 'Admin'}
+                  onChange={() => setDeliveryPreference('Admin')}
+                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                />
+                <div className="ml-3 text-left">
+                  <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
+                  <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowAssignPopup(false)}
+                className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowAssignPopup(false);
+                  handleStatusUpdate('Accepted', deliveryPreference);
+                }}
+                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                disabled={loading}
+              >
+                Confirm & Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -10,6 +10,8 @@ export default function SellerOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [orderStatus, setOrderStatus] = useState<string>('Out For Delivery');
+  const [showAssignPopup, setShowAssignPopup] = useState(false);
+  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Admin');
 
   // Fetch order detail from API
   useEffect(() => {
@@ -37,11 +39,15 @@ export default function SellerOrderDetail() {
   }, [id]);
 
   // Handle status update
-  const handleStatusUpdate = async (newStatus: string) => {
+  const handleStatusUpdate = async (newStatus: string, pref?: 'Self' | 'Admin') => {
     if (!orderDetail) return;
 
     try {
-      const response = await updateOrderStatus(orderDetail.id, { status: newStatus as any });
+      const payload: any = { status: newStatus as any };
+      if (pref) {
+        payload.deliveryPreference = pref;
+      }
+      const response = await updateOrderStatus(orderDetail.id, payload);
       if (response.success) {
         setOrderStatus(newStatus);
         setOrderDetail({ ...orderDetail, status: newStatus as any });
@@ -359,10 +365,10 @@ export default function SellerOrderDetail() {
         <div className="bg-neutral-50 px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
             <div className="flex-1 w-full sm:w-auto">
-              {orderStatus === 'Received' ? (
+              {['Received', 'Pending'].includes(orderStatus) ? (
                 <div className="flex gap-3">
                   <button
-                    onClick={() => handleStatusUpdate('Accepted')}
+                    onClick={() => setShowAssignPopup(true)}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors font-medium shadow-sm"
                   >
                     Accept Order
@@ -385,7 +391,7 @@ export default function SellerOrderDetail() {
                   className="w-full sm:w-64 px-4 py-2 border border-neutral-300 rounded-lg text-sm text-neutral-900 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   disabled={orderStatus === 'Rejected' || orderStatus === 'Cancelled' || orderStatus === 'Delivered'}
                 >
-                  <option value="Accepted">Accepted</option>
+                  {orderStatus === 'Accepted' && <option value="Accepted">Accepted</option>}
                   <option value="On the way">On the way</option>
                   <option value="Delivered">Delivered</option>
                   <option value="Cancelled">Cancelled</option>
@@ -529,6 +535,67 @@ export default function SellerOrderDetail() {
           <span className="font-semibold text-teal-600">Dhakad Snazzy - 10 Minute App</span>
         </p>
       </footer>
+      {/* Delivery Assignment Popup */}
+      {showAssignPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
+            <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
+            <p className="text-neutral-600 mb-6 text-sm">
+              Please choose how you want to assign the delivery for this order.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                <input
+                  type="radio"
+                  name="delivery_preference"
+                  value="Self"
+                  checked={deliveryPreference === 'Self'}
+                  onChange={() => setDeliveryPreference('Self')}
+                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                />
+                <div className="ml-3">
+                  <span className="block text-sm font-medium text-neutral-900">Self Assign</span>
+                  <span className="block text-xs text-neutral-500">I will manage the delivery of this order myself</span>
+                </div>
+              </label>
+
+              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                <input
+                  type="radio"
+                  name="delivery_preference"
+                  value="Admin"
+                  checked={deliveryPreference === 'Admin'}
+                  onChange={() => setDeliveryPreference('Admin')}
+                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                />
+                <div className="ml-3">
+                  <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
+                  <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowAssignPopup(false)}
+                className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowAssignPopup(false);
+                  handleStatusUpdate('Accepted', deliveryPreference);
+                }}
+                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+              >
+                Confirm & Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

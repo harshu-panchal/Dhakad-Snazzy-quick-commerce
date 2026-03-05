@@ -38,6 +38,9 @@ export default function AdminAssignDeliveryBoy() {
             if (receivedRes.success) combinedOrders = [...combinedOrders, ...receivedRes.data];
             if (acceptedRes.success) combinedOrders = [...combinedOrders, ...acceptedRes.data];
 
+            // Filter out self-assigned orders as they don't need manual assignment
+            combinedOrders = combinedOrders.filter(order => order.deliveryPreference !== "Self");
+
             // Sort orders by date descending (newest first)
             combinedOrders.sort((a, b) => {
                 const dateA = new Date(a.orderDate || a.createdAt || 0).getTime();

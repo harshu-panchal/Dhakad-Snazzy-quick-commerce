@@ -134,7 +134,7 @@ export default function AdminAllOrders() {
           order.estimatedDeliveryDate || "",
           order.orderDate || "",
           order.status || "",
-          order.deliveryBoyStatus || "Not Assigned",
+          order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoyStatus || "Not Assigned"),
           `₹${order.total?.toFixed(2) || "0.00"}`,
         ].join(",")
       ),
@@ -189,8 +189,8 @@ export default function AdminAllOrders() {
             bValue = b.status || "";
             break;
           case "deliveryBoyStatus":
-            aValue = a.deliveryBoyStatus || "";
-            bValue = b.deliveryBoyStatus || "";
+            aValue = a.deliveryPreference === 'Self' ? 'Self Assigned' : (a.deliveryBoyStatus || "");
+            bValue = b.deliveryPreference === 'Self' ? 'Self Assigned' : (b.deliveryBoyStatus || "");
             break;
           case "amount":
             aValue = a.total || 0;
@@ -806,10 +806,11 @@ export default function AdminAllOrders() {
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDeliveryBoyStatusColor(
-                            order.deliveryBoyStatus || "Not Assigned"
-                          )}`}>
-                          {order.deliveryBoyStatus || "Not Assigned"}
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.deliveryPreference === 'Self'
+                              ? 'bg-blue-100 text-blue-800'
+                              : getDeliveryBoyStatusColor(order.deliveryBoyStatus || "Not Assigned")
+                            }`}>
+                          {order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoyStatus || "Not Assigned")}
                         </span>
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">

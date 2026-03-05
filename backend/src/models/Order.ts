@@ -100,6 +100,7 @@ export interface IOrder extends Document {
   cancelledBy?: mongoose.Types.ObjectId;
 
   deliveryOption: "Instant" | "Standard";
+  deliveryPreference?: "Self" | "Admin";
 
   createdAt: Date;
   updatedAt: Date;
@@ -368,6 +369,10 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       enum: ["Instant", "Standard"],
       default: "Standard",
+    },
+    deliveryPreference: {
+      type: String,
+      enum: ["Self", "Admin"],
     },
   },
   {

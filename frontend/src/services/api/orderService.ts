@@ -64,7 +64,8 @@ export interface OrderDetail {
 }
 
 export interface UpdateOrderStatusData {
-  status: 'Accepted' | 'On the way' | 'Delivered' | 'Cancelled';
+  status: 'Accepted' | 'On the way' | 'Delivered' | 'Cancelled' | 'Rejected';
+  deliveryPreference?: 'Self' | 'Admin';
 }
 
 export interface GetOrdersParams {
