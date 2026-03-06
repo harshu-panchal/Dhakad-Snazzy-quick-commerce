@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect } from "react";
 import {
-  getSellerTransactions,
-  type SellerTransaction,
+  getWalletTransactions,
+  createManualTransfer,
+  type WalletTransaction,
 } from "../../../services/api/admin/adminWalletService";
 import { getAllSellers as getSellers } from "../../../services/api/sellerService";
 import { useAuth } from "../../../context/AuthContext";
@@ -44,6 +45,14 @@ export default function AdminSellerTransaction() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Transfer Modal States
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferType, setTransferType] = useState<"Credit" | "Debit">("Credit");
+  const [transferRemark, setTransferRemark] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferError, setTransferError] = useState("");
+
   // Fetch sellers on component mount
   useEffect(() => {
     if (!isAuthenticated || !token) {
@@ -53,7 +62,8 @@ export default function AdminSellerTransaction() {
 
     const fetchSellers = async () => {
       try {
-        const response = await getSellers({ status: "Approved" });
+        // Fetch all sellers (not just approved) as requested
+        const response = await getSellers();
         if (response.success && response.data) {
           setSellers(
             response.data.map((seller) => ({
@@ -84,76 +94,44 @@ export default function AdminSellerTransaction() {
         setLoading(true);
         setError(null);
 
-        if (selectedSeller === "all") {
-          // Fetch transactions for all sellers
-          const allTransactions: Transaction[] = [];
+        // Fetch transactions (either all sellers or specific seller)
+        const params: any = {
+          userType: "SELLER",
+          page: 1,      // Frontend holds all state memory, but we can make it dynamic if we rely fully on backend pagination. Wait, existing code buffers it on frontend. Let's fetch a chunk.
+          limit: selectedSeller === "all" ? 500 : entriesPerPage,
+        };
 
-          // For now, we'll fetch from the first few sellers
-          // In a real implementation, you might want a separate endpoint for all transactions
-          const sellersToFetch = sellers.slice(0, 10); // Limit to first 10 sellers
+        if (selectedSeller !== "all") {
+          params.userId = selectedSeller;
+          params.page = currentPage;
+        }
 
-          for (const seller of sellersToFetch) {
-            try {
-              const response = await getSellerTransactions(seller._id, {
-                page: 1,
-                limit: 50,
-              });
+        const response = await getWalletTransactions(params);
 
-              if (response.success && response.data) {
-                const sellerTransactions: Transaction[] = response.data.map(
-                  (tx: SellerTransaction) => ({
-                    id: tx.id,
-                    sellerName: seller.sellerName,
-                    sellerId: seller._id,
-                    amount: tx.amount,
-                    flag: tx.transactionType,
-                    date: tx.date,
-                    type: tx.type,
-                    status: tx.status,
-                    remark: tx.description,
-                  })
-                );
-                allTransactions.push(...sellerTransactions);
-              }
-            } catch (err) {
-              console.error(
-                `Error fetching transactions for seller ${seller._id}:`,
-                err
-              );
-            }
-          }
-
-          // Sort by date (newest first)
-          allTransactions.sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        if (response.success && response.data) {
+          const fetchedTx: Transaction[] = response.data.map(
+            (tx: any) => ({
+              id: tx._id,
+              sellerName: tx.userName || "Unknown Seller",
+              sellerId: tx.userId || selectedSeller,
+              amount: tx.amount,
+              flag: tx.type, // Credit / Debit
+              date: tx.createdAt,
+              type: tx.type,
+              status: tx.status,
+              remark: tx.description,
+              orderId: tx.relatedOrder?.orderNumber || undefined
+            })
           );
-          setTransactions(allTransactions);
-        } else {
-          // Fetch transactions for specific seller
-          const response = await getSellerTransactions(selectedSeller, {
-            page: currentPage,
-            limit: entriesPerPage,
-          });
 
-          if (response.success && response.data) {
-            const seller = sellers.find((s) => s._id === selectedSeller);
-            const sellerTransactions: Transaction[] = response.data.map(
-              (tx: SellerTransaction) => ({
-                id: tx.id,
-                sellerName: seller?.sellerName || "Unknown Seller",
-                sellerId: selectedSeller,
-                amount: tx.amount,
-                flag: tx.transactionType,
-                date: tx.date,
-                type: tx.type,
-                status: tx.status,
-                remark: tx.description,
-              })
+          if (selectedSeller === "all") {
+            fetchedTx.sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
             );
-            setTransactions(sellerTransactions);
-          } else {
-            setTransactions([]);
           }
+          setTransactions(fetchedTx);
+        } else {
+          setTransactions([]);
         }
       } catch (err) {
         console.error("Error fetching transactions:", err);
@@ -187,17 +165,41 @@ export default function AdminSellerTransaction() {
 
   // Filter transactions based on search term
   const filteredTransactions = transactions.filter(
-    (transaction) =>
-      transaction.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (transaction.orderId &&
-        transaction.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (transaction.productName &&
-        transaction.productName
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())) ||
-      transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (transaction.remark &&
-        transaction.remark.toLowerCase().includes(searchTerm.toLowerCase()))
+    (transaction) => {
+      const matchesSearch =
+        transaction.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (transaction.orderId &&
+          transaction.orderId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (transaction.productName &&
+          transaction.productName
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())) ||
+        transaction.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (transaction.remark &&
+          transaction.remark.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesMethod = selectedMethod === "all" ||
+        transaction.flag.toLowerCase() === selectedMethod.toLowerCase() ||
+        (selectedMethod === "Bank Transfer" && transaction.type.toLowerCase().includes("bank"));
+
+      let matchesDate = true;
+      if (fromDate || toDate) {
+        const txDate = new Date(transaction.date);
+        txDate.setHours(0, 0, 0, 0);
+        if (fromDate) {
+          const start = new Date(fromDate);
+          start.setHours(0, 0, 0, 0);
+          if (txDate < start) matchesDate = false;
+        }
+        if (toDate) {
+          const end = new Date(toDate);
+          end.setHours(23, 59, 59, 999);
+          if (txDate > end) matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesMethod && matchesDate;
+    }
   );
 
   // Sort transactions
@@ -242,7 +244,30 @@ export default function AdminSellerTransaction() {
   );
 
   const handleExport = () => {
-    alert("Export functionality will be implemented here");
+    const headers = ["Id", "Seller Name", "Order Id", "Order Item Id", "Product Name", "Variation", "Flag", "Amount", "Remark", "Date"];
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      headers.join(",") + "\n" +
+      filteredTransactions.map(t => [
+        t.id,
+        `"${t.sellerName.replace(/"/g, '""')}"`,
+        t.orderId || "-",
+        t.orderItemId || "-",
+        `"${(t.productName || t.type).replace(/"/g, '""')}"`,
+        `"${(t.variation || "-").replace(/"/g, '""')}"`,
+        t.flag,
+        t.amount,
+        `"${(t.remark || t.status || "").replace(/"/g, '""')}"`,
+        `"${new Date(t.date).toLocaleDateString()}"`
+      ].join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.href = encodedUri;
+    link.download = `seller_transactions_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleClearDate = () => {
@@ -250,7 +275,51 @@ export default function AdminSellerTransaction() {
     setToDate("");
   };
 
-  const methods = ["All", "Credit", "Debit", "Bank Transfer"];
+  const methods = ["All", "Credit", "Debit"];
+
+  const handleFundTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedSeller === "all") {
+      setTransferError("Please select a specific seller from the filter dropdown first.");
+      return;
+    }
+    if (!transferAmount || isNaN(Number(transferAmount)) || Number(transferAmount) <= 0) {
+      setTransferError("Please enter a valid amount.");
+      return;
+    }
+    if (!transferRemark) {
+      setTransferError("Please enter a remark.");
+      return;
+    }
+
+    try {
+      setIsTransferring(true);
+      setTransferError("");
+
+      const res = await createManualTransfer({
+        userId: selectedSeller,
+        userType: 'SELLER',
+        amount: Number(transferAmount),
+        type: transferType,
+        description: transferRemark,
+      });
+
+      if (res.success) {
+        setIsTransferModalOpen(false);
+        setTransferAmount("");
+        setTransferRemark("");
+
+        // Simply reload to fetch fresh transactions
+        window.location.reload();
+      } else {
+        setTransferError(res.message || "Failed to process transfer");
+      }
+    } catch (err: any) {
+      setTransferError(err.response?.data?.message || err.message || "Something went wrong");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -259,7 +328,15 @@ export default function AdminSellerTransaction() {
         <h1 className="text-white text-xl sm:text-2xl font-semibold">
           View Seller List
         </h1>
-        <button className="bg-white text-teal-600 border-2 border-teal-600 hover:bg-teal-50 px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
+        <button
+          onClick={() => {
+            if (selectedSeller === "all") {
+              alert("Please select a specific seller from the dropdown filter first.");
+              return;
+            }
+            setIsTransferModalOpen(true);
+          }}
+          className="bg-white text-teal-600 border-2 border-teal-600 hover:bg-teal-50 px-4 py-2 rounded text-sm font-medium flex items-center gap-2 transition-colors">
           <svg
             width="16"
             height="16"
@@ -825,11 +902,116 @@ export default function AdminSellerTransaction() {
 
       {/* Footer */}
       <div className="text-center text-sm text-neutral-500 py-4">
-        Copyright Â© 2025. Developed By{" "}
+        Copyright © 2025. Developed By{" "}
         <a href="#" className="text-teal-600 hover:text-teal-700">
           Dhakad Snazzy - 10 Minute App
         </a>
       </div>
+
+      {/* Fund Transfer Modal */}
+      {isTransferModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-neutral-800">Fund Transfer</h2>
+              <button
+                onClick={() => setIsTransferModalOpen(false)}
+                className="text-neutral-500 hover:text-neutral-700 transition-colors"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleFundTransfer} className="p-4 space-y-4">
+              {transferError && (
+                <div className="p-3 bg-red-50 text-red-600 border border-red-200 rounded text-sm">
+                  {transferError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Selected Seller
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={sellers.find(s => s._id === selectedSeller)?.sellerName || ""}
+                  className="w-full px-3 py-2 bg-neutral-100 border border-neutral-300 rounded text-sm text-neutral-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Amount (₹) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  required
+                  value={transferAmount}
+                  onChange={(e) => setTransferAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Transfer Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={transferType}
+                  onChange={(e) => setTransferType(e.target.value as "Credit" | "Debit")}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="Credit">Credit (Add to Wallet)</option>
+                  <option value="Debit">Debit (Deduct from Wallet)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Remark <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  value={transferRemark}
+                  onChange={(e) => setTransferRemark(e.target.value)}
+                  placeholder="Reason for transfer..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsTransferModalOpen(false)}
+                  className="flex-1 py-2 px-4 border border-neutral-300 rounded text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isTransferring}
+                  className="flex-1 py-2 px-4 bg-teal-600 text-white rounded text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
+                >
+                  {isTransferring ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "Submit Transfer"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

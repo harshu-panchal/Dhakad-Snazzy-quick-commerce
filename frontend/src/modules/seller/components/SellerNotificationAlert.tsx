@@ -137,9 +137,32 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
             </div>
           </section>
 
+          {/* Order Info & Delivery Type */}
+          <section className="mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">Delivery Details</h3>
+              {notification.deliveryOption && (
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm ${notification.deliveryOption === 'Instant'
+                  ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                  : 'bg-blue-100 text-blue-700 border border-blue-200'
+                  }`}>
+                  {notification.deliveryOption} Delivery
+                </span>
+              )}
+            </div>
+            {notification.paymentStatus && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-neutral-500">Payment Status:</span>
+                <span className={`font-semibold ${notification.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {notification.paymentStatus}
+                </span>
+              </div>
+            )}
+          </section>
+
           {/* Order Details */}
           <section>
-            <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-3">Order Details</h3>
+            <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-3">Order Items</h3>
             <div className="space-y-3">
               {notification.items.map((item, index) => (
                 <div key={index} className="flex justify-between items-start py-2 border-b border-neutral-100 last:border-0">

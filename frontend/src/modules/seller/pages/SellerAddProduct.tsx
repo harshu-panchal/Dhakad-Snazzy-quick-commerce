@@ -10,6 +10,7 @@ import {
   updateProduct,
   getProductById,
   getShops,
+  getAllowedHeaderCategories,
   ProductVariation,
   Shop,
 } from "../../../services/api/productService";
@@ -24,7 +25,6 @@ import {
 import { getActiveTaxes, Tax } from "../../../services/api/taxService";
 import { getBrands, Brand } from "../../../services/api/brandService";
 import {
-  getHeaderCategoriesPublic,
   HeaderCategory,
 } from "../../../services/api/headerCategoryService";
 
@@ -98,7 +98,7 @@ export default function SellerAddProduct() {
           getCategories(),
           getActiveTaxes(),
           getBrands(),
-          getHeaderCategoriesPublic(),
+          getAllowedHeaderCategories(),
           getShops(),
         ]);
 
@@ -117,12 +117,15 @@ export default function SellerAddProduct() {
           setBrands(results[2].value.data);
         }
 
-        // Handle header categories
+        // Handle header categories (now filtered by seller's allowed categories)
         if (results[3].status === "fulfilled") {
           const headerCatRes = results[3].value;
-          if (headerCatRes && Array.isArray(headerCatRes)) {
-            // Filter only Published header categories
-            const published = headerCatRes.filter(
+          if (headerCatRes && headerCatRes.success && Array.isArray(headerCatRes.data)) {
+            // Already filtered by backend, only Published ones returned
+            setHeaderCategories(headerCatRes.data);
+          } else if (headerCatRes && Array.isArray(headerCatRes)) {
+            // Fallback for backward compatibility
+            const published = (headerCatRes as any[]).filter(
               (hc: HeaderCategory) => hc.status === "Published"
             );
             setHeaderCategories(published);

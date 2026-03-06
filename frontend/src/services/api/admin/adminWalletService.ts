@@ -130,6 +130,7 @@ export const getWalletTransactions = async (params?: {
   type?: string;
   status?: string;
   userType?: string;
+  userId?: string;
 }): Promise<ApiResponse<WalletTransaction[]>> => {
   const response = await api.get<ApiResponse<WalletTransaction[]>>(
     "/admin/wallet/transactions",

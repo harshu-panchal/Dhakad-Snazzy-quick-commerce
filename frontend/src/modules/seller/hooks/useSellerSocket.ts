@@ -29,6 +29,7 @@ export interface SellerNotification {
         variation?: string;
     }>;
     totalAmount: number;
+    deliveryOption?: string;
     timestamp: Date;
 }
 

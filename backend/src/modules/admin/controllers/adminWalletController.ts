@@ -261,11 +261,12 @@ export const getAdminEarnings = asyncHandler(
  */
 export const getWalletTransactions = asyncHandler(
   async (req: Request, res: Response) => {
-    const { page = 1, limit = 20, type, userType, search: _search } = req.query;
+    const { page = 1, limit = 20, type, userType, search: _search, userId } = req.query;
 
     const query: any = {};
     if (type) query.type = type;
     if (userType) query.userType = userType;
+    if (userId) query.userId = userId;
 
     // Search handling not fully implemented for cross-collection ref
 

@@ -9,6 +9,7 @@ import {
   updateProductStatus,
   bulkUpdateStock,
   getShops,
+  getAllowedHeaderCategories,
 } from "../modules/seller/controllers/productController";
 import { getBrands } from "../modules/admin/controllers/adminProductController";
 import { authenticate, requireUserType } from "../middleware/auth";
@@ -18,6 +19,9 @@ const router = Router();
 // All routes require authentication and seller user type
 router.use(authenticate);
 router.use(requireUserType("Seller"));
+
+// Get allowed header categories for this seller (based on registration)
+router.get("/allowed-header-categories", getAllowedHeaderCategories);
 
 // Get all brands - sellers need this for product creation
 router.get("/brands", getBrands);

@@ -105,7 +105,7 @@ export interface Shop {
   image?: string;
 }
 
-export interface UpdateProductData extends Partial<CreateProductData> {}
+export interface UpdateProductData extends Partial<CreateProductData> { }
 
 export interface GetProductsParams {
   search?: string;
@@ -224,5 +224,14 @@ export const updateProductStatus = async (
  */
 export const getShops = async (): Promise<ApiResponse<Shop[]>> => {
   const response = await api.get<ApiResponse<Shop[]>>("/products/shops");
+  return response.data;
+};
+
+/**
+ * Get header categories that the current seller is allowed to sell in
+ * (filtered by categories selected during registration)
+ */
+export const getAllowedHeaderCategories = async (): Promise<ApiResponse<any[]>> => {
+  const response = await api.get<ApiResponse<any[]>>("/products/allowed-header-categories");
   return response.data;
 };

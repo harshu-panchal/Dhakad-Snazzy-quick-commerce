@@ -1,7 +1,36 @@
 import { Request, Response } from "express";
 import Product from "../../../models/Product";
+import Seller from "../../../models/Seller";
+import HeaderCategory from "../../../models/HeaderCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
+
+/**
+ * Validate that the seller is allowed to add products in the given header category.
+ * Returns null if valid, or an error message string if invalid.
+ */
+async function validateSellerHeaderCategory(
+  sellerId: string,
+  headerCategoryId: string | undefined
+): Promise<string | null> {
+  if (!headerCategoryId) return null; // No header category provided, skip validation
+
+  const seller = await Seller.findById(sellerId).select("categories");
+  if (!seller) return "Seller not found";
+
+  // If seller has no categories set (empty array), allow all (backward compatibility)
+  if (!seller.categories || seller.categories.length === 0) return null;
+
+  const headerCategory = await HeaderCategory.findById(headerCategoryId);
+  if (!headerCategory) return "Header category not found";
+
+  // Check if the header category name is in the seller's allowed categories list
+  if (!seller.categories.includes(headerCategory.name)) {
+    return `You are not authorized to add products in the "${headerCategory.name}" category. Your allowed categories are: ${seller.categories.join(", ")}`;
+  }
+
+  return null; // Valid
+}
 
 /**
  * Create a new product
@@ -16,6 +45,18 @@ export const createProduct = asyncHandler(
       return res.status(403).json({
         success: false,
         message: "You can only create products for your own account",
+      });
+    }
+
+    // Validate seller is allowed to add products in the selected header category
+    const categoryError = await validateSellerHeaderCategory(
+      sellerId,
+      productData.headerCategoryId
+    );
+    if (categoryError) {
+      return res.status(403).json({
+        success: false,
+        message: categoryError,
       });
     }
 
@@ -266,6 +307,21 @@ export const updateProduct = asyncHandler(
 
     // Remove sellerId from update data if present (cannot change owner)
     delete updateData.sellerId;
+
+    // Validate seller is allowed to update products to the selected header category
+    const headerCategoryIdToValidate = updateData.headerCategoryId;
+    if (headerCategoryIdToValidate) {
+      const categoryError = await validateSellerHeaderCategory(
+        sellerId,
+        headerCategoryIdToValidate
+      );
+      if (categoryError) {
+        return res.status(403).json({
+          success: false,
+          message: categoryError,
+        });
+      }
+    }
 
     // Map frontend field names to model field names (same as createProduct)
     if (updateData.headerCategoryId !== undefined) {
@@ -584,3 +640,37 @@ export const getShops = asyncHandler(async (_req: Request, res: Response) => {
     data: shops || [],
   });
 });
+
+/**
+ * Get header categories that the seller is allowed to sell in
+ * (based on categories selected during registration)
+ */
+export const getAllowedHeaderCategories = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+
+    const seller = await Seller.findById(sellerId).select("categories");
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found",
+      });
+    }
+
+    // If seller has no categories set, return all published header categories (backward compat)
+    let query: any = { status: "Published" };
+    if (seller.categories && seller.categories.length > 0) {
+      query.name = { $in: seller.categories };
+    }
+
+    const headerCategories = await HeaderCategory.find(query)
+      .sort({ order: 1, name: 1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Allowed header categories fetched successfully",
+      data: headerCategories,
+    });
+  }
+);

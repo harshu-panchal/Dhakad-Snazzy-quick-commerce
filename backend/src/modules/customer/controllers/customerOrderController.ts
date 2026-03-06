@@ -204,41 +204,41 @@ export const createOrder = async (req: Request, res: Response) => {
         // We check variations._id, variations.value, variations.title, or variations.pack
         product = session
           ? await Product.findOneAndUpdate(
-              {
-                _id: item.product.id,
-                $or: [
-                  {
-                    "variations._id": mongoose.isValidObjectId(variationValue)
-                      ? variationValue
-                      : new mongoose.Types.ObjectId(),
-                  },
-                  { "variations.value": variationValue },
-                  { "variations.title": variationValue },
-                  { "variations.pack": variationValue },
-                ],
-                "variations.stock": { $gte: qty },
-              },
-              { $inc: { "variations.$.stock": -qty, stock: -qty } },
-              { session, new: true },
-            ).populate("category subcategory subSubCategory")
+            {
+              _id: item.product.id,
+              $or: [
+                {
+                  "variations._id": mongoose.isValidObjectId(variationValue)
+                    ? variationValue
+                    : new mongoose.Types.ObjectId(),
+                },
+                { "variations.value": variationValue },
+                { "variations.title": variationValue },
+                { "variations.pack": variationValue },
+              ],
+              "variations.stock": { $gte: qty },
+            },
+            { $inc: { "variations.$.stock": -qty, stock: -qty } },
+            { session, new: true },
+          ).populate("category subcategory subSubCategory")
           : await Product.findOneAndUpdate(
-              {
-                _id: item.product.id,
-                $or: [
-                  {
-                    "variations._id": mongoose.isValidObjectId(variationValue)
-                      ? variationValue
-                      : new mongoose.Types.ObjectId(),
-                  },
-                  { "variations.value": variationValue },
-                  { "variations.title": variationValue },
-                  { "variations.pack": variationValue },
-                ],
-                "variations.stock": { $gte: qty },
-              },
-              { $inc: { "variations.$.stock": -qty, stock: -qty } },
-              { new: true },
-            ).populate("category subcategory subSubCategory");
+            {
+              _id: item.product.id,
+              $or: [
+                {
+                  "variations._id": mongoose.isValidObjectId(variationValue)
+                    ? variationValue
+                    : new mongoose.Types.ObjectId(),
+                },
+                { "variations.value": variationValue },
+                { "variations.title": variationValue },
+                { "variations.pack": variationValue },
+              ],
+              "variations.stock": { $gte: qty },
+            },
+            { $inc: { "variations.$.stock": -qty, stock: -qty } },
+            { new: true },
+          ).populate("category subcategory subSubCategory");
       }
 
       if (!product) {
@@ -265,34 +265,34 @@ export const createOrder = async (req: Request, res: Response) => {
           // To maintain data consistency, we'll try to decrement from the first variation.
           product = session
             ? await Product.findOneAndUpdate(
-                {
-                  _id: item.product.id,
-                  "variations.0.stock": { $gte: qty },
-                },
-                { $inc: { "variations.0.stock": -qty, stock: -qty } },
-                { session, new: true },
-              ).populate("category subcategory subSubCategory")
+              {
+                _id: item.product.id,
+                "variations.0.stock": { $gte: qty },
+              },
+              { $inc: { "variations.0.stock": -qty, stock: -qty } },
+              { session, new: true },
+            ).populate("category subcategory subSubCategory")
             : await Product.findOneAndUpdate(
-                {
-                  _id: item.product.id,
-                  "variations.0.stock": { $gte: qty },
-                },
-                { $inc: { "variations.0.stock": -qty, stock: -qty } },
-                { new: true },
-              ).populate("category subcategory subSubCategory");
+              {
+                _id: item.product.id,
+                "variations.0.stock": { $gte: qty },
+              },
+              { $inc: { "variations.0.stock": -qty, stock: -qty } },
+              { new: true },
+            ).populate("category subcategory subSubCategory");
         } else {
           // No variations, just decrement top-level stock
           product = session
             ? await Product.findOneAndUpdate(
-                { _id: item.product.id, stock: { $gte: qty } },
-                { $inc: { stock: -qty } },
-                { session, new: true },
-              ).populate("category subcategory subSubCategory")
+              { _id: item.product.id, stock: { $gte: qty } },
+              { $inc: { stock: -qty } },
+              { session, new: true },
+            ).populate("category subcategory subSubCategory")
             : await Product.findOneAndUpdate(
-                { _id: item.product.id, stock: { $gte: qty } },
-                { $inc: { stock: -qty } },
-                { new: true },
-              ).populate("category subcategory subSubCategory");
+              { _id: item.product.id, stock: { $gte: qty } },
+              { $inc: { stock: -qty } },
+              { new: true },
+            ).populate("category subcategory subSubCategory");
         }
       }
 
@@ -560,10 +560,10 @@ export const createOrder = async (req: Request, res: Response) => {
       name: error.name,
       errors: error.errors
         ? Object.keys(error.errors).map((key) => ({
-            field: key,
-            message: error.errors[key].message,
-            value: error.errors[key].value,
-          }))
+          field: key,
+          message: error.errors[key].message,
+          value: error.errors[key].value,
+        }))
         : undefined,
       stack: error.stack,
       body: req.body,
@@ -934,7 +934,7 @@ export const cancelOrder = async (req: Request, res: Response) => {
     if (session) {
       try {
         await session.abortTransaction();
-      } catch (e) {}
+      } catch (e) { }
     }
     console.error("Error cancelling order:", error);
     return res.status(500).json({
