@@ -1,6 +1,6 @@
-﻿import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getOrderById, updateOrderStatus, OrderDetail } from '../../../services/api/orderService';
+import { getOrderById, updateOrderStatus, type OrderDetail } from '../../../services/api/orderService';
 import jsPDF from 'jspdf';
 
 export default function SellerOrderDetail() {
@@ -11,7 +11,7 @@ export default function SellerOrderDetail() {
   const [error, setError] = useState<string>('');
   const [orderStatus, setOrderStatus] = useState<string>('Out For Delivery');
   const [showAssignPopup, setShowAssignPopup] = useState(false);
-  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Admin');
+  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin' | 'Auto'>('Admin');
 
   // Fetch order detail from API
   useEffect(() => {
@@ -38,13 +38,20 @@ export default function SellerOrderDetail() {
     fetchOrderDetail();
   }, [id]);
 
-  // Handle status update
-  const handleStatusUpdate = async (newStatus: string, pref?: 'Self' | 'Admin') => {
+  // Default delivery preference when assign popup opens: Instant → Auto, Standard → Admin
+  useEffect(() => {
+    if (showAssignPopup && orderDetail) {
+      setDeliveryPreference(orderDetail.deliveryOption === 'Instant' ? 'Auto' : 'Admin');
+    }
+  }, [showAssignPopup, orderDetail?.id, orderDetail?.deliveryOption]);
+
+  // Handle status update (for Instant, 'Auto' = don't send preference → backend auto-notifies delivery)
+  const handleStatusUpdate = async (newStatus: string, pref?: 'Self' | 'Admin' | 'Auto') => {
     if (!orderDetail) return;
 
     try {
       const payload: any = { status: newStatus as any };
-      if (pref) {
+      if (pref && pref !== 'Auto') {
         payload.deliveryPreference = pref;
       }
       const response = await updateOrderStatus(orderDetail.id, payload);
@@ -541,7 +548,9 @@ export default function SellerOrderDetail() {
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
             <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
             <p className="text-neutral-600 mb-6 text-sm">
-              Please choose how you want to assign the delivery for this order.
+              {orderDetail.deliveryOption === 'Instant'
+                ? 'Instant delivery: choose self-assign or a delivery partner will be notified automatically.'
+                : 'Please choose how you want to assign the delivery for this order.'}
             </p>
 
             <div className="space-y-3 mb-6">
@@ -560,20 +569,37 @@ export default function SellerOrderDetail() {
                 </div>
               </label>
 
-              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
-                <input
-                  type="radio"
-                  name="delivery_preference"
-                  value="Admin"
-                  checked={deliveryPreference === 'Admin'}
-                  onChange={() => setDeliveryPreference('Admin')}
-                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
-                  <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
-                </div>
-              </label>
+              {orderDetail.deliveryOption === 'Instant' ? (
+                <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Auto' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                  <input
+                    type="radio"
+                    name="delivery_preference"
+                    value="Auto"
+                    checked={deliveryPreference === 'Auto'}
+                    onChange={() => setDeliveryPreference('Auto')}
+                    className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                  />
+                  <div className="ml-3">
+                    <span className="block text-sm font-medium text-neutral-900">Auto-assign to delivery partner</span>
+                    <span className="block text-xs text-neutral-500">A delivery partner will be notified and can accept the order</span>
+                  </div>
+                </label>
+              ) : (
+                <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                  <input
+                    type="radio"
+                    name="delivery_preference"
+                    value="Admin"
+                    checked={deliveryPreference === 'Admin'}
+                    onChange={() => setDeliveryPreference('Admin')}
+                    className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                  />
+                  <div className="ml-3">
+                    <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
+                    <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
+                  </div>
+                </label>
+              )}
             </div>
 
             <div className="flex gap-3 justify-end">

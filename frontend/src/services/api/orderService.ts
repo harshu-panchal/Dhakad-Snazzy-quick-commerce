@@ -61,6 +61,7 @@ export interface OrderDetail {
   paymentMethod: string;
   paymentStatus: string;
   deliveryAddress: DeliveryAddress;
+  deliveryOption?: 'Instant' | 'Standard';
 }
 
 export interface UpdateOrderStatusData {

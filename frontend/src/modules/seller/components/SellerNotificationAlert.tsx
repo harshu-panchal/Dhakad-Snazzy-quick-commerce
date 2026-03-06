@@ -14,14 +14,15 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showAssignPopup, setShowAssignPopup] = useState(false);
-  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Admin');
+  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin' | 'Auto'>('Admin');
 
-  const handleStatusUpdate = async (status: string, pref?: 'Self' | 'Admin') => {
+  const handleStatusUpdate = async (status: string, pref?: 'Self' | 'Admin' | 'Auto') => {
     if (!notification) return;
     setLoading(true);
     try {
       const payload: any = { status: status as any };
-      if (pref) {
+      // For Instant, only send Self when chosen; 'Auto' means don't send preference (backend auto-notifies delivery)
+      if (pref && pref !== 'Auto') {
         payload.deliveryPreference = pref;
       }
       await updateOrderStatus(notification.orderId, payload);
@@ -53,6 +54,13 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
       audioRef.current.volume = volume;
     }
   }, [volume]);
+
+  // Default delivery preference when assign popup opens: Instant → Auto (no admin), Standard → Admin
+  useEffect(() => {
+    if (showAssignPopup && notification) {
+      setDeliveryPreference(notification.deliveryOption === 'Instant' ? 'Auto' : 'Admin');
+    }
+  }, [showAssignPopup, notification?.orderId, notification?.deliveryOption]);
 
   if (!notification) return null;
 
@@ -226,7 +234,9 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
             <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
             <p className="text-neutral-600 mb-6 text-sm">
-              Please choose how you want to assign the delivery for this order.
+              {notification.deliveryOption === 'Instant'
+                ? 'Instant delivery: choose self-assign or a delivery partner will be notified automatically.'
+                : 'Please choose how you want to assign the delivery for this order.'}
             </p>
 
             <div className="space-y-3 mb-6 flex flex-col items-stretch">
@@ -245,6 +255,22 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
                 </div>
               </label>
 
+              {notification.deliveryOption === 'Instant' ? (
+              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Auto' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                <input
+                  type="radio"
+                  name="delivery_preference_alert"
+                  value="Auto"
+                  checked={deliveryPreference === 'Auto'}
+                  onChange={() => setDeliveryPreference('Auto')}
+                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                />
+                <div className="ml-3 text-left">
+                  <span className="block text-sm font-medium text-neutral-900">Auto-assign to delivery partner</span>
+                  <span className="block text-xs text-neutral-500">A delivery partner will be notified and can accept the order</span>
+                </div>
+              </label>
+              ) : (
               <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
                 <input
                   type="radio"
@@ -259,6 +285,7 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
                   <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
                 </div>
               </label>
+              )}
             </div>
 
             <div className="flex gap-3 justify-end">

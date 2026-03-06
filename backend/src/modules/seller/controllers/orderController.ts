@@ -252,6 +252,7 @@ export const getOrderById = asyncHandler(
       deliveryBoyName: order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoy as any)?.name || "",
       deliveryBoyPhone: order.deliveryPreference === 'Self' ? '' : (order.deliveryBoy as any)?.mobile || "",
       deliveryPreference: order.deliveryPreference,
+      deliveryOption: order.deliveryOption,
       items: formattedItems,
       subtotal: order.subtotal || 0,
       tax: order.tax || 0,
@@ -328,25 +329,35 @@ export const updateOrderStatus = asyncHandler(
     order.status = status;
 
     if (deliveryPreference && status === "Accepted") {
-      order.deliveryPreference = deliveryPreference;
+      // For Instant delivery, never persist "Admin" — delivery is auto-assigned, order must not go to admin
+      if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
+        order.deliveryPreference = undefined;
+      } else {
+        order.deliveryPreference = deliveryPreference;
+      }
     }
 
     await order.save();
 
-    // Trigger delivery notification if seller accepts the order (ONLY for Instant delivery and auto-assignment)
-    if (
+    // For Instant delivery: always notify delivery boys when seller accepts (auto-assign flow; no admin)
+    // For Standard: only notify when seller did not choose Self or Admin (legacy/fallback)
+    const isInstantAccept =
       status === "Accepted" &&
       previousStatus !== "Accepted" &&
-      order.deliveryOption === "Instant" &&
-      (!deliveryPreference || (deliveryPreference !== "Self" && deliveryPreference !== "Admin"))
-    ) {
+      order.deliveryOption === "Instant";
+    const isStandardAutoAccept =
+      status === "Accepted" &&
+      previousStatus !== "Accepted" &&
+      order.deliveryOption !== "Instant" &&
+      (!deliveryPreference || (deliveryPreference !== "Self" && deliveryPreference !== "Admin"));
+
+    if (isInstantAccept || isStandardAutoAccept) {
       try {
         console.log(
           `\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`,
         );
         const io: SocketIOServer = req.app.get("io") as SocketIOServer;
         if (io) {
-          // Need to fetch full order with details for the notification service
           const fullOrder = await Order.findById(order._id)
             .populate({
               path: "items",
@@ -373,12 +384,10 @@ export const updateOrderStatus = asyncHandler(
           notifyError,
         );
       }
-    } else {
-      if (status === "Accepted") {
-        console.log(
-          `ℹ️ [SELLER] Order ${order.orderNumber} accepted, but broadcast skipped. Type: ${order.deliveryOption}, Prev Status: ${previousStatus}`,
-        );
-      }
+    } else if (status === "Accepted") {
+      console.log(
+        `ℹ️ [SELLER] Order ${order.orderNumber} accepted, broadcast skipped. Type: ${order.deliveryOption}, Prev: ${previousStatus}`,
+      );
     }
 
     // If order is delivered, credit seller's balance
