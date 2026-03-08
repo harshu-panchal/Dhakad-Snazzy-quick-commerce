@@ -8,6 +8,11 @@ import Return from "../../../models/Return";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { Server as SocketIOServer } from "socket.io";
 import { notifyDeliveryBoyOfAssignment } from "../../../services/orderNotificationService";
+import {
+  calculateCODOrderBreakdown,
+  getOrderEarningBreakdown as getOrderEarningBreakdownService,
+} from "../../../services/commissionService";
+import Seller from "../../../models/Seller";
 
 /**
  * Get all orders with filters
@@ -92,6 +97,147 @@ export const getAllOrders = asyncHandler(
 );
 
 /**
+ * Settlement page: list delivered orders with COD breakdown (admin view).
+ * Recent COD Self-assign delivery orders appear at top; then by orderDate desc.
+ */
+export const getSettlementOrders = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { page = 1, limit = 20 } = req.query;
+    const match: any = { status: "Delivered", paymentMethod: "COD" };
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const limitNum = parseInt(limit as string);
+
+    const [orders, total] = await Promise.all([
+      Order.aggregate([
+        { $match: match },
+        {
+          $addFields: {
+            sortCodSelf: {
+              $cond: [
+                { $and: [{ $eq: ["$paymentMethod", "COD"] }, { $eq: ["$deliveryPreference", "Self"] }] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+        { $sort: { sortCodSelf: -1, orderDate: -1 } },
+        { $skip: skip },
+        { $limit: limitNum },
+        { $lookup: { from: "deliveries", localField: "deliveryBoy", foreignField: "_id", as: "deliveryBoyDoc" } },
+        { $unwind: { path: "$deliveryBoyDoc", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            orderNumber: 1,
+            orderDate: 1,
+            paymentMethod: 1,
+            total: 1,
+            shipping: 1,
+            deliveryPreference: 1,
+            status: 1,
+            deliveryBoy: { $ifNull: ["$deliveryBoyDoc", null] },
+          },
+        },
+      ]),
+      Order.countDocuments(match),
+    ]);
+
+    const ordersWithBreakdown = await Promise.all(
+      orders.map(async (order: any) => {
+        let codBreakdown = null;
+        if (order.paymentMethod === "COD") {
+          try {
+            codBreakdown = await calculateCODOrderBreakdown(order._id.toString());
+            codBreakdown = {
+              ...codBreakdown,
+              sellerEarningsList: Array.from(codBreakdown.sellerEarnings.entries()).map(
+                ([sellerId, amount]) => ({ sellerId, amount }),
+              ),
+              note: codBreakdown.isSelfAssign
+                ? "Self Assign: Delivery boy has no share. Delivery charge goes to seller(s)."
+                : undefined,
+            };
+          } catch {
+            // ignore
+          }
+        }
+        return { order, codBreakdown };
+      }),
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: { orders: ordersWithBreakdown, total, page: parseInt(page as string), limit: parseInt(limit as string), pages: Math.ceil(total / parseInt(limit as string)) },
+    });
+  },
+);
+
+/**
+ * Get COD order breakdown (admin view: seller earnings, admin commission, delivery boy / Self Assign note)
+ */
+export const getOrderCODBreakdown = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const order = await Order.findById(id).select("paymentMethod deliveryPreference");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (order.paymentMethod !== "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "COD breakdown is only available for COD orders",
+      });
+    }
+    const breakdown = await calculateCODOrderBreakdown(id);
+    const sellerEarningsList = Array.from(breakdown.sellerEarnings.entries()).map(
+      ([sellerId, amount]) => ({ sellerId, amount }),
+    );
+    return res.status(200).json({
+      success: true,
+      data: {
+        ...breakdown,
+        sellerEarningsList,
+        note: breakdown.isSelfAssign
+          ? "Self Assign: Delivery boy has no share. Delivery charge goes to seller(s)."
+          : undefined,
+      },
+    });
+  },
+);
+
+/**
+ * Get earning breakdown for any order (COD or Online): admin commission, seller earnings, delivery split
+ */
+export const getOrderEarningBreakdown = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const order = await Order.findById(id).select("paymentMethod deliveryPreference");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    const breakdown = await getOrderEarningBreakdownService(id);
+    const sellerEarningsList = await Promise.all(
+      Array.from(breakdown.sellerEarnings.entries()).map(
+        async ([sellerId, amount]) => {
+          const seller = await Seller.findById(sellerId).select("sellerName storeName").lean();
+          const name = seller?.storeName || seller?.sellerName || sellerId;
+          return { sellerId, amount, sellerName: name };
+        },
+      ),
+    );
+    const { sellerEarnings: _m, ...rest } = breakdown as any;
+    const payload = {
+      ...rest,
+      sellerEarningsList,
+      note: breakdown.isSelfAssign
+        ? "Self Assign: Delivery charge goes to seller(s). Delivery boy has no share."
+        : "Delivery partner gets delivery share; rest is admin.",
+    };
+    return res.status(200).json({ success: true, data: payload });
+  },
+);
+
+/**
  * Get order by ID
  */
 export const getOrderById = asyncHandler(
@@ -127,6 +273,32 @@ export const getOrderById = asyncHandler(
       success: true,
       message: "Order fetched successfully",
       data: order,
+    });
+  },
+);
+
+/**
+ * Mark COD order as paid to admin (seller/delivery boy paid; order will leave seller settlement pending list)
+ */
+export const markOrderCODPaid = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (order.paymentMethod !== "COD") {
+      return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
+    }
+    if (order.codPaidToAdminAt) {
+      return res.status(400).json({ success: false, message: "COD for this order is already marked as paid" });
+    }
+    order.codPaidToAdminAt = new Date();
+    await order.save();
+    return res.status(200).json({
+      success: true,
+      message: "COD marked as received. Order will no longer appear in seller pending settlement.",
+      data: { orderId: order._id, codPaidToAdminAt: order.codPaidToAdminAt },
     });
   },
 );
@@ -251,6 +423,13 @@ export const assignDeliveryBoy = asyncHandler(
       return res.status(404).json({
         success: false,
         message: "Order not found",
+      });
+    }
+
+    if (order.deliveryPreference === "Self") {
+      return res.status(400).json({
+        success: false,
+        message: "This order is self-delivery (seller delivers). Cannot assign a delivery boy.",
       });
     }
 

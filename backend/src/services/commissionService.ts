@@ -203,8 +203,8 @@ export const calculateOrderCommissions = async (orderId: string) => {
       }),
     );
 
-    // Calculate delivery boy commission (on order subtotal OR distance based)
-    if (order.deliveryBoy) {
+    // Calculate delivery boy commission only when delivery boy is assigned and NOT Self Assign
+    if (order.deliveryBoy && order.deliveryPreference !== "Self") {
       const deliveryBoyId = order.deliveryBoy.toString();
 
       // Check for distance based commission
@@ -403,34 +403,87 @@ export const distributeCommissions = async (orderId: string) => {
       await comm.save({ session });
       processedCommissions.push(comm);
 
-      // Group for wallet credit
+      // Group for wallet credit (track orderAmount per seller for Self Assign shipping split)
       if (comm.type === "SELLER" && comm.seller) {
         const sellerId = comm.seller.toString();
         const netAmount = comm.orderAmount - comm.commissionAmount;
 
         if (!sellerEarnings.has(sellerId)) {
-          sellerEarnings.set(sellerId, { netAmount: 0, commissionIds: [] });
+          sellerEarnings.set(sellerId, {
+            netAmount: 0,
+            orderAmount: 0,
+            commissionIds: [] as string[],
+          } as any);
         }
-        const data = sellerEarnings.get(sellerId)!;
+        const data = sellerEarnings.get(sellerId)! as any;
         data.netAmount += netAmount;
+        data.orderAmount = (data.orderAmount || 0) + comm.orderAmount;
         data.commissionIds.push(comm._id.toString());
+      }
+    }
+
+    const isSelfAssign = order.deliveryPreference === "Self";
+    const shippingTotal = order.shipping || 0;
+
+    // Self Assign: add delivery charge to seller earnings (proportional by item total)
+    if (isSelfAssign && shippingTotal > 0) {
+      let totalOrderAmount = 0;
+      for (const [, data] of sellerEarnings.entries()) {
+        totalOrderAmount += (data as any).orderAmount || 0;
+      }
+      if (totalOrderAmount > 0) {
+        for (const [, data] of sellerEarnings.entries()) {
+          const sellerOrderAmt = (data as any).orderAmount || 0;
+          const proportion = sellerOrderAmt / totalOrderAmount;
+          const shippingShare = Math.round(shippingTotal * proportion * 100) / 100;
+          data.netAmount += shippingShare;
+        }
+      } else {
+        // Prepaid Self: seller commissions already Paid on payment; credit only shipping now
+        const existingSellerCommissions = await Commission.find({
+          order: orderId,
+          type: "SELLER",
+        }).session(session);
+        const sellerOrderAmounts = new Map<string, number>();
+        for (const c of existingSellerCommissions) {
+          const sid = (c.seller || c).toString();
+          sellerOrderAmounts.set(sid, (sellerOrderAmounts.get(sid) || 0) + c.orderAmount);
+        }
+        const totalAmt = Array.from(sellerOrderAmounts.values()).reduce((a, b) => a + b, 0);
+        if (totalAmt > 0) {
+          for (const [sellerId, amt] of sellerOrderAmounts.entries()) {
+            const proportion = amt / totalAmt;
+            const shippingShare = Math.round(shippingTotal * proportion * 100) / 100;
+            if (shippingShare > 0) {
+              await creditWallet(
+                sellerId,
+                "SELLER",
+                shippingShare,
+                `Delivery charge (self-delivered) for order ${order.orderNumber}`,
+                orderId,
+                undefined,
+                session,
+              );
+            }
+          }
+        }
       }
     }
 
     // Credit Seller Wallets
     for (const [sellerId, data] of sellerEarnings.entries()) {
-      // For COD orders, we don't credit the seller yet.
-      // The seller will be credited when the delivery boy pays the admin.
+      // For COD orders: Self Assign is credited in processCODOrderDeliverySelf; else credited when delivery boy pays admin.
       if (order.paymentMethod === "COD") {
-        console.log(
-          `[COD] Delaying seller credit for order ${order.orderNumber}. Will be credited when delivery boy pays admin.`,
-        );
-        // Mark these commissions as Pending instead of Paid
-        await Commission.updateMany(
-          { _id: { $in: data.commissionIds } },
-          { $set: { status: "Pending", paidAt: null } },
-          { session },
-        );
+        if (!isSelfAssign) {
+          console.log(
+            `[COD] Delaying seller credit for order ${order.orderNumber}. Will be credited when delivery boy pays admin.`,
+          );
+          await Commission.updateMany(
+            { _id: { $in: data.commissionIds } },
+            { $set: { status: "Pending", paidAt: null } },
+            { session },
+          );
+        }
         continue;
       }
 
@@ -438,7 +491,9 @@ export const distributeCommissions = async (orderId: string) => {
         sellerId,
         "SELLER",
         data.netAmount,
-        `Sale proceeds for order ${order.orderNumber}`,
+        isSelfAssign && shippingTotal > 0
+          ? `Sale proceeds + delivery charge (self-delivered) for order ${order.orderNumber}`
+          : `Sale proceeds for order ${order.orderNumber}`,
         orderId,
         data.commissionIds[0], // Link to first commission for ref
         session,
@@ -447,6 +502,16 @@ export const distributeCommissions = async (orderId: string) => {
 
     // For COD orders, delegate to the specialized COD processing logic
     if (order.paymentMethod && order.paymentMethod.toUpperCase() === "COD") {
+      if (isSelfAssign) {
+        await session.commitTransaction();
+        await processCODOrderDeliverySelf(orderId);
+        const codCommissions = await Commission.find({ order: orderId });
+        return {
+          success: true,
+          message: "COD Self-delivery commissions processed",
+          data: { commissions: codCommissions },
+        };
+      }
       console.log(
         `[Commission] Delegating COD order ${order.orderNumber} to processCODOrderDelivery`,
       );
@@ -466,8 +531,8 @@ export const distributeCommissions = async (orderId: string) => {
       };
     }
 
-    // Handle Delivery Boy Commission (For Prepaid/Online Orders)
-    if (order.deliveryBoy) {
+    // Handle Delivery Boy Commission only when delivery boy assigned and NOT Self Assign
+    if (order.deliveryBoy && order.deliveryPreference !== "Self") {
       const deliveryBoyId = order.deliveryBoy.toString();
       const existingDeliveryComm = await Commission.findOne({
         order: orderId,
@@ -849,6 +914,7 @@ export interface ICODOrderBreakdown {
   // Metadata
   deliveryBoyId?: string;
   deliveryDistanceKm?: number;
+  isSelfAssign?: boolean; // true = delivery charge goes to seller(s), no delivery boy
 }
 
 /**
@@ -871,6 +937,7 @@ export const calculateCODOrderBreakdown = async (
       throw new Error("This function is only for COD orders");
     }
 
+    const isSelfAssign = order.deliveryPreference === "Self";
     const breakdown: ICODOrderBreakdown = {
       orderId: order._id.toString(),
       orderNumber: order.orderNumber,
@@ -886,6 +953,7 @@ export const calculateCODOrderBreakdown = async (
       amountDeliveryBoyOwesAdmin: 0,
       deliveryBoyId: order.deliveryBoy?.toString(),
       deliveryDistanceKm: order.deliveryDistanceKm,
+      isSelfAssign,
     };
 
     // 1. Calculate Product Commissions (Admin vs Seller)
@@ -918,8 +986,13 @@ export const calculateCODOrderBreakdown = async (
       );
     }
 
-    // 2. Calculate Delivery Commission Split
-    if (order.deliveryBoy) {
+    // 2. Calculate Delivery Commission Split (Self Assign = delivery charge to seller, no delivery boy)
+    if (isSelfAssign) {
+      breakdown.deliveryBoyCommission = 0;
+      breakdown.adminDeliveryCommission = 0;
+      breakdown.amountDeliveryBoyOwesAdmin = 0;
+      // totalAdminEarning computed below (no delivery share for admin)
+    } else if (order.deliveryBoy) {
       const settings = await AppSettings.getSettings();
 
       // Check if distance-based delivery is enabled
@@ -953,22 +1026,18 @@ export const calculateCODOrderBreakdown = async (
         breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
       }
     } else {
-      // No delivery boy assigned, all delivery charge goes to admin
+      // No delivery boy assigned (and not Self), all delivery charge goes to admin
       breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
     }
 
-    // 3. Calculate Total Admin Earning (NET PROFIT)
-    // Net Admin Earning = (Product Commission + Platform Fee + Total Delivery Charge) - Delivery Boy Pay
-    breakdown.totalAdminEarning = Math.max(0, (
+    // 3. Calculate Total Admin Earning (Self Assign: admin gets product commission + platform fee only; no delivery)
+    breakdown.totalAdminEarning =
       breakdown.adminProductCommission +
       breakdown.platformFee +
-      breakdown.totalDeliveryCharge
-    ) - breakdown.deliveryBoyCommission);
+      (isSelfAssign ? 0 : breakdown.adminDeliveryCommission);
 
-    // 4. Calculate Amount Delivery Boy Owes Admin
-    // Delivery boy collects full order amount. 
-    // They owe the FULL amount back to the admin because their commission is credited to their wallet balance separately.
-    breakdown.amountDeliveryBoyOwesAdmin = breakdown.totalOrderAmount;
+    // 4. Amount Delivery Boy Owes Admin (only when delivery boy assigned)
+    breakdown.amountDeliveryBoyOwesAdmin = order.deliveryBoy ? breakdown.totalOrderAmount : 0;
 
     console.log(`[COD Breakdown] Order ${order.orderNumber}:`, {
       productCost: breakdown.productCost,
@@ -989,8 +1058,184 @@ export const calculateCODOrderBreakdown = async (
 };
 
 /**
+ * Unified earning breakdown for any order (COD or Online).
+ * For COD returns same as calculateCODOrderBreakdown.
+ * For Online computes: product commission, platform fee, seller earnings, delivery split (Self → seller gets delivery; else delivery boy share).
+ */
+export const getOrderEarningBreakdown = async (
+  orderId: string,
+): Promise<ICODOrderBreakdown> => {
+  const order = await Order.findById(orderId).populate("items");
+  if (!order) {
+    throw new Error("Order not found");
+  }
+
+  if (order.paymentMethod === "COD") {
+    return calculateCODOrderBreakdown(orderId);
+  }
+
+  // Online / Prepaid: compute same-shaped breakdown
+  const isSelfAssign = order.deliveryPreference === "Self";
+  const breakdown: ICODOrderBreakdown = {
+    orderId: order._id.toString(),
+    orderNumber: order.orderNumber,
+    productCost: order.subtotal,
+    adminProductCommission: 0,
+    sellerEarnings: new Map<string, number>(),
+    platformFee: order.platformFee || 0,
+    totalDeliveryCharge: order.shipping || 0,
+    deliveryBoyCommission: 0,
+    adminDeliveryCommission: 0,
+    totalAdminEarning: 0,
+    totalOrderAmount: order.total,
+    amountDeliveryBoyOwesAdmin: 0,
+    deliveryBoyId: order.deliveryBoy?.toString(),
+    deliveryDistanceKm: order.deliveryDistanceKm,
+    isSelfAssign,
+  };
+
+  const itemRefs = Array.isArray(order.items) ? order.items : [];
+  for (const itemRef of itemRefs) {
+    const item =
+      itemRef &&
+      typeof itemRef === "object" &&
+      (itemRef as any).total != null
+        ? (itemRef as any)
+        : await OrderItem.findById((itemRef as any)?._id ?? itemRef);
+    if (!item) continue;
+
+    const commissionRate =
+      item.commissionRate ||
+      (await getOrderItemCommissionRate(
+        item.product?.toString?.() ?? item.product,
+        item.seller?.toString?.() ?? item.seller,
+      ));
+    const itemCommission = (item.total * commissionRate) / 100;
+    const itemSellerEarning = item.total - itemCommission;
+
+    breakdown.adminProductCommission += itemCommission;
+    const sellerId = (item.seller?.toString?.() ?? item.seller).toString();
+    const current = breakdown.sellerEarnings.get(sellerId) || 0;
+    breakdown.sellerEarnings.set(sellerId, current + itemSellerEarning);
+  }
+
+  if (isSelfAssign) {
+    breakdown.deliveryBoyCommission = 0;
+    breakdown.adminDeliveryCommission = 0;
+    const totalSellerEarning = Array.from(breakdown.sellerEarnings.values()).reduce((a, b) => a + b, 0);
+    const shippingTotal = breakdown.totalDeliveryCharge || 0;
+    if (totalSellerEarning > 0 && shippingTotal > 0) {
+      for (const [sid, amt] of breakdown.sellerEarnings.entries()) {
+        const proportion = amt / totalSellerEarning;
+        const shippingShare = Math.round(shippingTotal * proportion * 100) / 100;
+        breakdown.sellerEarnings.set(sid, amt + shippingShare);
+      }
+    }
+  } else if (order.deliveryBoy) {
+    const settings = await AppSettings.getSettings();
+    if (
+      settings?.deliveryConfig?.isDistanceBased &&
+      settings.deliveryConfig.deliveryBoyKmRate &&
+      order.deliveryDistanceKm &&
+      order.deliveryDistanceKm > 0
+    ) {
+      const rate = settings.deliveryConfig.deliveryBoyKmRate;
+      breakdown.deliveryBoyCommission = order.deliveryDistanceKm * rate;
+      breakdown.adminDeliveryCommission =
+        breakdown.totalDeliveryCharge - breakdown.deliveryBoyCommission;
+    } else {
+      const deliveryBoy = await Delivery.findById(order.deliveryBoy);
+      const rate = deliveryBoy?.commissionRate ?? 5;
+      breakdown.deliveryBoyCommission = (order.subtotal * rate) / 100;
+      breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
+    }
+  } else {
+    breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge;
+  }
+
+  breakdown.totalAdminEarning =
+    breakdown.adminProductCommission +
+    breakdown.platformFee +
+    (isSelfAssign ? 0 : breakdown.adminDeliveryCommission);
+
+  return breakdown;
+};
+
+/**
+ * Process COD Order Delivery when seller self-delivers (Self Assign).
+ * Credits sellers with net + proportional delivery charge; no delivery boy involved.
+ */
+export const processCODOrderDeliverySelf = async (
+  orderId: string,
+): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const order = await Order.findById(orderId).populate("items").session(session);
+    if (!order) throw new Error("Order not found");
+    if (order.paymentMethod !== "COD") throw new Error("This function is only for COD orders");
+    if (order.deliveryPreference !== "Self") throw new Error("This function is only for Self Assign COD orders");
+
+    const breakdown = await calculateCODOrderBreakdown(orderId);
+    const shippingTotal = breakdown.totalDeliveryCharge || 0;
+    const sellerEarningsArray = Array.from(breakdown.sellerEarnings.entries());
+    const totalSellerEarning = sellerEarningsArray.reduce((s, [, amt]) => s + amt, 0);
+    const proportionDenom = totalSellerEarning > 0 ? totalSellerEarning : 1;
+
+    for (const [sellerId, netEarning] of sellerEarningsArray) {
+      const proportion = netEarning / proportionDenom;
+      const shippingShare = Math.round(shippingTotal * proportion * 100) / 100;
+      const totalCredit = Math.round((netEarning + shippingShare) * 100) / 100;
+
+      const orderItems = await OrderItem.find({ order: orderId, seller: sellerId }).session(session);
+      for (const item of orderItems) {
+        const commRate =
+          item.commissionRate ||
+          (await getOrderItemCommissionRate(item.product.toString(), item.seller.toString()));
+        const itemCommission = (item.total * commRate) / 100;
+        await Commission.create(
+          [
+            {
+              order: orderId,
+              orderItem: item._id,
+              seller: sellerId,
+              type: "SELLER",
+              orderAmount: item.total,
+              commissionRate: commRate,
+              commissionAmount: itemCommission,
+              status: "Paid",
+              paidAt: new Date(),
+            },
+          ],
+          { session },
+        );
+      }
+
+      await creditWallet(
+        sellerId,
+        "SELLER",
+        totalCredit,
+        `Sale proceeds + delivery charge (self-delivered) for COD order ${order.orderNumber}`,
+        orderId,
+        undefined,
+        session,
+      );
+    }
+
+    await session.commitTransaction();
+    console.log(`[COD Self Delivery] Order ${order.orderNumber} processed. Sellers credited with net + delivery charge.`);
+  } catch (error: any) {
+    await session.abortTransaction();
+    console.error("Error in processCODOrderDeliverySelf:", error);
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
  * Process COD Order Delivery
- * Called when a COD order is marked as delivered
+ * Called when a COD order is marked as delivered (with delivery boy)
  * Updates delivery boy wallet, platform wallet, and creates commission records
  */
 export const processCODOrderDelivery = async (
@@ -1011,6 +1256,10 @@ export const processCODOrderDelivery = async (
 
     if (order.paymentMethod !== "COD") {
       throw new Error("This function is only for COD orders");
+    }
+
+    if (order.deliveryPreference === "Self") {
+      throw new Error("Use processCODOrderDeliverySelf for Self Assign COD orders");
     }
 
     if (!order.deliveryBoy) {

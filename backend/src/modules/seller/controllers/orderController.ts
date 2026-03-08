@@ -2,10 +2,12 @@ import { Request, Response } from "express";
 import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import Seller from "../../../models/Seller";
-import WalletTransaction from "../../../models/WalletTransaction";
 import { notifyDeliveryBoysOfNewOrder } from "../../../services/orderNotificationService";
 import { Server as SocketIOServer } from "socket.io";
+import {
+  calculateCODOrderBreakdown,
+  getOrderEarningBreakdown,
+} from "../../../services/commissionService";
 
 /**
  * Get seller's orders with filters, sorting, and pagination
@@ -139,6 +141,184 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * Settlement page: list seller's delivered orders with COD breakdown.
+ * settlementStatus=pending (default): only orders where COD not yet paid to admin (so list "hat jata hai" after pay).
+ * settlementStatus=settled: only COD orders already paid to admin. all: no filter.
+ */
+export const getSettlementOrders = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const { page = 1, limit = 20, settlementStatus = "pending" } = req.query;
+    const orderIds = await OrderItem.find({ seller: sellerId }).distinct("order");
+    const query: any = { _id: { $in: orderIds }, status: "Delivered", paymentMethod: "COD" };
+    if (settlementStatus === "pending") {
+      query.codPaidToAdminAt = null;
+    } else if (settlementStatus === "settled") {
+      query.codPaidToAdminAt = { $ne: null };
+    }
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const orders = await Order.find(query)
+      .select("orderNumber orderDate paymentMethod total shipping deliveryPreference status codPaidToAdminAt")
+      .sort({ orderDate: -1 })
+      .skip(skip)
+      .limit(parseInt(limit as string))
+      .lean();
+    const total = await Order.countDocuments(query);
+
+    const ordersWithBreakdown = await Promise.all(
+      orders.map(async (order: any) => {
+        let codBreakdown = null;
+        if (order.paymentMethod === "COD") {
+          try {
+            const full = await calculateCODOrderBreakdown(order._id.toString());
+            const myEarning = full.sellerEarnings.get(sellerId) ?? 0;
+            codBreakdown = {
+              orderId: full.orderId,
+              orderNumber: full.orderNumber,
+              adminProductCommission: full.adminProductCommission,
+              platformFee: full.platformFee,
+              totalDeliveryCharge: full.totalDeliveryCharge,
+              deliveryBoyCommission: full.deliveryBoyCommission,
+              isSelfAssign: full.isSelfAssign,
+              totalAdminEarning: full.totalAdminEarning,
+              yourEarning: myEarning,
+              note: full.isSelfAssign
+                ? "Self Assign: Delivery charge added to your earning. Delivery boy has no share."
+                : "Amount to pay admin & your earning.",
+            };
+          } catch {
+            // ignore
+          }
+        }
+        return { order, codBreakdown };
+      }),
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        orders: ordersWithBreakdown,
+        total,
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        pages: Math.ceil(total / parseInt(limit as string)),
+      },
+    });
+  },
+);
+
+/**
+ * Get COD order breakdown for seller (admin commission visible; Self Assign = delivery boy gets nothing)
+ */
+export const getOrderCODBreakdown = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const { id } = req.params;
+    const hasItems = await OrderItem.findOne({ order: id, seller: sellerId });
+    if (!hasItems) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    const order = await Order.findById(id).select("paymentMethod deliveryPreference");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (order.paymentMethod !== "COD") {
+      return res.status(400).json({
+        success: false,
+        message: "COD breakdown is only available for COD orders",
+      });
+    }
+    const breakdown = await calculateCODOrderBreakdown(id);
+    const myEarning = breakdown.sellerEarnings.get(sellerId) ?? 0;
+    return res.status(200).json({
+      success: true,
+      data: {
+        orderId: breakdown.orderId,
+        orderNumber: breakdown.orderNumber,
+        adminProductCommission: breakdown.adminProductCommission,
+        platformFee: breakdown.platformFee,
+        totalDeliveryCharge: breakdown.totalDeliveryCharge,
+        deliveryBoyCommission: breakdown.deliveryBoyCommission,
+        isSelfAssign: breakdown.isSelfAssign,
+        totalAdminEarning: breakdown.totalAdminEarning,
+        yourEarning: myEarning,
+        note: breakdown.isSelfAssign
+          ? "Self Assign: Delivery charge added to seller earning. Delivery boy has no share."
+          : "Admin commission and your earning for this COD order.",
+      },
+    });
+  },
+);
+
+/**
+ * Get earning breakdown for this order (COD or Online): your earning, admin commission, delivery (Self = you get delivery charge)
+ */
+export const getOrderEarningBreakdownSeller = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const { id } = req.params;
+    const hasItems = await OrderItem.findOne({ order: id, seller: sellerId });
+    if (!hasItems) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    const breakdown = await getOrderEarningBreakdown(id);
+    const yourEarning = breakdown.sellerEarnings.get(sellerId) ?? 0;
+    const payload = {
+      orderId: breakdown.orderId,
+      orderNumber: breakdown.orderNumber,
+      adminProductCommission: breakdown.adminProductCommission,
+      platformFee: breakdown.platformFee,
+      totalDeliveryCharge: breakdown.totalDeliveryCharge,
+      deliveryBoyCommission: breakdown.deliveryBoyCommission,
+      isSelfAssign: breakdown.isSelfAssign,
+      totalAdminEarning: breakdown.totalAdminEarning,
+      yourEarning,
+      note: breakdown.isSelfAssign
+        ? "Self Assign: Delivery charge is included in your earning. Delivery partner has no share."
+        : "Delivery partner gets delivery share. Your earning is from product sale (after commission).",
+    };
+    return res.status(200).json({ success: true, data: payload });
+  },
+);
+
+/**
+ * Seller marks COD as paid to admin (order will leave pending settlement list)
+ */
+export const markOrderCODPaidSeller = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const { id } = req.params;
+    const hasItems = await OrderItem.findOne({ order: id, seller: sellerId });
+    if (!hasItems) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (order.paymentMethod !== "COD") {
+      return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
+    }
+    if (order.status !== "Delivered") {
+      return res.status(400).json({
+        success: false,
+        message: "Only delivered orders appear in settlement. Mark the order as Delivered first, then you can mark as paid to admin.",
+      });
+    }
+    if (order.codPaidToAdminAt) {
+      return res.status(400).json({ success: false, message: "COD for this order is already marked as paid" });
+    }
+    order.codPaidToAdminAt = new Date();
+    await order.save();
+    return res.status(200).json({
+      success: true,
+      message: "Marked as paid to admin. This order will no longer appear in your pending settlement list.",
+      data: { orderId: order._id, codPaidToAdminAt: order.codPaidToAdminAt },
+    });
+  },
+);
+
+/**
  * Get order by ID with populated order items, customer, and delivery info
  */
 export const getOrderById = asyncHandler(
@@ -146,7 +326,6 @@ export const getOrderById = asyncHandler(
     const sellerId = (req as any).user.userId;
     const { id } = req.params;
 
-    // First check if this seller has items in this order
     // First check if this seller has items in this order
     const sellerItems = await OrderItem.find({ order: id, seller: sellerId })
       .populate("seller", "storeName")
@@ -317,34 +496,40 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
-    // Check if status is already the same
-    if (order.status === status) {
+    // Allow same status only when updating deliveryPreference (e.g. seller chose Self after Accept)
+    const previousStatus = order.status;
+    if (order.status === status && !deliveryPreference) {
       return res.status(400).json({
         success: false,
         message: `Order is already ${status}`,
       });
     }
+    if (order.status !== status) {
+      order.status = status;
+    }
 
-    const previousStatus = order.status;
-    order.status = status;
-
-    if (deliveryPreference && status === "Accepted") {
+    if (deliveryPreference && (status === "Accepted" || order.status === "Accepted")) {
       // For Instant delivery, never persist "Admin" — delivery is auto-assigned, order must not go to admin
       if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
         order.deliveryPreference = undefined;
       } else {
         order.deliveryPreference = deliveryPreference;
       }
+      // When seller chooses Self, ensure no delivery boy is assigned (order must not go to delivery boy)
+      if (deliveryPreference === "Self") {
+        order.deliveryBoy = undefined;
+      }
     }
 
     await order.save();
 
-    // For Instant delivery: always notify delivery boys when seller accepts (auto-assign flow; no admin)
+    // For Instant: notify delivery boys only when seller did NOT choose Self (Self = seller delivers, no delivery boy)
     // For Standard: only notify when seller did not choose Self or Admin (legacy/fallback)
     const isInstantAccept =
       status === "Accepted" &&
       previousStatus !== "Accepted" &&
-      order.deliveryOption === "Instant";
+      order.deliveryOption === "Instant" &&
+      order.deliveryPreference !== "Self";
     const isStandardAutoAccept =
       status === "Accepted" &&
       previousStatus !== "Accepted" &&
@@ -390,28 +575,18 @@ export const updateOrderStatus = asyncHandler(
       );
     }
 
-    // If order is delivered, credit seller's balance
+    // If order is delivered, use commission service (handles Self Assign: seller gets net + delivery charge; no delivery boy)
     if (status === "Delivered" && previousStatus !== "Delivered") {
-      const seller = await Seller.findById(sellerId);
-      if (seller) {
-        // Calculate net earning (sale amount - commission)
-        // Commission is stored in seller model
-        const commissionRate = (seller.commission || 0) / 100;
-        const commissionAmount = order.total * commissionRate;
-        const netEarning = order.total - commissionAmount;
-
-        seller.balance = (seller.balance || 0) + netEarning;
-        await seller.save();
-
-        // Log transaction
-        await WalletTransaction.create({
-          sellerId,
-          amount: netEarning,
-          type: "Credit",
-          description: `Earnings from Order #${order.orderNumber}`,
-          reference: `ORD-${order.orderNumber}-${Date.now()}`,
-          status: "Completed",
-        });
+      try {
+        const { distributeCommissions } = await import(
+          "../../../services/commissionService"
+        );
+        await distributeCommissions(order._id.toString());
+      } catch (commissionError) {
+        console.error(
+          "Error distributing commissions on seller delivery:",
+          commissionError,
+        );
       }
     }
 

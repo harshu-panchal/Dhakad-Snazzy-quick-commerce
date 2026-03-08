@@ -129,18 +129,20 @@ export default function DeliveryOrderDetail() {
         fetchOrder();
     }, [id]);
 
-    // Fetch seller locations when order is assigned
+    // Fetch seller locations when order is assigned — never for cancelled/returned/delivered
     useEffect(() => {
         const fetchSellerLocations = async () => {
             if (!id || !order) return;
-            // Only fetch if order has delivery boy assigned and status is before "Picked up"
-            if (order.status && order.status !== 'Picked up' && order.status !== 'Delivered') {
+            const skipStatuses = ['Picked up', 'Delivered', 'Cancelled', 'Returned'];
+            if (order.status && !skipStatuses.includes(order.status)) {
                 try {
                     const locations = await getSellerLocationsForOrder(id);
                     setSellerLocations(locations || []);
                 } catch (err) {
                     console.error('Failed to fetch seller locations:', err);
                 }
+            } else if (order.status === 'Cancelled' || order.status === 'Returned') {
+                setSellerLocations([]);
             }
         };
         fetchSellerLocations();
@@ -377,15 +379,14 @@ export default function DeliveryOrderDetail() {
                     }
                 });
 
-                // Listen for order cancellation
+                // Listen for order cancellation — delivery boy should know and become available for next order
                 socket.on('order-cancelled', (data: any) => {
                     if (isMounted && data.orderId === id) {
                         console.log('Order cancelled event received:', data);
-                        alert(data.message || 'Order has been cancelled');
-                        // Update order status locally
                         setOrder((prev: any) => prev ? { ...prev, status: 'Cancelled' } : null);
-                        // Optional: Navigate back or force re-fetch
-                        fetchOrder();
+                        setSellerLocations([]);
+                        alert(data.message || 'Order has been cancelled. You are now available for the next order.');
+                        setTimeout(() => navigate('/delivery'), 500);
                     }
                 });
 
@@ -532,8 +533,9 @@ export default function DeliveryOrderDetail() {
     };
 
     const nextStatus = getNextStatus();
-    const isMapVisible = order.status === 'Out for Delivery' || order.status === 'Picked up' || (sellerLocations.length > 0 && order.status !== 'Delivered');
-    const showSellerLocations = sellerLocations.length > 0 && order.status !== 'Picked up' && order.status !== 'Out for Delivery' && order.status !== 'Delivered';
+    const isCancelledOrReturned = order.status === 'Cancelled' || order.status === 'Returned';
+    const isMapVisible = !isCancelledOrReturned && (order.status === 'Out for Delivery' || order.status === 'Picked up' || (sellerLocations.length > 0 && order.status !== 'Delivered'));
+    const showSellerLocations = !isCancelledOrReturned && sellerLocations.length > 0 && order.status !== 'Picked up' && order.status !== 'Out for Delivery' && order.status !== 'Delivered';
     const showCustomerLocation = order.status === 'Picked up' || order.status === 'Out for Delivery';
 
     // Check if we have valid customer coordinates
@@ -556,14 +558,29 @@ export default function DeliveryOrderDetail() {
 
                 <div className="ml-auto">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
-                        order.status === 'Picked up' ? 'bg-indigo-100 text-indigo-700' :
-                            order.status === 'Ready for pickup' ? 'bg-yellow-100 text-yellow-700' :
-                                'bg-orange-100 text-orange-700'
+                        order.status === 'Cancelled' || order.status === 'Returned' ? 'bg-red-100 text-red-700' :
+                            order.status === 'Picked up' ? 'bg-indigo-100 text-indigo-700' :
+                                order.status === 'Ready for pickup' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-orange-100 text-orange-700'
                         }`}>
                         {order.status}
                     </span>
                 </div>
             </div>
+
+            {/* Order cancelled / returned — no locations shown, delivery boy available for next order */}
+            {isCancelledOrReturned && (
+                <div className="mx-4 mt-4 p-5 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="font-semibold text-red-800">This order has been {order.status.toLowerCase()}.</p>
+                    <p className="text-sm text-red-700 mt-1">You are now available for the next order.</p>
+                    <button
+                        onClick={() => navigate('/delivery')}
+                        className="mt-4 w-full py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            )}
 
             {/* Location Error Warning */}
             {locationError && (

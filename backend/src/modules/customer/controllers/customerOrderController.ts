@@ -1,4 +1,4 @@
-﻿﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
 import Order from "../../../models/Order";
 import Product from "../../../models/Product";
 import OrderItem from "../../../models/OrderItem";
@@ -12,6 +12,7 @@ import AppSettings from "../../../models/AppSettings";
 import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
 import { getOrderItemCommissionRate } from "../../../services/commissionService";
+import DeliveryAssignment from "../../../models/DeliveryAssignment";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -876,11 +877,25 @@ export const cancelOrder = async (req: Request, res: Response) => {
     order.cancelledAt = new Date();
     order.cancelledBy = new mongoose.Types.ObjectId(userId); // Use Customer ID as canceller
 
+    // So delivery boy is no longer "busy" and can take next order
+    if (order.deliveryBoy) {
+      order.deliveryBoyStatus = "Failed";
+    }
+
     if (session) {
       await order.save({ session });
       await session.commitTransaction();
     } else {
       await order.save();
+    }
+
+    // Mark DeliveryAssignment as Cancelled so delivery boy is available for new orders
+    if (order.deliveryBoy) {
+      await DeliveryAssignment.findOneAndUpdate(
+        { order: order._id },
+        { status: "Cancelled", failedAt: new Date(), failureReason: "Order cancelled by customer" },
+        { new: true }
+      ).exec();
     }
 
     // Notify
@@ -889,20 +904,14 @@ export const cancelOrder = async (req: Request, res: Response) => {
       if (io) {
         await notifySellersOfOrderUpdate(io, order, "ORDER_CANCELLED");
 
-        // Notify delivery boy if assigned
+        // Notify delivery boy so they know order is cancelled and can take next order
         if (order.deliveryBoy) {
-          // Update delivery status to Failed since order is cancelled
-          // We do this in background to not block response
-          Order.findByIdAndUpdate(order._id, {
-            deliveryBoyStatus: "Failed",
-          }).exec();
-
-          // Notify the specific delivery boy
           const deliveryBoyId = order.deliveryBoy.toString();
           io.to(`delivery-${deliveryBoyId}`).emit("order-cancelled", {
             orderId: order._id,
             orderNumber: order.orderNumber,
-            message: "Order has been cancelled by the customer",
+            status: "Cancelled",
+            message: "Order has been cancelled by the customer. You are now available for the next order.",
           });
 
           console.log(

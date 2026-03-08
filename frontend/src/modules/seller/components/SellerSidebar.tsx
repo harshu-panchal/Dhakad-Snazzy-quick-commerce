@@ -22,6 +22,7 @@ interface SellerSidebarProps {
 const menuItems: MenuItem[] = [
   { label: "Dashboard", path: "/seller" },
   { label: "Orders", path: "/seller/orders" },
+  { label: "Settlement", path: "/seller/settlement" },
   {
     label: "Delivery Tracking",
     path: "/seller/delivery-tracking",

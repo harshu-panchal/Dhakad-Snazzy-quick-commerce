@@ -122,6 +122,9 @@ const SellerOrders = lazy(() => import("./modules/seller/pages/SellerOrders"));
 const SellerOrderDetail = lazy(
   () => import("./modules/seller/pages/SellerOrderDetail"),
 );
+const SellerSettlement = lazy(
+  () => import("./modules/seller/pages/SellerSettlement"),
+);
 const SellerCategory = lazy(
   () => import("./modules/seller/pages/SellerCategory"),
 );
@@ -268,6 +271,9 @@ const AdminDeliveryAppPolicy = lazy(
 const AdminOrders = lazy(() => import("./modules/admin/pages/AdminOrders"));
 const AdminOrderDetail = lazy(
   () => import("./modules/admin/pages/AdminOrderDetail"),
+);
+const AdminSettlement = lazy(
+  () => import("./modules/admin/pages/AdminSettlement"),
 );
 const AdminManageCustomer = lazy(
   () => import("./modules/admin/pages/AdminManageCustomer"),
@@ -470,6 +476,10 @@ function App() {
                                       <Route
                                         path="orders"
                                         element={<SellerOrders />}
+                                      />
+                                      <Route
+                                        path="settlement"
+                                        element={<SellerSettlement />}
                                       />
                                       <Route
                                         path="delivery-tracking"
@@ -684,6 +694,10 @@ function App() {
                                       <Route
                                         path="delivery-tracking"
                                         element={<AdminDeliveryTracking />}
+                                      />
+                                      <Route
+                                        path="settlement"
+                                        element={<AdminSettlement />}
                                       />
                                       <Route
                                         path="orders/all"

@@ -41,6 +41,8 @@ export interface IOrder extends Document {
   paymentMethod: string;
   paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded";
   paymentId?: string;
+  /** When admin received COD for this order (settled); null = pending pay to admin */
+  codPaidToAdminAt?: Date;
 
   // Order Status
   status:
@@ -244,6 +246,10 @@ const OrderSchema = new Schema<IOrder>(
     paymentId: {
       type: String,
       trim: true,
+    },
+    codPaidToAdminAt: {
+      type: Date,
+      default: null,
     },
 
     // Order Status

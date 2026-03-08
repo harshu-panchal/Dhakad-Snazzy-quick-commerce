@@ -238,6 +238,9 @@ export const confirmCashCollection = asyncHandler(
             // 4. Distribute funds to sellers (releases "Pending" commissions)
             await processPendingCODPayouts(deliveryBoy._id.toString(), collection.amount);
 
+            // 5. Mark this order as COD paid to admin (so it leaves seller settlement "pending" list)
+            await Order.findByIdAndUpdate(collection.order, { codPaidToAdminAt: new Date() });
+
             console.log(`[Cash Collection] Reconciled ₹${collection.amount} for DB ${deliveryBoy.name}. New pending debt: ₹${deliveryBoy.pendingAdminPayout}`);
         }
 

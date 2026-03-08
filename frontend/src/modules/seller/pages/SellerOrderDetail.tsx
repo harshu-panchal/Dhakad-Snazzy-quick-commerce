@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getOrderById, updateOrderStatus, type OrderDetail } from '../../../services/api/orderService';
+import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
 import jsPDF from 'jspdf';
 
 export default function SellerOrderDetail() {
@@ -12,6 +12,7 @@ export default function SellerOrderDetail() {
   const [orderStatus, setOrderStatus] = useState<string>('Out For Delivery');
   const [showAssignPopup, setShowAssignPopup] = useState(false);
   const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin' | 'Auto'>('Admin');
+  const [earningBreakdown, setEarningBreakdown] = useState<SellerEarningBreakdown | null>(null);
 
   // Fetch order detail from API
   useEffect(() => {
@@ -44,6 +45,20 @@ export default function SellerOrderDetail() {
       setDeliveryPreference(orderDetail.deliveryOption === 'Instant' ? 'Auto' : 'Admin');
     }
   }, [showAssignPopup, orderDetail?.id, orderDetail?.deliveryOption]);
+
+  // Fetch earning breakdown (COD or Online): your earning, delivery (Self = you get delivery charge)
+  useEffect(() => {
+    const fetchEarningBreakdown = async () => {
+      if (!id || !orderDetail) return;
+      try {
+        const res = await getOrderEarningBreakdown(id);
+        if (res.success && res.data) setEarningBreakdown(res.data);
+      } catch {
+        setEarningBreakdown(null);
+      }
+    };
+    fetchEarningBreakdown();
+  }, [id, orderDetail]);
 
   // Handle status update (for Instant, 'Auto' = don't send preference → backend auto-notifies delivery)
   const handleStatusUpdate = async (newStatus: string, pref?: 'Self' | 'Admin' | 'Auto') => {
@@ -485,6 +500,16 @@ export default function SellerOrderDetail() {
               <div className="text-sm text-neutral-600 mb-3">
                 <span className="font-medium">Time Slot:</span> {orderDetail.timeSlot}
               </div>
+              <div className="text-sm text-neutral-600 mb-3">
+                <span className="font-medium">Delivery Type:</span>{' '}
+                {orderDetail.deliveryOption === 'Instant' ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">Instant</span>
+                ) : orderDetail.deliveryOption === 'Standard' ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800">Standard</span>
+                ) : (
+                  '—'
+                )}
+              </div>
               <div className="flex items-center gap-2 lg:justify-end">
                 <span className="text-sm font-medium text-neutral-700">Order Status:</span>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(orderStatus)}`}>
@@ -534,6 +559,34 @@ export default function SellerOrderDetail() {
           </div>
         </div>
       </div>
+
+      {/* Earning breakdown: your earning (COD and Online); Self = delivery charge to you */}
+      {earningBreakdown && (
+        <div className="mt-6 bg-white rounded-lg shadow-sm border border-teal-100 overflow-hidden">
+          <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
+            <h2 className="text-base sm:text-lg font-semibold">Earning breakdown</h2>
+            <p className="text-sm text-teal-100 mt-0.5">Your earning from this order</p>
+          </div>
+          <div className="px-4 sm:px-6 py-4 space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Admin (commission + platform fee):</span>
+              <span className="font-semibold text-teal-700">₹{(earningBreakdown.totalAdminEarning ?? 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-600">Your earning (this order):</span>
+              <span className="font-semibold text-green-700">₹{(earningBreakdown.yourEarning ?? 0).toFixed(2)}</span>
+            </div>
+            {earningBreakdown.isSelfAssign && (
+              <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-100">
+                Self delivery: delivery charge is included in your earning. No share to delivery partner.
+              </p>
+            )}
+            {earningBreakdown.note && (
+              <p className="text-xs text-neutral-500">{earningBreakdown.note}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="mt-6 px-4 sm:px-6 text-center py-4 bg-neutral-100 rounded-lg">

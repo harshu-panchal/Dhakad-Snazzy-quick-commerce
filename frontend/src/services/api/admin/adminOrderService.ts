@@ -46,6 +46,7 @@ export interface Order {
   paymentMethod: string;
   paymentStatus: "Pending" | "Paid" | "Failed" | "Refunded";
   paymentId?: string;
+  codPaidToAdminAt?: string | null;
   status:
   | "Received"
   | "Accepted"
@@ -165,6 +166,109 @@ export const getOrdersByStatus = async (
  */
 export const getOrderById = async (id: string): Promise<ApiResponse<Order>> => {
   const response = await api.get<ApiResponse<Order>>(`/admin/orders/${id}`);
+  return response.data;
+};
+
+/**
+ * COD order breakdown (admin earning, seller earnings, delivery boy / Self Assign)
+ */
+export interface CODBreakdown {
+  orderId: string;
+  orderNumber: string;
+  productCost: number;
+  adminProductCommission: number;
+  sellerEarningsList: { sellerId: string; amount: number }[];
+  platformFee: number;
+  totalDeliveryCharge: number;
+  deliveryBoyCommission: number;
+  adminDeliveryCommission: number;
+  totalAdminEarning: number;
+  totalOrderAmount: number;
+  amountDeliveryBoyOwesAdmin: number;
+  isSelfAssign?: boolean;
+  note?: string;
+}
+
+export const getOrderCODBreakdown = async (
+  id: string,
+): Promise<ApiResponse<CODBreakdown>> => {
+  const response = await api.get<ApiResponse<CODBreakdown>>(
+    `/admin/orders/${id}/cod-breakdown`,
+  );
+  return response.data;
+};
+
+/** Earning breakdown for any order (COD or Online): admin, sellers, delivery split */
+export interface EarningBreakdown {
+  orderId: string;
+  orderNumber: string;
+  productCost: number;
+  adminProductCommission: number;
+  sellerEarningsList: { sellerId: string; amount: number; sellerName?: string }[];
+  platformFee: number;
+  totalDeliveryCharge: number;
+  deliveryBoyCommission: number;
+  adminDeliveryCommission: number;
+  totalAdminEarning: number;
+  totalOrderAmount: number;
+  amountDeliveryBoyOwesAdmin: number;
+  isSelfAssign?: boolean;
+  deliveryBoyId?: string;
+  deliveryDistanceKm?: number;
+  note?: string;
+}
+
+export const getOrderEarningBreakdown = async (
+  id: string,
+): Promise<ApiResponse<EarningBreakdown>> => {
+  const response = await api.get<ApiResponse<EarningBreakdown>>(
+    `/admin/orders/${id}/earning-breakdown`,
+  );
+  return response.data;
+};
+
+/** Settlement page: list of orders with breakdown */
+export interface SettlementOrderItem {
+  order: {
+    _id: string;
+    orderNumber: string;
+    orderDate: string;
+    paymentMethod: string;
+    total: number;
+    shipping?: number;
+    deliveryPreference?: string;
+    status: string;
+    deliveryBoy?: { name: string; mobile: string };
+  };
+  codBreakdown: CODBreakdown | null;
+}
+
+export const getSettlementOrders = async (params?: {
+  page?: number;
+  limit?: number;
+  paymentMethod?: string;
+}): Promise<
+  ApiResponse<{
+    orders: SettlementOrderItem[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }>
+> => {
+  const response = await api.get("/admin/settlement", { params });
+  return response.data;
+};
+
+/**
+ * Mark COD as received from seller/delivery (order will leave seller settlement pending list)
+ */
+export const markOrderCODPaid = async (
+  id: string,
+): Promise<ApiResponse<{ orderId: string; codPaidToAdminAt: string }>> => {
+  const response = await api.patch(
+    `/admin/orders/${id}/mark-cod-paid`,
+  );
   return response.data;
 };
 
