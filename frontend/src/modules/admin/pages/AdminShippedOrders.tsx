@@ -130,7 +130,7 @@ export default function AdminShippedOrders() {
           order.orderNumber || "",
           order.customerName || "",
           order.deliveryAddress?.address || "",
-          order.estimatedDeliveryDate
+          order.status === 'Delivered' && order.estimatedDeliveryDate
             ? new Date(order.estimatedDeliveryDate).toLocaleDateString()
             : "",
           order.orderDate ? new Date(order.orderDate).toLocaleDateString() : "",
@@ -771,7 +771,7 @@ export default function AdminShippedOrders() {
                         {order.deliveryAddress?.address || "-"}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
-                        {order.estimatedDeliveryDate
+                        {order.status === 'Delivered' && order.estimatedDeliveryDate
                           ? new Date(
                             order.estimatedDeliveryDate
                           ).toLocaleDateString()

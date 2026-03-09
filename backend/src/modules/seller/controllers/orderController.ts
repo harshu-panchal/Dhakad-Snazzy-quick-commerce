@@ -417,8 +417,8 @@ export const getOrderById = asyncHandler(
       id: order._id,
       invoiceNumber: order.invoiceNumber || order.orderNumber || "N/A",
       orderDate: order.orderDate
-        ? order.orderDate.toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0],
+        ? order.orderDate.toISOString()
+        : new Date().toISOString(),
       deliveryDate: order.estimatedDeliveryDate
         ? order.estimatedDeliveryDate.toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0],

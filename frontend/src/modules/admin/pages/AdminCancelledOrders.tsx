@@ -95,7 +95,7 @@ export default function AdminCancelledOrders() {
           order.orderNumber || '',
           order.customerName || '',
           order.deliveryAddress?.address || '',
-          order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString() : '',
+          order.status === 'Delivered' && order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString() : '',
           order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '',
           order.status || '',
           order.deliveryBoyStatus || 'Not Assigned',
@@ -642,7 +642,7 @@ export default function AdminCancelledOrders() {
                         {order.deliveryAddress?.address || '-'}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
-                        {order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString() : '-'}
+                        {order.status === 'Delivered' && order.estimatedDeliveryDate ? new Date(order.estimatedDeliveryDate).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                         {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '-'}

@@ -125,7 +125,9 @@ export default function SellerOrderDetail() {
   }
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString + 'T00:00:00');
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
     const day = date.getDate();
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const month = monthNames[date.getMonth()];
@@ -135,6 +137,17 @@ export default function SellerOrderDetail() {
     else if (day === 2 || day === 22) suffix = 'nd';
     else if (day === 3 || day === 23) suffix = 'rd';
     return `${day}${suffix} ${month}, ${year}`;
+  };
+
+  const formatTime = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   const handleExportPDF = () => {
@@ -179,8 +192,6 @@ export default function SellerOrderDetail() {
     doc.setFont('helvetica', 'normal');
     doc.text('From: Dhakad Snazzy - 10 Minute App', margin, yPos);
     yPos += 6;
-    doc.text('Phone: 8956656429', margin, yPos);
-    yPos += 6;
     doc.text('Email: info@Dhakad Snazzy.com', margin, yPos);
     yPos += 6;
     doc.text('Website: https://Dhakad Snazzy.com', margin, yPos);
@@ -198,7 +209,7 @@ export default function SellerOrderDetail() {
     doc.setFont('helvetica', 'normal');
     doc.text(`Order ID: ${orderDetail.id}`, rightX, yPos - 14, { align: 'right' });
     doc.text(`Delivery Date: ${formatDate(orderDetail.deliveryDate)}`, rightX, yPos - 8, { align: 'right' });
-    doc.text(`Time Slot: ${orderDetail.timeSlot}`, rightX, yPos - 2, { align: 'right' });
+    doc.text(`Order Time: ${formatTime(orderDetail.orderDate)}`, rightX, yPos - 2, { align: 'right' });
 
     // Status badge
     const statusWidth = doc.getTextWidth(orderStatus) + 8;
@@ -311,7 +322,28 @@ export default function SellerOrderDetail() {
     doc.setFontSize(12);
     doc.text('Grand Total:', pageWidth - margin - 60, yPos, { align: 'right' });
     doc.text(`₹${grandTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+
+    // Customer Details in PDF
     yPos += 15;
+    checkPageBreak(30);
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(245, 245, 245);
+    doc.rect(margin, yPos, contentWidth, 8, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('CUSTOMER DETAILS', margin + 2, yPos + 6);
+    yPos += 12;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Name: ${orderDetail.customerName}`, margin, yPos);
+    yPos += 5;
+    doc.text(`Phone: ${orderDetail.customerPhone}`, margin, yPos);
+    yPos += 5;
+    const address = `${orderDetail.deliveryAddress.address}, ${orderDetail.deliveryAddress.city}, ${orderDetail.deliveryAddress.state} - ${orderDetail.deliveryAddress.pincode}`;
+    const splitAddress = doc.splitTextToSize(`Address: ${address}`, contentWidth);
+    doc.text(splitAddress, margin, yPos);
+    yPos += (splitAddress.length * 5) + 5;
 
     // Footer
     checkPageBreak(20);
@@ -458,29 +490,55 @@ export default function SellerOrderDetail() {
           {/* Header Section */}
           <div className="flex flex-col lg:flex-row justify-between gap-6 mb-6">
             {/* Left: Company Info */}
-            <div className="flex-1">
+            <div className="flex-1 min-w-[250px]">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">A</span>
+                <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center shadow-inner">
+                  <span className="text-white text-sm font-black">D</span>
                 </div>
                 <div>
                   <div className="text-xs text-green-600 font-semibold">Dhakad Snazzy</div>
                   <div className="text-[10px] text-green-600">in 10 Minutes</div>
                 </div>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Dhakad Snazzy - 10 Minute App</h1>
+              <h1 className="text-2xl font-bold text-neutral-900 mb-2">Dhakad Snazzy - 10 Minute App</h1>
               <div className="text-sm text-neutral-600 mb-1">
                 <span className="font-medium">From:</span> Dhakad Snazzy - 10 Minute App
               </div>
               <div className="text-sm text-neutral-600 space-y-1">
                 <div>
-                  <span className="font-medium">Phone:</span> 8956656429
-                </div>
-                <div>
                   <span className="font-medium">Email:</span> info@Dhakad Snazzy.com
                 </div>
                 <div>
                   <span className="font-medium">Website:</span> https://Dhakad Snazzy.com
+                </div>
+              </div>
+            </div>
+
+            {/* Middle: Customer Details */}
+            <div className="flex-1 min-w-[250px] bg-neutral-50 p-4 rounded-lg border border-neutral-100">
+              <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-teal-600">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                Customer Details
+              </h3>
+              <div className="space-y-2.5">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase">Customer Name</span>
+                  <span className="text-sm text-neutral-900 font-semibold">{orderDetail.customerName}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase">Phone Number</span>
+                  <a href={`tel:${orderDetail.customerPhone}`} className="text-sm text-teal-600 font-bold hover:underline flex items-center gap-1">
+                    {orderDetail.customerPhone}
+                  </a>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase">Delivery Location</span>
+                  <span className="text-sm text-neutral-700 leading-relaxed font-medium">
+                    {orderDetail.deliveryAddress.address}, {orderDetail.deliveryAddress.city}, {orderDetail.deliveryAddress.state} - {orderDetail.deliveryAddress.pincode}
+                  </span>
                 </div>
               </div>
             </div>
@@ -494,11 +552,13 @@ export default function SellerOrderDetail() {
               <div className="text-sm text-neutral-600 mb-1">
                 <span className="font-medium">Order ID:</span> {orderDetail.id}
               </div>
-              <div className="text-sm text-neutral-600 mb-1">
-                <span className="font-medium">Delivery Date:</span> {formatDate(orderDetail.deliveryDate)}
-              </div>
+              {orderStatus === 'Delivered' && (
+                <div className="text-sm text-neutral-600 mb-1">
+                  <span className="font-medium">Delivery Date:</span> {formatDate(orderDetail.deliveryDate)}
+                </div>
+              )}
               <div className="text-sm text-neutral-600 mb-3">
-                <span className="font-medium">Time Slot:</span> {orderDetail.timeSlot}
+                <span className="font-medium">Order Time:</span> {formatTime(orderDetail.orderDate)}
               </div>
               <div className="text-sm text-neutral-600 mb-3">
                 <span className="font-medium">Delivery Type:</span>{' '}

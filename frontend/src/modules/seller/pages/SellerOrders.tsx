@@ -357,6 +357,9 @@ export default function SellerOrders() {
                       </button>
                     </th>
                     <th className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('deliveryDate')}
                         className="flex items-center gap-2 hover:text-neutral-900 transition-colors"
@@ -483,7 +486,7 @@ export default function SellerOrders() {
                 <tbody className="bg-white divide-y divide-neutral-200">
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3 sm:px-4 md:px-6 py-8 sm:py-12 text-center text-xs sm:text-sm text-neutral-500">
+                      <td colSpan={8} className="px-3 sm:px-4 md:px-6 py-8 sm:py-12 text-center text-xs sm:text-sm text-neutral-500">
                         No data available in table
                       </td>
                     </tr>
@@ -493,8 +496,12 @@ export default function SellerOrders() {
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900">
                           {order.orderId}
                         </td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900">
+                          <div className="font-medium">{order.customerName}</div>
+                          <div className="text-[10px] text-teal-600 font-bold">{order.customerPhone}</div>
+                        </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-700">
-                          {order.deliveryDate}
+                          {order.status === 'Delivered' ? order.deliveryDate : '-'}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-700">
                           {order.orderDate}
