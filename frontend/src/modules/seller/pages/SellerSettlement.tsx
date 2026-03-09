@@ -9,7 +9,7 @@ export default function SellerSettlement() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(0);
-  const [settlementFilter, setSettlementFilter] = useState<string>('pending'); // pending = only unpaid COD (hat jata hai after pay)
+  const [settlementFilter, setSettlementFilter] = useState<'pending' | 'settled' | 'all'>('pending'); // pending = only unpaid COD (hat jata hai after pay)
   const [markingId, setMarkingId] = useState<string | null>(null);
 
   const handleMarkPaidToAdmin = async (orderId: string) => {
@@ -67,7 +67,7 @@ export default function SellerSettlement() {
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={settlementFilter}
-            onChange={(e) => { setSettlementFilter(e.target.value); setPage(1); }}
+            onChange={(e) => { setSettlementFilter(e.target.value as 'pending' | 'settled' | 'all'); setPage(1); }}
             className="px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white"
           >
             <option value="pending">Pending payment (COD not paid to admin)</option>
