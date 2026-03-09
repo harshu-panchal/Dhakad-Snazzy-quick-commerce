@@ -41,7 +41,6 @@ export default function SellerAddProduct() {
     popular: "No",
     dealOfDay: "No",
     brand: "",
-    tags: "",
     smallDescription: "",
     seoTitle: "",
     seoKeywords: "",
@@ -173,7 +172,6 @@ export default function SellerAddProduct() {
               popular: product.popular ? "Yes" : "No",
               dealOfDay: product.dealOfDay ? "Yes" : "No",
               brand: (product.brand as any)?._id || product.brandId || "",
-              tags: product.tags.join(", "),
               smallDescription: product.smallDescription || "",
               seoTitle: product.seoTitle || "",
               seoKeywords: product.seoKeywords || "",
@@ -455,12 +453,6 @@ export default function SellerAddProduct() {
       }
 
       // Prepare product data for API
-      const tagsArray = formData.tags
-        ? formData.tags
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean)
-        : [];
 
       const productData = {
         productName: formData.productName,
@@ -477,7 +469,6 @@ export default function SellerAddProduct() {
         seoImageAlt: formData.seoImageAlt || undefined,
         seoDescription: formData.seoDescription || undefined,
         smallDescription: formData.smallDescription || undefined,
-        tags: tagsArray,
         manufacturer: formData.manufacturer || undefined,
         madeIn: formData.madeIn || undefined,
         taxId: formData.tax || undefined,
@@ -520,7 +511,6 @@ export default function SellerAddProduct() {
               popular: "No",
               dealOfDay: "No",
               brand: "",
-              tags: "",
               smallDescription: "",
               seoTitle: "",
               seoKeywords: "",
@@ -761,22 +751,6 @@ export default function SellerAddProduct() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Tags
-                  </label>
-                  <input
-                    type="text"
-                    name="tags"
-                    value={formData.tags}
-                    onChange={handleChange}
-                    placeholder="Select or create tags"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                  />
-                  <p className="text-xs text-red-500 mt-1">
-                    This will help for search
-                  </p>
                 </div>
               </div>
               <div>
@@ -1356,8 +1330,8 @@ export default function SellerAddProduct() {
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }
 

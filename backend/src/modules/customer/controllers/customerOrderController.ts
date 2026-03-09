@@ -166,7 +166,7 @@ export const createOrder = async (req: Request, res: Response) => {
       },
       paymentMethod: paymentMethod || "COD",
       paymentStatus: "Pending",
-      status: "Received",
+      status: (paymentMethod === "Online" || paymentMethod === "razorpay") ? "Pending" : "Received",
       deliveryOption: deliveryOption || "Standard",
       subtotal: 0,
       tax: 0,

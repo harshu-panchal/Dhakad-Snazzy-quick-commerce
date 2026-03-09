@@ -30,7 +30,7 @@ export const getAllOrders = asyncHandler(
       search,
     } = req.query;
 
-    const query: any = {};
+    const query: any = { status: { $ne: "Pending" } };
 
     if (status) {
       if (status === "Tracking") {

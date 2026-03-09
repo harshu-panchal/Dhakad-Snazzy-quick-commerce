@@ -31,7 +31,7 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
   );
 
   // Build query - filter by orders containing this seller's items
-  const query: any = { _id: { $in: orderItems } };
+  const query: any = { _id: { $in: orderItems }, status: { $ne: "Pending" } };
 
   // Date range filter
   if (dateFrom || dateTo) {
@@ -125,6 +125,7 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     deliveryBoyName: order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoy as any)?.name || "",
     deliveryBoyPhone: order.deliveryPreference === 'Self' ? '' : (order.deliveryBoy as any)?.mobile || "",
     deliveryPreference: order.deliveryPreference,
+    paymentMethod: order.paymentMethod,
   }));
 
   return res.status(200).json({

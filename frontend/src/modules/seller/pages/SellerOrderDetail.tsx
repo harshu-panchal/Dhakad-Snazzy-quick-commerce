@@ -510,6 +510,12 @@ export default function SellerOrderDetail() {
                   '—'
                 )}
               </div>
+              <div className="text-sm text-neutral-600 mb-3">
+                <span className="font-medium">Payment Method:</span>{' '}
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                  {orderDetail.paymentMethod}
+                </span>
+              </div>
               <div className="flex items-center gap-2 lg:justify-end">
                 <span className="text-sm font-medium text-neutral-700">Order Status:</span>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(orderStatus)}`}>
@@ -561,32 +567,34 @@ export default function SellerOrderDetail() {
       </div>
 
       {/* Earning breakdown: your earning (COD and Online); Self = delivery charge to you */}
-      {earningBreakdown && (
-        <div className="mt-6 bg-white rounded-lg shadow-sm border border-teal-100 overflow-hidden">
-          <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-            <h2 className="text-base sm:text-lg font-semibold">Earning breakdown</h2>
-            <p className="text-sm text-teal-100 mt-0.5">Your earning from this order</p>
-          </div>
-          <div className="px-4 sm:px-6 py-4 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-neutral-600">Admin (commission + platform fee):</span>
-              <span className="font-semibold text-teal-700">₹{(earningBreakdown.totalAdminEarning ?? 0).toFixed(2)}</span>
+      {
+        earningBreakdown && (
+          <div className="mt-6 bg-white rounded-lg shadow-sm border border-teal-100 overflow-hidden">
+            <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
+              <h2 className="text-base sm:text-lg font-semibold">Earning breakdown</h2>
+              <p className="text-sm text-teal-100 mt-0.5">Your earning from this order</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-neutral-600">Your earning (this order):</span>
-              <span className="font-semibold text-green-700">₹{(earningBreakdown.yourEarning ?? 0).toFixed(2)}</span>
+            <div className="px-4 sm:px-6 py-4 space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Admin (commission + platform fee):</span>
+                <span className="font-semibold text-teal-700">₹{(earningBreakdown.totalAdminEarning ?? 0).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Your earning (this order):</span>
+                <span className="font-semibold text-green-700">₹{(earningBreakdown.yourEarning ?? 0).toFixed(2)}</span>
+              </div>
+              {earningBreakdown.isSelfAssign && (
+                <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-100">
+                  Self delivery: delivery charge is included in your earning. No share to delivery partner.
+                </p>
+              )}
+              {earningBreakdown.note && (
+                <p className="text-xs text-neutral-500">{earningBreakdown.note}</p>
+              )}
             </div>
-            {earningBreakdown.isSelfAssign && (
-              <p className="text-xs text-neutral-500 pt-2 border-t border-neutral-100">
-                Self delivery: delivery charge is included in your earning. No share to delivery partner.
-              </p>
-            )}
-            {earningBreakdown.note && (
-              <p className="text-xs text-neutral-500">{earningBreakdown.note}</p>
-            )}
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Footer */}
       <footer className="mt-6 px-4 sm:px-6 text-center py-4 bg-neutral-100 rounded-lg">
@@ -596,86 +604,88 @@ export default function SellerOrderDetail() {
         </p>
       </footer>
       {/* Delivery Assignment Popup */}
-      {showAssignPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
-            <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
-            <p className="text-neutral-600 mb-6 text-sm">
-              {orderDetail.deliveryOption === 'Instant'
-                ? 'Instant delivery: choose self-assign or a delivery partner will be notified automatically.'
-                : 'Please choose how you want to assign the delivery for this order.'}
-            </p>
+      {
+        showAssignPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
+              <h3 className="text-xl font-bold text-neutral-900 mb-4">Assign Delivery</h3>
+              <p className="text-neutral-600 mb-6 text-sm">
+                {orderDetail.deliveryOption === 'Instant'
+                  ? 'Instant delivery: choose self-assign or a delivery partner will be notified automatically.'
+                  : 'Please choose how you want to assign the delivery for this order.'}
+              </p>
 
-            <div className="space-y-3 mb-6">
-              <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
-                <input
-                  type="radio"
-                  name="delivery_preference"
-                  value="Self"
-                  checked={deliveryPreference === 'Self'}
-                  onChange={() => setDeliveryPreference('Self')}
-                  className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-medium text-neutral-900">Self Assign</span>
-                  <span className="block text-xs text-neutral-500">I will manage the delivery of this order myself</span>
-                </div>
-              </label>
-
-              {orderDetail.deliveryOption === 'Instant' ? (
-                <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Auto' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+              <div className="space-y-3 mb-6">
+                <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
                   <input
                     type="radio"
                     name="delivery_preference"
-                    value="Auto"
-                    checked={deliveryPreference === 'Auto'}
-                    onChange={() => setDeliveryPreference('Auto')}
+                    value="Self"
+                    checked={deliveryPreference === 'Self'}
+                    onChange={() => setDeliveryPreference('Self')}
                     className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
                   />
                   <div className="ml-3">
-                    <span className="block text-sm font-medium text-neutral-900">Auto-assign to delivery partner</span>
-                    <span className="block text-xs text-neutral-500">A delivery partner will be notified and can accept the order</span>
+                    <span className="block text-sm font-medium text-neutral-900">Self Assign</span>
+                    <span className="block text-xs text-neutral-500">I will manage the delivery of this order myself</span>
                   </div>
                 </label>
-              ) : (
-                <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
-                  <input
-                    type="radio"
-                    name="delivery_preference"
-                    value="Admin"
-                    checked={deliveryPreference === 'Admin'}
-                    onChange={() => setDeliveryPreference('Admin')}
-                    className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                  />
-                  <div className="ml-3">
-                    <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
-                    <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
-                  </div>
-                </label>
-              )}
-            </div>
 
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowAssignPopup(false)}
-                className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowAssignPopup(false);
-                  handleStatusUpdate('Accepted', deliveryPreference);
-                }}
-                className="px-5 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
-              >
-                Confirm & Accept
-              </button>
+                {orderDetail.deliveryOption === 'Instant' ? (
+                  <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Auto' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                    <input
+                      type="radio"
+                      name="delivery_preference"
+                      value="Auto"
+                      checked={deliveryPreference === 'Auto'}
+                      onChange={() => setDeliveryPreference('Auto')}
+                      className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                    />
+                    <div className="ml-3">
+                      <span className="block text-sm font-medium text-neutral-900">Auto-assign to delivery partner</span>
+                      <span className="block text-xs text-neutral-500">A delivery partner will be notified and can accept the order</span>
+                    </div>
+                  </label>
+                ) : (
+                  <label className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50' : 'border-neutral-200 hover:bg-neutral-50'}`}>
+                    <input
+                      type="radio"
+                      name="delivery_preference"
+                      value="Admin"
+                      checked={deliveryPreference === 'Admin'}
+                      onChange={() => setDeliveryPreference('Admin')}
+                      className="w-4 h-4 text-teal-600 border-neutral-300 focus:ring-teal-500"
+                    />
+                    <div className="ml-3">
+                      <span className="block text-sm font-medium text-neutral-900">Assigned By Admin</span>
+                      <span className="block text-xs text-neutral-500">Let the admin assign a delivery boy for this order</span>
+                    </div>
+                  </label>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowAssignPopup(false)}
+                  className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAssignPopup(false);
+                    handleStatusUpdate('Accepted', deliveryPreference);
+                  }}
+                  className="px-5 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors"
+                >
+                  Confirm & Accept
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 

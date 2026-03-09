@@ -17,6 +17,7 @@ export interface Order {
   customerPhone?: string;
   deliveryBoyName?: string;
   deliveryBoyPhone?: string;
+  paymentMethod?: string;
 }
 
 export interface OrderItem {

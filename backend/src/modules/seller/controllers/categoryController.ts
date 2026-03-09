@@ -9,7 +9,7 @@ import { asyncHandler } from "../../../utils/asyncHandler";
  */
 export const getCategories = asyncHandler(
   async (req: Request, res: Response) => {
-    const { includeSubcategories, search } = req.query;
+    const { includeSubcategories, search, status } = req.query;
 
     // Build query - by default, get only parent categories (no parentId)
     const query: any = { parentId: null };
@@ -19,9 +19,14 @@ export const getCategories = asyncHandler(
       delete query.parentId;
     }
 
+    // Status filter
+    if (status) {
+      query.status = status;
+    }
+
     // Search filter
     if (search) {
-      query.name = { $regex: search, $options: "i" };
+      query.name = { $regex: search as string, $options: "i" };
     }
 
     const categories = await Category.find(query)
@@ -137,8 +142,12 @@ export const getSubcategories = asyncHandler(
     // 1. Get subcategories from new Category model (where parentId = category id)
     const categorySubcategoriesQuery: any = {
       parentId: id,
-      status: "Active", // Only active subcategories
     };
+
+    // Apply status filter if provided (e.g., status=Active)
+    if (req.query.status) {
+      categorySubcategoriesQuery.status = req.query.status;
+    }
     if (searchQuery) {
       categorySubcategoriesQuery.name = searchQuery;
     }

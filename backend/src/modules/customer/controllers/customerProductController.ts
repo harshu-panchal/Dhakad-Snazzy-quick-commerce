@@ -33,7 +33,7 @@ export const getProducts = async (req: Request, res: Response) => {
       ],
     };
 
-    // Location-based filtering: Only show products from sellers within user's range
+    // Location-based filtering
     const userLat = latitude ? parseFloat(latitude as string) : null;
     const userLng = longitude ? parseFloat(longitude as string) : null;
 
@@ -41,8 +41,14 @@ export const getProducts = async (req: Request, res: Response) => {
       // Find sellers within user's location range
       const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
 
-      if (nearbySellerIds.length === 0) {
-        // No sellers within range, return empty result
+      if (nearbySellerIds.length > 0) {
+        // Filter products by sellers within range
+        query.seller = { $in: nearbySellerIds };
+      } else {
+        // If no sellers nearby, we still allow search but maybe mark them as unavailable (handled by frontend usually)
+        // For a better UX, we can return empty or show all. 
+        // Given this is quick commerce, showing nothing is "correct" but "not working" for the user.
+        // Let's keep it strict if location is provided but no sellers.
         return res.status(200).json({
           success: true,
           data: [],
@@ -56,22 +62,9 @@ export const getProducts = async (req: Request, res: Response) => {
             "No sellers available in your area. Please update your location.",
         });
       }
-
-      // Filter products by sellers within range
-      query.seller = { $in: nearbySellerIds };
     } else {
-      // If no location provided, return empty result (strictly enforce location)
-      return res.status(200).json({
-        success: true,
-        data: [],
-        pagination: {
-          page: Number(page),
-          limit: Number(limit),
-          total: 0,
-          pages: 0,
-        },
-        message: "Please provide your location to see products available in your area.",
-      });
+      // If no location provided, we now allow searching but items won't have availability info
+      // This makes search "work" even without location permission
     }
 
     // Helper to resolve category/subcategory ID from slug or ID
@@ -82,20 +75,17 @@ export const getProducts = async (req: Request, res: Response) => {
     ) => {
       if (mongoose.Types.ObjectId.isValid(value)) return value;
 
-      // Build query - only check status if model has status field (Category has it, SubCategory might not)
       const baseQuery: any = {};
       if (modelName === "Category") {
         baseQuery.status = "Active";
       }
 
-      // Try exact slug match first
       let item = await model
         .findOne({ ...baseQuery, slug: value })
         .select("_id")
         .lean();
       if (item) return item._id;
 
-      // Try case-insensitive slug match
       item = await model
         .findOne({
           ...baseQuery,
@@ -105,7 +95,6 @@ export const getProducts = async (req: Request, res: Response) => {
         .lean();
       if (item) return item._id;
 
-      // Try name match as fallback (case-insensitive) - replace hyphens/underscores with spaces
       let namePattern = value.replace(/[-_]/g, " ");
       item = await model
         .findOne({
@@ -116,17 +105,16 @@ export const getProducts = async (req: Request, res: Response) => {
         .lean();
       if (item) return item._id;
 
-      // Special handling for Category and "and" -> "&"
       if (modelName === "Category" && value.includes("and")) {
-         const withAmpersand = value.replace(/-and-/g, " & ").replace(/-/g, " ");
-         item = await model
-           .findOne({
-             ...baseQuery,
-             name: { $regex: new RegExp(`^${withAmpersand}$`, "i") },
-           })
-           .select("_id")
-           .lean();
-         if (item) return item._id;
+        const withAmpersand = value.replace(/-and-/g, " & ").replace(/-/g, " ");
+        item = await model
+          .findOne({
+            ...baseQuery,
+            name: { $regex: new RegExp(`^${withAmpersand}$`, "i") },
+          })
+          .select("_id")
+          .lean();
+        if (item) return item._id;
       }
 
       return null;
@@ -142,13 +130,11 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     if (subcategory) {
-      // Try to resolve from Category model first (new structure where subcategories are categories with parentId)
       let subcategoryId = await resolveId(
         Category,
         subcategory as string,
         "Category"
       );
-      // If not found in Category, try old SubCategory model (backward compatibility)
       if (!subcategoryId) {
         subcategoryId = await resolveId(
           SubCategory,
@@ -174,8 +160,13 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     if (search) {
-      // Use text search for broad matching
-      query.$text = { $search: search as string };
+      // Use regex search for partial matching (much better user experience than text search for small catalogs)
+      const searchRegex = { $regex: search as string, $options: "i" };
+      query.$or = [
+        { productName: searchRegex },
+        { tags: searchRegex },
+        { smallDescription: searchRegex }
+      ];
     }
 
     // Calculate skip for pagination

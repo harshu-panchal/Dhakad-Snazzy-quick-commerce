@@ -473,6 +473,9 @@ export default function SellerOrders() {
                       </button>
                     </th>
                     <th className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
+                      Payment
+                    </th>
+                    <th className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
                       Action
                     </th>
                   </tr>
@@ -480,7 +483,7 @@ export default function SellerOrders() {
                 <tbody className="bg-white divide-y divide-neutral-200">
                   {paginatedOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 sm:px-4 md:px-6 py-8 sm:py-12 text-center text-xs sm:text-sm text-neutral-500">
+                      <td colSpan={7} className="px-3 sm:px-4 md:px-6 py-8 sm:py-12 text-center text-xs sm:text-sm text-neutral-500">
                         No data available in table
                       </td>
                     </tr>
@@ -503,6 +506,9 @@ export default function SellerOrders() {
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900 font-medium">
                           ₹{order.amount.toFixed(2)}
+                        </td>
+                        <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-600 capitalize">
+                          {order.paymentMethod || 'COD'}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3">
                           <button

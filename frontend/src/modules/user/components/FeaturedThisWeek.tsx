@@ -19,20 +19,6 @@ const featuredCards: FeaturedCard[] = [
     borderColor: 'border-yellow-200',
   },
   {
-    id: 'price-drop',
-    type: 'price-drop',
-    title: 'PRICE DROP',
-    bgColor: 'bg-blue-900',
-    borderColor: 'border-blue-500',
-  },
-  {
-    id: 'plum-cakes',
-    type: 'plum-cakes',
-    title: 'Plum Cakes',
-    bgColor: 'bg-red-900',
-    borderColor: 'border-white',
-  },
-  {
     id: 'fresh-arrivals',
     type: 'featured',
     title: 'Fresh Arrivals',
@@ -130,74 +116,6 @@ export default function FeaturedThisWeek() {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="flex-shrink-0 w-[110px]">
-            <Link
-              to="/category/snacks"
-              className="block bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 border-2 border-blue-400 rounded-2xl overflow-hidden relative h-48 shadow-lg hover:shadow-xl transition-shadow group"
-            >
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,_white_1px,_transparent_1px)] bg-[length:20px_20px]"></div>
-              </div>
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-                <div className="bg-gradient-to-r from-red-500 to-red-600 px-3 py-1 rounded-full shadow-lg border border-red-400/50">
-                  <span className="text-white text-[9px] font-black tracking-wide">Featured</span>
-                </div>
-              </div>
-              <div className="absolute top-8 right-3 w-12 h-12 bg-yellow-400/20 rounded-full blur-md"></div>
-              <div className="absolute bottom-8 left-3 w-10 h-10 bg-red-500/20 rounded-full blur-md"></div>
-              <div className="flex items-center justify-center h-full px-2 relative z-10">
-                <div className="text-center">
-                  <div
-                    className="text-yellow-400 text-3xl font-black mb-0.5 transform group-hover:scale-105 transition-transform"
-                    style={{
-                      textShadow: '2px 2px 0px #1e3a8a, 3px 3px 6px rgba(0,0,0,0.3)',
-                      letterSpacing: '2px'
-                    }}
-                  >
-                    PRICE
-                  </div>
-                  <div
-                    className="text-red-400 text-3xl font-black transform group-hover:scale-105 transition-transform"
-                    style={{
-                      textShadow: '2px 2px 0px #1e3a8a, 3px 3px 6px rgba(0,0,0,0.3)',
-                      letterSpacing: '2px'
-                    }}
-                  >
-                    DROP
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </div>
-
-          <div className="flex-shrink-0 w-[110px]">
-            <Link
-              to="/category/biscuits-bakery"
-              className="block bg-gradient-to-br from-red-900 via-red-800 to-red-900 border-2 border-white/30 rounded-2xl overflow-hidden relative h-48 shadow-lg hover:shadow-xl transition-shadow group"
-            >
-              <div className="absolute inset-0 opacity-5">
-                <div className="absolute inset-0 bg-[linear-gradient(45deg,_transparent_25%,_white_25%,_white_50%,_transparent_50%,_transparent_75%,_white_75%,_white)] bg-[length:20px_20px]"></div>
-              </div>
-              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20">
-                <div className="bg-gradient-to-r from-red-500 to-red-600 px-3 py-1 rounded-full shadow-lg border border-red-400/50">
-                  <span className="text-white text-[9px] font-black tracking-wide">Featured</span>
-                </div>
-              </div>
-              <div className="absolute top-8 left-0 right-0 z-20 text-center px-2">
-                <h3 className="text-white text-sm font-black tracking-wide drop-shadow-lg" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-                  Plum Cakes
-                </h3>
-              </div>
-              <div className="absolute top-14 right-2 w-6 h-6 bg-white/10 rounded-full blur-sm"></div>
-              <div className="absolute bottom-10 left-2 w-5 h-5 bg-amber-300/20 rounded-full blur-sm"></div>
-              <div className="flex items-center justify-center h-full pt-12 relative z-10">
-                <div className="text-5xl transform group-hover:scale-110 transition-transform drop-shadow-2xl">
-                  🎂
-                </div>
-              </div>
-            </Link>
           </div>
 
           <div className="flex-shrink-0 w-[110px]">

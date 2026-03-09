@@ -1,33 +1,54 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ProductCard from './components/ProductCard';
 import { getProducts } from '../../services/api/customerProductService';
-import { getHomeContent } from '../../services/api/customerHomeService';
 import { Product } from '../../types/domain';
 import { useLocation } from '../../hooks/useLocation';
 
 export default function Search() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { location } = useLocation();
   const searchQuery = searchParams.get('q') || '';
+  const [searchInput, setSearchInput] = useState(searchQuery);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [trendingItems, setTrendingItems] = useState<any[]>([]);
-  const [cookingIdeas, setCookingIdeas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [contentLoading, setContentLoading] = useState(true);
 
-  // Fetch products based on search query
+  // Update input when URL param changes (e.g. back button)
+  useEffect(() => {
+    if (searchQuery !== searchInput) {
+      setSearchInput(searchQuery);
+    }
+  }, [searchQuery]);
+
+  // Debounced search: update URL q param when searchInput changes
+  useEffect(() => {
+    // Don't sync if they are already the same
+    if (searchInput === searchQuery) return;
+
+    const timeoutId = setTimeout(() => {
+      if (searchInput.trim()) {
+        setSearchParams({ q: searchInput.trim() }, { replace: true });
+      } else {
+        setSearchParams({}, { replace: true });
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [searchInput, searchQuery, setSearchParams]);
+
+  // Fetch products based on search query in URL
   useEffect(() => {
     const fetchProducts = async () => {
-      if (!searchQuery.trim()) {
+      const q = searchParams.get('q') || '';
+      if (!q.trim()) {
         setSearchResults([]);
         return;
       }
 
       setLoading(true);
       try {
-        const params: any = { search: searchQuery };
+        const params: any = { search: q };
         // Include user location for seller service radius filtering
         if (location?.latitude && location?.longitude) {
           params.latitude = location.latitude;
@@ -44,143 +65,123 @@ export default function Search() {
     };
 
     fetchProducts();
-  }, [searchQuery, location]);
+  }, [searchParams, location]);
 
-  // Fetch trending/home content for initial view
-  useEffect(() => {
-    const fetchInitialContent = async () => {
-      try {
-        const response = await getHomeContent(
-          undefined,
-          location?.latitude,
-          location?.longitude
-        );
-        if (response.success && response.data) {
-          setTrendingItems(response.data.trending || []);
-          setCookingIdeas(response.data.cookingIdeas || []);
-        }
-      } catch (error) {
-        console.error("Error fetching search initial content", error);
-      } finally {
-        setContentLoading(false);
-      }
-    };
-
-    if (!searchQuery.trim()) {
-      fetchInitialContent();
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchInput.trim()) {
+      setSearchParams({ q: searchInput.trim() });
     }
-  }, [searchQuery, location?.latitude, location?.longitude]);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearchParams({});
+    setSearchResults([]);
+  };
 
   return (
-    <div className="pb-24 md:pb-8 bg-white min-h-screen">
+    <div className="pb-24 md:pb-8 bg-neutral-50 min-h-screen">
+      {/* Search Header - Sticky but consistent */}
+      <div className="sticky top-0 z-30 bg-white border-b border-neutral-200 px-4 py-3 md:py-4 md:px-6">
+        <form onSubmit={handleSearchSubmit} className="max-w-3xl mx-auto flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="p-1 text-neutral-600 hover:text-neutral-900"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </button>
 
-      {/* Search Results */}
-      {searchQuery.trim() && (
-        <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6">
-          <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6">
-            Search Results {searchResults.length > 0 && `(${searchResults.length})`}
-          </h2>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-          ) : searchResults.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
-              {searchResults.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  categoryStyle={true}
-                  showBadge={true}
-                  showPackBadge={false}
-                  showStockInfo={true}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12 md:py-16 text-neutral-500">
-              <p className="text-lg md:text-xl mb-2">No products found</p>
-              <p className="text-sm md:text-base">Try a different search term</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Trending in your city */}
-      {!searchQuery.trim() && (
-        <>
-          {contentLoading && (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-          )}
-
-          {!contentLoading && trendingItems.length > 0 && (
-            <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6">
-              <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6">Trending in your city</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 md:gap-4">
-                {trendingItems.map((item) => (
-                  <div
-                    key={item.id || item._id}
-                    className="bg-white rounded-lg border-2 border-green-600 p-3 cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => navigate(item.type === 'category' ? `/category/${item.id || item._id}` : `/product/${item.id || item._id}`)}
-                  >
-                    <div className="w-full h-24 rounded-lg mb-2 overflow-hidden bg-neutral-50 flex items-center justify-center">
-                      {item.image || item.imageUrl ? (
-                        <img
-                          src={item.image || item.imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-contain bg-white rounded-sm"
-                        />
-                      ) : (
-                        <div className="text-4xl">🔥</div>
-                      )}
-                    </div>
-                    <div className="text-xs font-semibold text-neutral-900 text-center line-clamp-2">
-                      {item.name || item.title}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* See all products - Placeholder or link to popular items */}
-          <div className="px-4 md:px-6 lg:px-8 py-2 md:py-4">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-2 cursor-pointer" onClick={() => navigate('/category/all')}>
-              <span className="text-sm md:text-base text-neutral-700 font-medium whitespace-nowrap">Browse all categories ▸</span>
-            </div>
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={handleInputChange}
+              placeholder="Search for groceries, snacks and more"
+              className="w-full bg-neutral-100 border-none rounded-xl py-2.5 pl-10 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:bg-white transition-all outline-none"
+              autoFocus
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
-          {/* Cooking ideas */}
-          {!contentLoading && cookingIdeas.length > 0 && (
-            <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6">
-              <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6">Cooking ideas</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                {cookingIdeas.map((idea, idx) => (
-                  <div key={idea.id || idea._id || idx} className="relative rounded-lg overflow-hidden aspect-[4/3] bg-neutral-100 cursor-pointer" onClick={() => navigate(`/product/${idea.productId || idea.id}`)}>
-                    {idea.image && <img src={idea.image} alt={idea.title} className="w-full h-full object-cover" />}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                    <div className="absolute bottom-2 left-2 right-2 text-white text-xs font-bold line-clamp-2">{idea.title}</div>
-                    <button className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-md">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path
-                          d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          fill="none"
-                        />
-                      </svg>
-                    </button>
-                  </div>
+          <button
+            type="submit"
+            className="hidden md:block bg-green-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-green-700 transition-colors"
+          >
+            Search
+          </button>
+        </form>
+      </div>
+
+      {/* Search Results */}
+      <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6">
+        {searchQuery.trim() ? (
+          <>
+            <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6">
+              {loading ? 'Searching...' : `Search Results ${searchResults.length > 0 ? `(${searchResults.length})` : ''}`}
+            </h2>
+
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+              </div>
+            ) : searchResults.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                {searchResults.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    categoryStyle={true}
+                    showBadge={true}
+                    showPackBadge={false}
+                    showStockInfo={true}
+                  />
                 ))}
               </div>
-            </div>
-          )}
-        </>
-      )}
+            ) : (
+              <div className="text-center py-12 md:py-16 bg-white rounded-2xl border border-neutral-100 shadow-sm">
+                <div className="text-6xl mb-4">🔍</div>
+                <p className="text-lg md:text-xl font-medium text-neutral-900 mb-2">No products found for "{searchQuery}"</p>
+                <p className="text-sm md:text-base text-neutral-500">Try a different search term or browse categories</p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="mt-6 text-green-600 font-semibold hover:underline"
+                >
+                  Back to Home
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-center py-20">
+            <div className="text-6xl mb-6">✨</div>
+            <h2 className="text-xl md:text-2xl font-bold text-neutral-900 mb-2">What are you looking for today?</h2>
+            <p className="text-neutral-500 max-w-sm mx-auto">Search for groceries, snacks, personal care and more to get them delivered in minutes.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -162,9 +162,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const isSearchPage = location.pathname === '/search';
   const isCheckoutPage = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isCartPage = location.pathname === '/cart';
-  const showHeader = isSearchPage && !isCheckoutPage && !isCartPage;
-  const showSearchBar = isSearchPage && !isCheckoutPage && !isCartPage;
-  const showFooter = !isCheckoutPage && !isProductDetailPage;
+  const isAuthPage = ['/login', '/signup', '/seller/login', '/seller/signup', '/delivery/login', '/delivery/signup', '/admin/login'].includes(location.pathname);
+
+  // Show header on search, category, home, account, etc.
+  const showHeader = !isCheckoutPage && !isCartPage && !isAuthPage;
+  // Hide search bar everywhere as requested by user
+  const showSearchBar = false;
+  const showFooter = !isCheckoutPage && !isProductDetailPage && !isAuthPage;
 
   return (
     <div className="flex flex-col min-h-screen w-full overflow-x-hidden">

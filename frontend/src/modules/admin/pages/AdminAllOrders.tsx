@@ -740,6 +740,9 @@ export default function AdminAllOrders() {
                     </div>
                   </th>
                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
+                    Payment
+                  </th>
+                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-neutral-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -748,7 +751,7 @@ export default function AdminAllOrders() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-4 sm:px-6 py-8 text-center text-sm text-neutral-500">
                       Loading orders...
                     </td>
@@ -756,7 +759,7 @@ export default function AdminAllOrders() {
                 ) : error ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-4 sm:px-6 py-8 text-center text-sm text-red-600">
                       {error}
                     </td>
@@ -764,7 +767,7 @@ export default function AdminAllOrders() {
                 ) : paginatedOrders.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-4 sm:px-6 py-8 text-center text-sm text-neutral-500">
                       No data available in table
                     </td>
@@ -807,14 +810,17 @@ export default function AdminAllOrders() {
                       <td className="px-4 sm:px-6 py-3">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${order.deliveryPreference === 'Self'
-                              ? 'bg-blue-100 text-blue-800'
-                              : getDeliveryBoyStatusColor(order.deliveryBoyStatus || "Not Assigned")
+                            ? 'bg-blue-100 text-blue-800'
+                            : getDeliveryBoyStatusColor(order.deliveryBoyStatus || "Not Assigned")
                             }`}>
                           {order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoyStatus || "Not Assigned")}
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium">
+                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900 font-medium whitespace-nowrap">
                         ₹{order.total?.toFixed(2) || "0.00"}
+                      </td>
+                      <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600 capitalize">
+                        {order.paymentMethod || 'COD'}
                       </td>
                       <td className="px-4 sm:px-6 py-3">
                         <Link to={`/admin/orders/${order._id}`}>
