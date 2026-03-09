@@ -9,7 +9,7 @@ import { useToast } from '../../../context/ToastContext'; // Import useToast
 import { addToWishlist, removeFromWishlist, getWishlist } from '../../../services/api/customerWishlistService';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
-import StarRating from '../../../components/ui/StarRating';
+
 import { calculateProductPrice } from '../../../utils/priceUtils';
 
 interface ProductCardProps {
@@ -382,16 +382,6 @@ export default function ProductCard({
                 {product.name || product.productName || ''}
               </h3>
 
-              {/* 2.5. Rating */}
-              <div className="mb-0.5">
-                <StarRating
-                  rating={(product.rating || (product as any).rating) || 0}
-                  reviewCount={(product.reviews || (product as any).reviewsCount) || 0}
-                  size="sm"
-                  showCount={true}
-                />
-              </div>
-
               {/* 3. Time */}
               <p className="text-[9px] text-neutral-600 mb-0.5 flex items-center gap-0.5 leading-tight">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
@@ -434,16 +424,6 @@ export default function ProductCard({
               <h3 className={`${compact ? 'text-xs md:text-sm' : 'text-sm md:text-base'} font-semibold text-neutral-900 ${compact ? 'mb-1' : 'mb-2'} line-clamp-2 ${compact ? 'min-h-[2rem]' : 'min-h-[2.5rem]'}`}>
                 {product.name || product.productName || ''}
               </h3>
-
-              {/* Always show rating */}
-              <div className={`${compact ? 'mb-1' : 'mb-2'}`}>
-                <StarRating
-                  rating={(product.rating || (product as any).rating) || 0}
-                  reviewCount={(product.reviews || (product as any).reviewsCount) || 0}
-                  size={compact ? 'sm' : 'md'}
-                  showCount={true}
-                />
-              </div>
 
               {showStockInfo && (
                 <p className="text-xs text-green-600 mb-2 font-medium">

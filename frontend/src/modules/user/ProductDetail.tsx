@@ -14,7 +14,7 @@ import Button from '../../components/ui/button';
 import Badge from '../../components/ui/badge';
 import { getProductById } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
-import StarRating from "../../components/ui/StarRating";
+
 import { calculateProductPrice } from '../../utils/priceUtils';
 
 export default function ProductDetail() {
@@ -1012,23 +1012,14 @@ export default function ProductDetail() {
                         <h4 className="text-sm font-semibold text-neutral-900 mb-1 line-clamp-2 min-h-[2.5rem]">
                           {similarProduct.name || similarProduct.productName}
                         </h4>
+                        <p className="text-[10px] text-neutral-600 flex items-center gap-1">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                            <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                          <span>{similarProduct.deliveryTime || 15} MINS</span>
+                        </p>
 
-                        {/* Rating and Delivery time */}
-                        <div className="flex flex-col gap-1 mb-2">
-                          <StarRating
-                            rating={similarProduct.rating || 0}
-                            reviewCount={similarProduct.reviews || 0}
-                            size="sm"
-                            showCount={true}
-                          />
-                          <p className="text-[10px] text-neutral-600 flex items-center gap-1">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                              <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            <span>{similarProduct.deliveryTime || 15} MINS</span>
-                          </p>
-                        </div>
 
                         {/* Price display for similar products */}
                         <div className="mb-2">
@@ -1258,5 +1249,6 @@ export default function ProductDetail() {
       </div>
     </div>
   );
+
 }
 
