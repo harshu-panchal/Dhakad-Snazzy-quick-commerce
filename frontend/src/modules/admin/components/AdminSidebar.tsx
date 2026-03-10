@@ -803,6 +803,7 @@ const menuSections: MenuSection[] = [
           </svg>
         ),
       },
+
       {
         label: "Promo Strip",
         path: "/admin/promo-strip",
@@ -840,6 +841,7 @@ const menuSections: MenuSection[] = [
           </svg>
         ),
       },
+
       {
         label: "Shop by Store",
         path: "/admin/shop-by-store",

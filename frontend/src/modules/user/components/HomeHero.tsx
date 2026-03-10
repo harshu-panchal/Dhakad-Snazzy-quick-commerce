@@ -162,27 +162,16 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     return () => clearInterval(interval);
   }, [searchSuggestions.length, activeTab]);
 
-  // Handle scroll to detect when "LOWEST PRICES EVER" section is out of view
+  // Handle sticky header transition based on scroll position
   useEffect(() => {
     const handleScroll = () => {
       if (topSectionRef.current && stickyRef.current) {
-        // Find the "LOWEST PRICES EVER" section
-        const lowestPricesSection = document.querySelector('[data-section="lowest-prices"]');
-
-        if (lowestPricesSection) {
-          const sectionBottom = lowestPricesSection.getBoundingClientRect().bottom;
-          // When the section has scrolled up past the viewport, transition to white
-          const progress = Math.min(Math.max(1 - (sectionBottom / 200), 0), 1);
-          setScrollProgress(progress);
-          setIsSticky(sectionBottom <= 100);
-        } else {
-          // Fallback to original logic if section not found
-          const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
-          const topSectionHeight = topSectionRef.current.offsetHeight;
-          const progress = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
-          setScrollProgress(progress);
-          setIsSticky(topSectionBottom <= 0);
-        }
+        const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
+        const topSectionHeight = topSectionRef.current.offsetHeight;
+        // When the top section has scrolled up, transition to white
+        const progress = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
+        setScrollProgress(progress);
+        setIsSticky(topSectionBottom <= 0);
       }
     };
 
@@ -294,12 +283,12 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
               <div className="text-neutral-900 font-extrabold text-2xl md:text-xl mb-0 md:mb-0.5 leading-tight">{appConfig.estimatedDeliveryTime}</div>
               {/* Location with dropdown indicator - only show if location is provided */}
               {locationDisplayText && (
-              <div className="text-neutral-700 text-[10px] md:text-xs flex items-center gap-0.5 leading-tight">
-                <span className="line-clamp-1" title={locationDisplayText}>{locationDisplayText}</span>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+                <div className="text-neutral-700 text-[10px] md:text-xs flex items-center gap-0.5 leading-tight">
+                  <span className="line-clamp-1" title={locationDisplayText}>{locationDisplayText}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
               )}
             </div>
           </div>

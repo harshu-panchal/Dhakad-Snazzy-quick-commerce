@@ -4,8 +4,6 @@ import { apiCache } from "../../utils/apiCache";
 export interface HomeContentResponse {
   success: boolean;
   data: {
-    bestsellers: any[];
-    lowestPrices?: any[];
     categories: any[];
     shops: any[];
     promoBanners: any[];
@@ -13,6 +11,8 @@ export interface HomeContentResponse {
     cookingIdeas: any[];
     promoCards?: any[];
     promoStrip?: any; // PromoStrip data from backend
+    lowestPrices?: any[];
+    homeSections?: any[];
   };
 }
 
