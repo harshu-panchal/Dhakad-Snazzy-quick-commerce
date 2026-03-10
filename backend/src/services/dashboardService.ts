@@ -60,10 +60,10 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
         return 0;
       }),
       Product.countDocuments({ status: "Active" }).catch(() => 0),
-      Order.countDocuments().catch(() => 0),
+      Order.countDocuments({ status: { $ne: "Pending" } }).catch(() => 0),
       Order.countDocuments({ status: "Delivered" }).catch(() => 0),
       Order.countDocuments({
-        status: { $in: ["Received", "Pending", "Processed"] },
+        status: { $in: ["Received", "Processed"] },
       }).catch(() => 0),
       Order.countDocuments({ status: "Cancelled" }).catch(() => 0),
       Product.countDocuments({ stock: 0, status: "Active" }).catch(() => 0),
@@ -123,90 +123,90 @@ export const getSalesAnalytics = async (
 ): Promise<{ thisPeriod: SalesData[]; lastPeriod: SalesData[] }> => {
   try {
     const now = new Date();
-  let startDate: Date;
-  let lastPeriodStart: Date;
-  let groupFormat: string;
-  // let dateFormat: string;
+    let startDate: Date;
+    let lastPeriodStart: Date;
+    let groupFormat: string;
+    // let dateFormat: string;
 
-  switch (period) {
-    case "day":
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 7
-      );
-      lastPeriodStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 14
-      );
-      groupFormat = "%Y-%m-%d";
-      // dateFormat = "DD-MMM";
-      break;
-    case "week":
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      lastPeriodStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-      groupFormat = "%Y-%U";
-      // dateFormat = "Week %U";
-      break;
-    case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
-      lastPeriodStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
-      groupFormat = "%Y-%m";
-      // dateFormat = "%B";
-      break;
-    case "year":
-      startDate = new Date(now.getFullYear() - 4, 0, 1);
-      lastPeriodStart = new Date(now.getFullYear() - 9, 0, 1);
-      groupFormat = "%Y";
-      // dateFormat = "%Y";
-      break;
-  }
+    switch (period) {
+      case "day":
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - 7
+        );
+        lastPeriodStart = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - 14
+        );
+        groupFormat = "%Y-%m-%d";
+        // dateFormat = "DD-MMM";
+        break;
+      case "week":
+        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        lastPeriodStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        groupFormat = "%Y-%U";
+        // dateFormat = "Week %U";
+        break;
+      case "month":
+        startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        lastPeriodStart = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+        groupFormat = "%Y-%m";
+        // dateFormat = "%B";
+        break;
+      case "year":
+        startDate = new Date(now.getFullYear() - 4, 0, 1);
+        lastPeriodStart = new Date(now.getFullYear() - 9, 0, 1);
+        groupFormat = "%Y";
+        // dateFormat = "%Y";
+        break;
+    }
 
-  const [thisPeriodData, lastPeriodData] = await Promise.all([
-    Order.aggregate([
-      {
-        $match: {
-          status: "Delivered",
-          paymentStatus: "Paid",
-          orderDate: { $gte: startDate },
+    const [thisPeriodData, lastPeriodData] = await Promise.all([
+      Order.aggregate([
+        {
+          $match: {
+            status: "Delivered",
+            paymentStatus: "Paid",
+            orderDate: { $gte: startDate },
+          },
         },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: groupFormat, date: "$orderDate" } },
-          total: { $sum: { $ifNull: ["$total", 0] } },
+        {
+          $group: {
+            _id: { $dateToString: { format: groupFormat, date: "$orderDate" } },
+            total: { $sum: { $ifNull: ["$total", 0] } },
+          },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]).catch(() => []),
-    Order.aggregate([
-      {
-        $match: {
-          status: "Delivered",
-          paymentStatus: "Paid",
-          orderDate: { $gte: lastPeriodStart, $lt: startDate },
+        { $sort: { _id: 1 } },
+      ]).catch(() => []),
+      Order.aggregate([
+        {
+          $match: {
+            status: "Delivered",
+            paymentStatus: "Paid",
+            orderDate: { $gte: lastPeriodStart, $lt: startDate },
+          },
         },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: groupFormat, date: "$orderDate" } },
-          total: { $sum: { $ifNull: ["$total", 0] } },
+        {
+          $group: {
+            _id: { $dateToString: { format: groupFormat, date: "$orderDate" } },
+            total: { $sum: { $ifNull: ["$total", 0] } },
+          },
         },
-      },
-      { $sort: { _id: 1 } },
-    ]).catch(() => []),
-  ]);
+        { $sort: { _id: 1 } },
+      ]).catch(() => []),
+    ]);
 
-  const thisPeriod = (thisPeriodData || []).map((item) => ({
-    date: item._id || "",
-    value: item.total || 0,
-  }));
+    const thisPeriod = (thisPeriodData || []).map((item) => ({
+      date: item._id || "",
+      value: item.total || 0,
+    }));
 
-  const lastPeriod = (lastPeriodData || []).map((item) => ({
-    date: item._id || "",
-    value: item.total || 0,
-  }));
+    const lastPeriod = (lastPeriodData || []).map((item) => ({
+      date: item._id || "",
+      value: item.total || 0,
+    }));
 
     return { thisPeriod, lastPeriod };
   } catch (error) {
@@ -240,12 +240,14 @@ export const getOrderAnalytics = async (
     const [thisPeriodOrders, lastPeriodOrders] = await Promise.all([
       Order.find({
         orderDate: { $gte: startDate },
+        status: { $ne: "Pending" },
       })
         .select("orderDate")
         .lean()
         .catch(() => []),
       Order.find({
         orderDate: { $gte: lastPeriodStart, $lt: startDate },
+        status: { $ne: "Pending" },
       })
         .select("orderDate")
         .lean()
@@ -259,7 +261,7 @@ export const getOrderAnalytics = async (
       // Daily data for current month
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
       const daysLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
-      
+
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
       const currentMonthName = monthNames[now.getMonth()];
       const lastMonthName = monthNames[(now.getMonth() - 1 + 12) % 12];
@@ -306,7 +308,7 @@ export const getOrderAnalytics = async (
     } else {
       // Monthly data for current year
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      
+
       // Count orders by month for current year
       const currentYearCounts: { [key: number]: number } = {};
       thisPeriodOrders.forEach((order: any) => {
@@ -356,17 +358,18 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     const lastWeekSameDay = new Date(today);
     lastWeekSameDay.setDate(lastWeekSameDay.getDate() - 7);
     const lastWeekNextDay = new Date(lastWeekSameDay);
     lastWeekNextDay.setDate(lastWeekNextDay.getDate() + 1);
-    
+
     // Get ALL orders booked today (any status)
     const todayOrders = await Order.aggregate([
       {
         $match: {
-          orderDate: { $gte: today, $lt: tomorrow }
+          orderDate: { $gte: today, $lt: tomorrow },
+          status: { $ne: "Pending" }
         }
       },
       {
@@ -376,12 +379,13 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
         }
       }
     ]).catch(() => []);
-    
+
     // Get orders from same day last week
     const lastWeekOrders = await Order.aggregate([
       {
         $match: {
-          orderDate: { $gte: lastWeekSameDay, $lt: lastWeekNextDay }
+          orderDate: { $gte: lastWeekSameDay, $lt: lastWeekNextDay },
+          status: { $ne: "Pending" }
         }
       },
       {
@@ -391,7 +395,7 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
         }
       }
     ]).catch(() => []);
-    
+
     return {
       salesToday: todayOrders[0]?.total || 0,
       salesLastWeekSameDay: lastWeekOrders[0]?.total || 0
@@ -495,7 +499,7 @@ export const getTopSellers = async (
  */
 export const getRecentOrders = async (limit: number = 10) => {
   try {
-    const orders = await Order.find()
+    const orders = await Order.find({ status: { $ne: "Pending" } })
       .populate("customer", "name email phone")
       .populate("deliveryBoy", "name mobile")
       .sort({ orderDate: -1 })
