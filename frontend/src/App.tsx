@@ -46,6 +46,7 @@ const FAQ = lazy(() => import("./modules/user/FAQ"));
 const Wishlist = lazy(() => import("./modules/user/Wishlist"));
 const Addresses = lazy(() => import("./modules/user/Addresses"));
 const AddressBook = lazy(() => import("./modules/user/AddressBook"));
+const UserNotifications = lazy(() => import("./modules/user/Notifications"));
 const SpiritualStore = lazy(() => import("./modules/user/SpiritualStore"));
 const PharmaStore = lazy(() => import("./modules/user/PharmaStore"));
 const EGiftStore = lazy(() => import("./modules/user/EGiftStore"));
@@ -119,6 +120,7 @@ const SellerDashboard = lazy(
   () => import("./modules/seller/pages/SellerDashboard"),
 );
 const SellerOrders = lazy(() => import("./modules/seller/pages/SellerOrders"));
+const SellerNotifications = lazy(() => import("./modules/seller/pages/SellerNotifications"));
 const SellerOrderDetail = lazy(
   () => import("./modules/seller/pages/SellerOrderDetail"),
 );
@@ -478,6 +480,10 @@ function App() {
                                         element={<SellerOrders />}
                                       />
                                       <Route
+                                        path="notifications"
+                                        element={<SellerNotifications />}
+                                      />
+                                      <Route
                                         path="settlement"
                                         element={<SellerSettlement />}
                                       />
@@ -799,6 +805,10 @@ function App() {
                                     <Route
                                       path="/account"
                                       element={<Account />}
+                                    />
+                                    <Route
+                                      path="/notifications"
+                                      element={<UserNotifications />}
                                     />
                                     <Route
                                       path="/about-us"

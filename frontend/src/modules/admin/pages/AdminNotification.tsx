@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   getNotifications,
   createNotification,
@@ -235,7 +235,7 @@ export default function AdminNotification() {
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Page Content */}
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-6 min-h-0 overflow-y-auto pb-10">
         {/* Header with Title and Breadcrumb */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <h1 className="text-2xl font-semibold text-neutral-800">Notification</h1>
@@ -507,7 +507,7 @@ export default function AdminNotification() {
 
             {/* Pagination Footer */}
             {!loading && totalPages > 1 && (
-              <div className="px-4 sm:px-6 py-3 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+              <div className="px-4 sm:px-6 py-2 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 mb-1">
                 <div className="text-xs sm:text-sm text-neutral-700">
                   Showing {displayedNotifications.length > 0 ? startIndex + 1 : 0} to {Math.min(startIndex + displayedNotifications.length, totalNotifications)} of {totalNotifications} entries
                 </div>
@@ -601,7 +601,7 @@ export default function AdminNotification() {
       </div>
 
       {/* Footer */}
-      <footer className="text-center py-4 text-sm text-neutral-600 border-t border-neutral-200 bg-white">
+      <footer className="text-center py-2 text-sm text-neutral-600 border-t border-neutral-200 bg-white">
         Copyright Â© 2025. Developed By{' '}
         <a href="#" className="text-blue-600 hover:underline">
           Dhakad Snazzy - 10 Minute App

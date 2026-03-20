@@ -66,6 +66,9 @@ export const sendBroadcastNotification = async (
     actionLabel?: string;
     priority?: "Low" | "Medium" | "High" | "Urgent";
     expiresAt?: Date;
+    broadcastBatchId?: string;
+    broadcastRecipientType?: "Admin" | "Seller" | "Customer" | "Delivery" | "All";
+    createdBy?: string;
   },
 ) => {
   // Get all users of the specified type
@@ -96,6 +99,8 @@ export const sendBroadcastNotification = async (
       Notification.create({
         recipientType,
         recipientId: userId,
+        broadcastBatchId: options?.broadcastBatchId,
+        broadcastRecipientType: options?.broadcastRecipientType,
         title,
         message,
         type: options?.type || "Info",
@@ -103,6 +108,7 @@ export const sendBroadcastNotification = async (
         actionLabel: options?.actionLabel,
         priority: options?.priority || "Medium",
         expiresAt: options?.expiresAt,
+        createdBy: options?.createdBy,
         isRead: false,
       }),
     ),

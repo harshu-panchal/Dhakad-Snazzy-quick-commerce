@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Notification from "../../../models/Notification";
+import { sendBroadcastNotification } from "../../../services/notificationService";
+import crypto from "crypto";
 
 /**
  * Create a new notification
@@ -26,19 +28,113 @@ export const createNotification = asyncHandler(
       });
     }
 
-    const notification = await Notification.create({
-      recipientType,
-      recipientId,
-      title,
-      message,
-      type: type || "Info",
-      link,
-      actionLabel,
-      priority: priority || "Medium",
-      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-      createdBy: req.user?.userId,
-      isRead: false,
-    });
+    const notificationType = type || "Info";
+    const notificationPriority = priority || "Medium";
+    const notificationExpiresAt = expiresAt ? new Date(expiresAt) : undefined;
+
+    const shouldBroadcastToAll =
+      recipientId === undefined ||
+      recipientId === null ||
+      (typeof recipientId === "string" && recipientId.trim() === "");
+
+    // If recipientId is not provided, treat it as broadcast to all users of that type.
+    // This matches the Admin "Send Notification" form behavior.
+    let notification: any = null;
+    if (shouldBroadcastToAll) {
+      const createdNotifications: any[] = [];
+      const broadcastBatchId = crypto.randomUUID();
+
+      if (recipientType === "All") {
+        createdNotifications.push(
+          ...(await sendBroadcastNotification("Admin", title, message, {
+            type: notificationType,
+            link,
+            actionLabel,
+            priority: notificationPriority,
+            expiresAt: notificationExpiresAt,
+            broadcastBatchId,
+            broadcastRecipientType: recipientType,
+            createdBy: req.user?.userId,
+          }))
+        );
+        createdNotifications.push(
+          ...(await sendBroadcastNotification("Seller", title, message, {
+            type: notificationType,
+            link,
+            actionLabel,
+            priority: notificationPriority,
+            expiresAt: notificationExpiresAt,
+            broadcastBatchId,
+            broadcastRecipientType: recipientType,
+            createdBy: req.user?.userId,
+          }))
+        );
+        createdNotifications.push(
+          ...(await sendBroadcastNotification("Customer", title, message, {
+            type: notificationType,
+            link,
+            actionLabel,
+            priority: notificationPriority,
+            expiresAt: notificationExpiresAt,
+            broadcastBatchId,
+            broadcastRecipientType: recipientType,
+            createdBy: req.user?.userId,
+          }))
+        );
+        createdNotifications.push(
+          ...(await sendBroadcastNotification("Delivery", title, message, {
+            type: notificationType,
+            link,
+            actionLabel,
+            priority: notificationPriority,
+            expiresAt: notificationExpiresAt,
+            broadcastBatchId,
+            broadcastRecipientType: recipientType,
+            createdBy: req.user?.userId,
+          }))
+        );
+      } else {
+        // recipientType is one of Admin/Seller/Customer/Delivery
+        createdNotifications.push(
+          ...(await sendBroadcastNotification(recipientType, title, message, {
+            type: notificationType,
+            link,
+            actionLabel,
+            priority: notificationPriority,
+            expiresAt: notificationExpiresAt,
+            broadcastBatchId,
+            broadcastRecipientType: recipientType,
+            createdBy: req.user?.userId,
+          }))
+        );
+      }
+
+      // Return the first notification record for response compatibility.
+      notification = createdNotifications[0] || null;
+    } else {
+      notification = await Notification.create({
+        recipientType,
+        recipientId,
+        title,
+        message,
+        type: notificationType,
+        link,
+        actionLabel,
+        priority: notificationPriority,
+        expiresAt: notificationExpiresAt,
+        createdBy: req.user?.userId,
+        isRead: false,
+      });
+    }
+
+    // Fallback (in case there were no users to broadcast to).
+    if (!notification) {
+      return res.status(201).json({
+        success: true,
+        message: "Notification created successfully (no recipients found)",
+        data: null,
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -79,15 +175,62 @@ export const getNotifications = asyncHandler(
     ];
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const limitNum = parseInt(limit as string);
 
-    const [notifications, total] = await Promise.all([
-      Notification.find(query)
-        .populate("createdBy", "firstName lastName")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit as string)),
-      Notification.countDocuments(query),
+    // Collapse broadcast entries (same broadcastBatchId) into a single row for admin list.
+    // Non-broadcast rows remain one-to-one.
+    const [notificationsRaw, totalAgg] = await Promise.all([
+      Notification.aggregate([
+        { $match: query },
+        { $sort: { createdAt: -1 } },
+        {
+          $addFields: {
+            __groupKey: {
+              $ifNull: ["$broadcastBatchId", { $toString: "$_id" }],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$__groupKey",
+            doc: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$doc" } },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limitNum },
+      ]),
+      Notification.aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            __groupKey: {
+              $ifNull: ["$broadcastBatchId", { $toString: "$_id" }],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$__groupKey",
+          },
+        },
+        { $count: "total" },
+      ]),
     ]);
+
+    const notifications = await Notification.populate(notificationsRaw, {
+      path: "createdBy",
+      select: "firstName lastName",
+    });
+
+    for (const n of notifications as any[]) {
+      if (n.broadcastRecipientType) {
+        n.recipientType = n.broadcastRecipientType;
+      }
+    }
+
+    const total = totalAgg?.[0]?.total || 0;
 
     return res.status(200).json({
       success: true,
@@ -95,9 +238,9 @@ export const getNotifications = asyncHandler(
       data: notifications,
       pagination: {
         page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / parseInt(limit as string)),
+        pages: Math.ceil(total / limitNum),
       },
     });
   }

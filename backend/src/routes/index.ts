@@ -35,6 +35,8 @@ import paymentRoutes from "./paymentRoutes";
 import sellerWalletRoutes from "./sellerWalletRoutes";
 import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
+import sellerNotificationRoutes from "./sellerNotificationRoutes";
+import customerNotificationRoutes from "./customerNotificationRoutes";
 
 import {
   createOrder,
@@ -76,6 +78,23 @@ router.use(
   authenticate,
   requireUserType("Delivery"),
   deliveryTrackingRoutes
+);
+
+// Seller notifications (protected)
+router.use(
+  "/seller",
+  authenticate,
+  requireUserType("Seller"),
+  sellerNotificationRoutes
+);
+
+// Customer notifications (protected)
+// Must be registered before general /customer routes.
+router.use(
+  "/customer",
+  authenticate,
+  requireUserType("Customer"),
+  customerNotificationRoutes
 );
 
 // Customer routes - Specific routes MUST be registered before general /customer route

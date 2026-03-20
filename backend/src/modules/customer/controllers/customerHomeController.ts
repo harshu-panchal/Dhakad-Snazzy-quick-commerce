@@ -15,7 +15,8 @@ import { findSellersWithinRange } from "../../../utils/locationHelper";
 // Helper function to fetch data for a home section based on its configuration
 async function fetchSectionData(
   section: any,
-  nearbySellerIds?: mongoose.Types.ObjectId[]
+  nearbySellerIds?: mongoose.Types.ObjectId[],
+  hasUserLocation?: boolean
 ): Promise<any[]> {
   try {
     const { categories, subCategories, displayType, limit } = section;
@@ -136,12 +137,11 @@ async function fetchSectionData(
         ],
       };
 
-      // We fetch these irrespective of location radius to show preview images on home page
-      // Location validation still happens at cart/order level
-      if (nearbySellerIds && nearbySellerIds.length > 0) {
-        // If we have nearby sellers, we can still filter by them if we want to prioritize
-        // But the user requested to show them irrespective of location radius
-        // For now, let's keep it simple and show all active products for the section
+      // If we have a user location, strictly filter products by seller service radius.
+      // Otherwise, keep existing "preview" behavior (UI may show Out of Range).
+      if (hasUserLocation) {
+        if (!nearbySellerIds || nearbySellerIds.length === 0) return [];
+        query.seller = { $in: nearbySellerIds };
       }
 
       if (categories && categories.length > 0) {
@@ -171,10 +171,12 @@ async function fetchSectionData(
         .lean();
 
       return products.map((p: any) => {
-        // Check if the product's seller is within range
-        const isAvailable = nearbySellerIds && nearbySellerIds.length > 0 && p.seller
-          ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
-          : false;
+        // If we filtered by radius above, this should always be true when hasUserLocation is set.
+        const isAvailable = hasUserLocation
+          ? true
+          : nearbySellerIds && nearbySellerIds.length > 0 && p.seller
+            ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
+            : false;
 
         return {
           id: p._id.toString(),
@@ -246,8 +248,14 @@ export const getHomeContent = async (req: Request, res: Response) => {
     const userLat = latitude ? parseFloat(latitude as string) : null;
     const userLng = longitude ? parseFloat(longitude as string) : null;
 
+    const hasUserLocation =
+      userLat !== null &&
+      userLng !== null &&
+      !isNaN(userLat) &&
+      !isNaN(userLng);
+
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
-    if (userLat !== null && userLng !== null) {
+    if (hasUserLocation) {
       nearbySellerIds = await findSellersWithinRange(userLat, userLng);
     } else {
       // If no location provided, return empty sellers list to enforce filtering
@@ -274,6 +282,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
           status: "Active",
           publish: true,
         };
+
+        // When location is known, only show preview images for in-range sellers.
+        if (hasUserLocation) {
+          productQuery.seller = { $in: nearbySellerIds };
+        }
 
         // Fetch 4 active products from the category for preview images
         // We fetch these irrespective of location radius to show category preview
@@ -318,6 +331,10 @@ export const getHomeContent = async (req: Request, res: Response) => {
         };
       })
     );
+
+    const visibleBestsellers = hasUserLocation
+      ? bestsellers.filter((b: any) => Array.isArray(b.productImages) && b.productImages.length > 0)
+      : bestsellers;
 
     // 2. Lowest Prices Products - Get admin-selected products
     // We fetch these irrespective of location radius to show preview on home page
@@ -368,7 +385,9 @@ export const getHomeContent = async (req: Request, res: Response) => {
           isAvailable,
           seller: product.seller,
         };
-      });
+      })
+      // Strictly hide products from sellers not in range (when location is available).
+      .filter((p: any) => !hasUserLocation || p.isAvailable === true);
 
     // 3. Categories for Tiles (Grocery, Snacks, etc)
     const categories = await Category.find({
@@ -393,6 +412,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
             _id: { $in: shop.products.slice(0, 4) },
             status: "Active",
             publish: true,
+            ...(hasUserLocation ? { seller: { $in: nearbySellerIds } } : {}),
           })
             .select("mainImage")
             .lean();
@@ -412,6 +432,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
         };
       })
     );
+
+    // When location is known, hide shops that have no in-range products to preview.
+    const visibleShops = hasUserLocation
+      ? shops.filter((s: any) => Array.isArray(s.productImages) && s.productImages.length > 0)
+      : shops;
 
     // 5. Trending Items (Fetch some popular categories or products)
     const trendingCategories = await Category.find({
@@ -435,6 +460,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
       status: "Active",
       publish: true,
     };
+
+    // When location is known, only show preview images for in-range sellers.
+    if (hasUserLocation) {
+      foodProductsQuery.seller = { $in: nearbySellerIds };
+    }
 
     const foodProducts = await Product.find(foodProductsQuery)
       .limit(3)
@@ -583,7 +613,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
     // Fetch data for each section
     const dynamicSections = await Promise.all(
       homeSections.map(async (section: any) => {
-        const sectionData = await fetchSectionData(section, nearbySellerIds);
+        const sectionData = await fetchSectionData(
+          section,
+          nearbySellerIds,
+          hasUserLocation
+        );
         return {
           id: section._id.toString(),
           title: section.title,
@@ -619,12 +653,16 @@ export const getHomeContent = async (req: Request, res: Response) => {
 
       // If we have promoStrip, add availability flag to featured products
       if (promoStrip && (promoStrip as any).featuredProducts) {
-        (promoStrip as any).featuredProducts = (promoStrip as any).featuredProducts.map((p: any) => {
-          const isAvailable = nearbySellerIds && nearbySellerIds.length > 0 && p.seller
-            ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
-            : false;
-          return { ...p, isAvailable };
-        });
+        (promoStrip as any).featuredProducts = (promoStrip as any).featuredProducts
+          .map((p: any) => {
+            const isAvailable =
+              nearbySellerIds && nearbySellerIds.length > 0 && p.seller
+                ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
+                : false;
+            return { ...p, isAvailable };
+          })
+          // Strictly hide products from sellers not in range (when location is available).
+          .filter((p: any) => !hasUserLocation || p.isAvailable === true);
       }
 
       // Cache for 3 minutes (PromoStrip data doesn't change frequently)
@@ -639,12 +677,12 @@ export const getHomeContent = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       data: {
-        bestsellers,
+        bestsellers: visibleBestsellers,
         lowestPrices: validLowestPricesProducts, // Admin-selected products for LowestPricesEver section
         categories,
         // Dynamic sections created by admin
         homeSections: dynamicSections,
-        shops,
+        shops: visibleShops,
         promoBanners: [
           {
             id: 1,

@@ -4,6 +4,8 @@ export interface INotification extends Document {
   // Recipient Info
   recipientType: "Admin" | "Seller" | "Customer" | "Delivery" | "All";
   recipientId?: mongoose.Types.ObjectId; // Specific user ID if not 'All'
+  broadcastBatchId?: string;
+  broadcastRecipientType?: "Admin" | "Seller" | "Customer" | "Delivery" | "All";
 
   // Notification Content
   title: string;
@@ -51,6 +53,14 @@ const NotificationSchema = new Schema<INotification>(
     },
     recipientId: {
       type: Schema.Types.ObjectId,
+    },
+    broadcastBatchId: {
+      type: String,
+      trim: true,
+    },
+    broadcastRecipientType: {
+      type: String,
+      enum: ["Admin", "Seller", "Customer", "Delivery", "All"],
     },
 
     // Notification Content
@@ -129,6 +139,7 @@ const NotificationSchema = new Schema<INotification>(
 NotificationSchema.index({ recipientType: 1, recipientId: 1, isRead: 1 });
 NotificationSchema.index({ createdAt: -1 });
 NotificationSchema.index({ expiresAt: 1 });
+NotificationSchema.index({ broadcastBatchId: 1, createdAt: -1 });
 
 const Notification = (mongoose.models.Notification as mongoose.Model<INotification>) || mongoose.model<INotification>(
   "Notification",
