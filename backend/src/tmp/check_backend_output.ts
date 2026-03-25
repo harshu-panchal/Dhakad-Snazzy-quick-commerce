@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import Product from '../models/Product';
-import HomeSection from '../models/HomeSection';
-import Category from '../models/Category'; // Need to register Category
+// import HomeSection from '../models/HomeSection';
+// import Category from '../models/Category'; // Need to register Category if using populate
 import dotenv from 'dotenv';
 dotenv.config();
 
