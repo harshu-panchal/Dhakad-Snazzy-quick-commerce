@@ -393,20 +393,27 @@ export default function ProductCard({
 
               {/* 4. % OFF */}
               {discount > 0 && (
-                <p className="text-[9px] font-semibold text-green-600 mb-0.5 leading-tight">
+                <p className="text-[10px] font-semibold text-green-600 mb-0.5 leading-tight">
                   {discount}% OFF
                 </p>
               )}
 
               {/* 5. Price with discount */}
               <div className="mt-auto">
-                <div className="flex items-baseline gap-1 flex-wrap">
-                  <span className="text-[11px] font-bold text-neutral-900 leading-tight">
-                    ₹{displayPrice.toLocaleString('en-IN')}
-                  </span>
-                  {mrp && mrp > displayPrice && (
-                    <span className="text-[8px] text-neutral-500 line-through leading-tight">
-                      ₹{mrp.toLocaleString('en-IN')}
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-baseline gap-1.5 flex-wrap">
+                    <span className="text-[14px] font-bold text-neutral-900 leading-tight">
+                      ₹{displayPrice.toLocaleString('en-IN')}
+                    </span>
+                    {mrp && mrp > displayPrice && (
+                      <span className="text-[11px] text-neutral-500 line-through leading-tight font-medium">
+                        ₹{mrp.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  {discount > 0 && (
+                    <span className="text-[10px] font-bold text-green-600 leading-tight">
+                      {discount}% OFF
                     </span>
                   )}
                 </div>
@@ -417,7 +424,7 @@ export default function ProductCard({
             <>
               {!showPackBadge && (
                 <p className={`${compact ? 'text-[10px] md:text-xs' : 'text-xs md:text-sm'} text-neutral-500 mb-1`}>
-                  {product.variations?.[0]?.value || product.pack}
+                   {product.variations?.[0]?.value || product.pack}
                 </p>
               )}
 
@@ -441,13 +448,20 @@ export default function ProductCard({
               )}
 
               <div className="mt-auto mb-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-base font-bold text-neutral-900">
-                    ₹{displayPrice}
-                  </span>
-                  {mrp && mrp > displayPrice && (
-                    <span className="text-xs text-neutral-500 line-through">
-                      ₹{mrp}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg font-bold text-neutral-900">
+                      ₹{displayPrice.toLocaleString('en-IN')}
+                    </span>
+                    {mrp && mrp > displayPrice && (
+                      <span className="text-sm text-neutral-500 line-through font-medium">
+                        ₹{mrp.toLocaleString('en-IN')}
+                      </span>
+                    )}
+                  </div>
+                  {discount > 0 && (
+                    <span className="text-xs font-bold text-green-600">
+                      You save ₹{(mrp - displayPrice).toLocaleString('en-IN')} ({discount}% OFF)
                     </span>
                   )}
                 </div>

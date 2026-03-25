@@ -167,7 +167,7 @@ async function fetchSectionData(
       const products = await Product.find(query)
         .sort({ createdAt: -1 }) // Show newest items first
         .limit(limit || 8)
-        .select("productName mainImage price mrp discount rating reviewsCount pack seller variations")
+        .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations")
         .lean();
 
       return products.map((p: any) => {
@@ -186,10 +186,14 @@ async function fetchSectionData(
           image: p.mainImage,
           mainImage: p.mainImage,
           price: p.price,
+          discPrice: p.discPrice || 0,
+          compareAtPrice: p.compareAtPrice || 0,
+          mrp: p.compareAtPrice || p.mrp || p.price || 0,
+          variations: p.variations || [],
           discount:
             p.discount ||
-            (p.mrp && p.price
-              ? Math.round(((p.mrp - p.price) / p.mrp) * 100)
+            ((p.compareAtPrice || p.mrp) && p.price
+              ? Math.round((((p.compareAtPrice || p.mrp) - p.price) / (p.compareAtPrice || p.mrp)) * 100)
               : 0),
           productImages: p.mainImage ? [p.mainImage] : [],
           rating: p.rating || 0,
@@ -348,7 +352,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
       .populate({
         path: "product",
         select:
-          "productName mainImage price mrp discount status publish category subcategory seller variations",
+          "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations",
         match: {
           status: "Active",
           publish: true,
@@ -376,8 +380,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
           mainImage: product.mainImage,
           imageUrl: product.mainImage,
           price: product.price,
-          mrp: product.mrp || product.price,
+          discPrice: product.discPrice || 0,
+          compareAtPrice: product.compareAtPrice || product.mrp || product.price,
+          mrp: product.mrp || product.compareAtPrice || product.price,
           discount: product.discount || (product.mrp && product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0),
+          variations: product.variations || [],
           categoryId: product.category?.toString() || "",
           subcategory: product.subcategory?.toString() || "",
           status: product.status,
@@ -645,7 +652,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
         endDate: { $gte: now },
       })
         .populate("categoryCards.categoryId", "name slug image")
-        .populate("featuredProducts", "productName mainImage mainImageUrl galleryImageUrls galleryImages price mrp compareAtPrice discount rating reviewsCount seller variations")
+        .populate("featuredProducts", "productName mainImage mainImageUrl galleryImageUrls galleryImages price discPrice mrp compareAtPrice discount rating reviewsCount seller variations")
         .sort({ order: 1 })
         .lean();
 

@@ -52,6 +52,11 @@ export interface Product {
   mainImageUrl?: string;
   mainImage?: string; // Mapped directly from Product model
   galleryImageUrls: string[];
+  price?: number;
+  discPrice?: number;
+  compareAtPrice?: number;
+  mrp?: number;
+  discount?: number;
   variations: ProductVariation[];
   variationType?: string;
   createdAt?: string;
