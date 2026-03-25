@@ -189,11 +189,11 @@ export const getCategoryById = async (req: Request, res: Response) => {
 
         // If not found, try replacing " and " with " & " specifically for categories like "Vegetables & Fruits"
         if (!category && id.includes("and")) {
-           const withAmpersand = id.replace(/-and-/g, " & ").replace(/-/g, " ");
-           category = await Category.findOne({
-             name: { $regex: new RegExp(`^${withAmpersand}$`, "i") },
-             status: "Active",
-           }).lean();
+          const withAmpersand = id.replace(/-and-/g, " & ").replace(/-/g, " ");
+          category = await Category.findOne({
+            name: { $regex: new RegExp(`^${withAmpersand}$`, "i") },
+            status: "Active",
+          }).lean();
         }
       }
     }
@@ -240,11 +240,11 @@ export const getCategoryById = async (req: Request, res: Response) => {
     // Ensure category._id is treated as ObjectId for the query
     let catId = category._id;
     if (typeof catId === 'string') {
-        try {
-            catId = new mongoose.Types.ObjectId(catId);
-        } catch (e) {
-            console.error("Failed to cast category ID to ObjectId:", e);
-        }
+      try {
+        catId = new mongoose.Types.ObjectId(catId);
+      } catch (e) {
+        console.error("Failed to cast category ID to ObjectId:", e);
+      }
     }
 
     // Query for BOTH ObjectId and String representation to be safe against legacy data references

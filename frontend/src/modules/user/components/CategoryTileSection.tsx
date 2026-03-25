@@ -21,6 +21,7 @@ interface CategoryTileSectionProps {
   tiles: CategoryTile[];
   columns?: 2 | 3 | 4 | 6 | 8; // Support all column options
   showProductCount?: boolean; // Show product count only for bestsellers
+  onTileClick?: (tile: CategoryTile) => void; // Custom click handler
 }
 
 export default function CategoryTileSection({
@@ -28,10 +29,16 @@ export default function CategoryTileSection({
   tiles,
   columns = 4,
   showProductCount = false,
+  onTileClick,
 }: CategoryTileSectionProps) {
   const navigate = useNavigate();
 
   const handleTileClick = (tile: CategoryTile) => {
+    if (onTileClick) {
+        onTileClick(tile);
+        return;
+    }
+
     if (tile.subcategoryId || tile.type === "subcategory") {
       // Navigate to subcategory page or category with subcategory filter
       if (tile.categoryId) {
@@ -130,6 +137,11 @@ export default function CategoryTileSection({
                               : "#"
                   }
                   onClick={(e) => {
+                    if (onTileClick) {
+                        e.preventDefault();
+                        onTileClick(tile);
+                        return;
+                    }
                     if (
                       !tile.categoryId &&
                       !tile.productId &&
