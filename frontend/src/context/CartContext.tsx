@@ -56,6 +56,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lastAddEvent, setLastAddEvent] = useState<AddToCartEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const pendingOperationsRef = useRef<Set<string>>(new Set());
+  const hasSyncedRef = useRef(false);
 
   const { isAuthenticated, user } = useAuth();
   const { location } = useLocation();
@@ -92,6 +93,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // Helper to sync cart from API
   const fetchCart = useCallback(async (lat?: number, lng?: number, deliveryOption?: string) => {
+    console.log('fetchCart called with:', { lat, lng, deliveryOption, isAuthenticated, userType: user?.userType });
     if (!isAuthenticated || user?.userType !== 'Customer') {
       // If we cleared it above but had things in localStorage, we keep them for guests?
       // For now, if logged out, we clear if it was an authenticated session.
@@ -106,22 +108,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const queryLat = lat !== undefined ? lat : location?.latitude;
       const queryLng = lng !== undefined ? lng : location?.longitude;
 
+      console.log('Fetching cart from API with:', { queryLat, queryLng, deliveryOption });
       const response = await getCart({
         latitude: queryLat,
         longitude: queryLng,
         deliveryOption: deliveryOption
       });
+      console.log('fetchCart response:', response);
+      console.log('fetchCart response items:', response?.data?.items);
       if (response && response.data && response.data.items) {
         const newItems = mapApiItemsToState(response.data.items);
         // Attach debug info to the new items array
         (newItems as any).debug_config = response.data.debug_config;
         (newItems as any).backendTotal = response.data.backendTotal;
 
+        console.log('Setting items from fetchCart:', newItems);
         setItems(newItems);
         setEstimatedFee(response.data.estimatedDeliveryFee);
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
       } else {
+        console.log('fetchCart: No items in response, setting empty cart');
         setItems([]);
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
@@ -132,17 +139,59 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
+  }, [isAuthenticated, user?.userType]);
 
   // Load cart on auth change
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user?.userType === 'Customer') {
       fetchCart();
     } else {
       // Guest cart is already in 'items' from localStorage if it existed
       setLoading(false);
     }
-  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude]);
+  }, [isAuthenticated, user?.userType, fetchCart]);
+
+  // Sync localStorage items to backend on mount (one-time sync)
+  useEffect(() => {
+    const syncLocalCartToBackend = async () => {
+      if (isAuthenticated && user?.userType === 'Customer' && !hasSyncedRef.current) {
+        const localItems = items.filter(item => item?.product);
+        
+        if (localItems.length > 0) {
+          console.log('Syncing', localItems.length, 'local cart items to backend');
+          try {
+            for (const item of localItems) {
+              const productId = item.product.id || item.product._id;
+              const variation = (item.product as any).variantId || 
+                               (item.product as any).selectedVariant?._id || 
+                               (item.product as any).variantTitle ||
+                               item.variant ||
+                               item.product.pack;
+              
+              await apiAddToCart(
+                productId,
+                item.quantity,
+                variation,
+                location?.latitude,
+                location?.longitude
+              );
+            }
+            console.log('Local cart synced successfully');
+            hasSyncedRef.current = true;
+            // Refresh cart to get updated data from backend
+            await fetchCart();
+          } catch (error) {
+            console.error("Failed to sync local cart to backend:", error);
+          }
+        } else {
+          hasSyncedRef.current = true;
+        }
+      }
+    };
+    
+    syncLocalCartToBackend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // State for estimate delivery fee
   const [estimatedFee, setEstimatedFee] = useState<number | undefined>(undefined);
@@ -273,6 +322,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           variation = product.pack;
         }
 
+        console.log('Adding to cart API:', { productId, variation, latitude: location?.latitude, longitude: location?.longitude });
         const response = await apiAddToCart(
           productId,
           1,
@@ -280,12 +330,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           location?.latitude,
           location?.longitude
         );
+        console.log('Add to cart response:', response);
+        console.log('Response data items:', response?.data?.items);
         if (response && response.data && response.data.items) {
           // Atomic update from server response
-          setItems(mapApiItemsToState(response.data.items));
+          const mappedItems = mapApiItemsToState(response.data.items);
+          console.log('Mapped items to set:', mappedItems);
+          setItems(mappedItems);
           setEstimatedFee(response.data.estimatedDeliveryFee);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+        } else {
+          console.warn('Response missing data or items:', response);
         }
       } catch (error: any) {
         console.error("Add to cart failed", error);
