@@ -8,7 +8,7 @@ import { cache } from "../../../utils/cache";
 // Get all categories (public) - with caching
 export const getCategories = async (_req: Request, res: Response) => {
   try {
-    const cacheKey = "customer-categories-list";
+    const cacheKey = "customer-categories-list-v2";
 
     // Try cache first
     let categories = cache.get(cacheKey);
@@ -18,7 +18,7 @@ export const getCategories = async (_req: Request, res: Response) => {
         status: "Active", // Only return active categories
       })
         .sort({ order: 1 })
-        .select("name image icon description color slug _id")
+        .select("name image icon description color slug _id headerCategoryId order")
         .lean(); // Use lean() for better performance
 
       // Cache for 10 minutes

@@ -7,10 +7,12 @@ export interface Category {
     id?: string; // Virtual ID
     name: string;
     parent?: string | null;
+    parentId?: string | null;
     image?: string;
     icon?: string;
     description?: string;
     isActive: boolean;
+    order?: number;
     children?: Category[];
     subcategories?: Category[];
     headerCategoryId?: string | { _id: string; name?: string };
