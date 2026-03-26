@@ -162,6 +162,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           try {
             for (const item of localItems) {
               const productId = item.product.id || item.product._id;
+              if (!productId) continue;
+
               const variation = (item.product as any).variantId || 
                                (item.product as any).selectedVariant?._id || 
                                (item.product as any).variantTitle ||
@@ -377,7 +379,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated && user?.userType === 'Customer' && itemToRemove?.id) {
       try {
         const response = await apiRemoveFromCart(
-          itemToRemove.id,
+          itemToRemove.id as string,
           location?.latitude,
           location?.longitude
         );
@@ -463,7 +465,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated && user?.userType === 'Customer' && itemToUpdate?.id) {
       try {
         const response = await apiUpdateCartItem(
-          itemToUpdate.id,
+          itemToUpdate.id as string,
           quantity,
           location?.latitude,
           location?.longitude
