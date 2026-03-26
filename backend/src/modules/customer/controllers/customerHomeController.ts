@@ -137,13 +137,13 @@ async function fetchSectionData(
         ],
       };
 
-      // If we have a user location, strictly filter products by seller service radius.
-      // Otherwise, keep existing "preview" behavior (UI may show Out of Range).
-      if (hasUserLocation) {
-        if (!nearbySellerIds || nearbySellerIds.length === 0) return [];
+      // If we have a user location and nearby sellers, filter products by seller service radius.
+      // Otherwise, show all products but mark availability status.
+      if (hasUserLocation && nearbySellerIds && nearbySellerIds.length > 0) {
         query.seller = { $in: nearbySellerIds };
       }
 
+      // Only filter by category if categories are explicitly selected
       if (categories && categories.length > 0) {
         const categoryIds = categories
           .map((cat: any) => (cat ? cat._id || cat : null))
@@ -154,6 +154,7 @@ async function fetchSectionData(
         }
       }
 
+      // Only filter by subcategory if subcategories are explicitly selected
       if (subCategories && subCategories.length > 0) {
         const subCategoryIds = subCategories
           .map((sub: any) => (sub ? sub._id || sub : null))
@@ -164,11 +165,15 @@ async function fetchSectionData(
         }
       }
 
+      console.log(`[fetchSectionData] Products query:`, JSON.stringify(query, null, 2));
+
       const products = await Product.find(query)
         .sort({ createdAt: -1 }) // Show newest items first
         .limit(limit || 8)
         .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations")
         .lean();
+
+      console.log(`[fetchSectionData] Found ${products.length} products`);
 
       return products.map((p: any) => {
         // If we filtered by radius above, this should always be true when hasUserLocation is set.
@@ -625,6 +630,10 @@ export const getHomeContent = async (req: Request, res: Response) => {
           nearbySellerIds,
           hasUserLocation
         );
+        
+        // Debug logging
+        console.log(`[HomeSection] Section: ${section.title}, DisplayType: ${section.displayType}, Categories: ${section.categories?.length || 0}, Data returned: ${sectionData.length}`);
+        
         return {
           id: section._id.toString(),
           title: section.title,

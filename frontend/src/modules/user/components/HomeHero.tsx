@@ -42,11 +42,13 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       try {
         const cats = await getHeaderCategoriesPublic();
         if (cats && cats.length > 0) {
-          const mapped = cats.map(c => ({
-            id: c.slug,
-            label: c.name,
-            icon: getIconByName(c.iconName)
-          }));
+          const mapped = cats
+            .filter(c => c.slug !== 'all') // Filter out any category with slug 'all' to prevent duplicate keys
+            .map(c => ({
+              id: c.slug,
+              label: c.name,
+              icon: getIconByName(c.iconName)
+            }));
           setTabs([ALL_TAB, ...mapped]);
         }
       } catch (error) {
