@@ -62,7 +62,13 @@ const HomeSectionSchema = new Schema<IHomeSection>(
             type: Number,
             required: [true, "Item limit is required"],
             min: [1, "Minimum 1 item required"],
-            max: [50, "Maximum 50 items allowed"],
+            max: [100, "Maximum 100 items allowed"],
+            validate: {
+                validator: function (this: IHomeSection, value: number) {
+                    return value <= 100;
+                },
+                message: "Maximum 100 items allowed",
+            },
             default: 8,
         },
         pageLocation: {

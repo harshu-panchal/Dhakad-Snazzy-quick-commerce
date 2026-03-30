@@ -32,6 +32,8 @@ export default function AdminHomeSection() {
     const [pageLocation, setPageLocation] = useState<"Home Page" | "Header Category Page">("Home Page");
     const [targetPageHeaderCategory, setTargetPageHeaderCategory] = useState<string>("");
 
+    const limitMax = 100;
+
     // Data state
     const [sections, setSections] = useState<HomeSection[]>([]);
     const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
@@ -76,6 +78,11 @@ export default function AdminHomeSection() {
             setFilteredCategories(categories.filter((cat) => !cat.parentId));
         }
     }, [selectedHeaderCategory, displayType, categories]);
+
+    // Clamp the limit when display type changes
+    useEffect(() => {
+        setLimit((prev) => Math.min(Math.max(prev, 1), limitMax));
+    }, [limitMax]);
 
     // When editing and categories are loaded, try to set header category from selected categories
     useEffect(() => {
@@ -627,9 +634,12 @@ export default function AdminHomeSection() {
                                 <input
                                     type="number"
                                     value={limit}
-                                    onChange={(e) => setLimit(Number(e.target.value))}
+                                    onChange={(e) => {
+                                        const next = Number(e.target.value);
+                                        setLimit(Math.min(Math.max(next, 1), limitMax));
+                                    }}
                                     min="1"
-                                    max="50"
+                                    max={limitMax}
                                     className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
                                 />
                             </div>
