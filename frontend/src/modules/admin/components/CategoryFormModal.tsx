@@ -637,7 +637,7 @@ export default function CategoryFormModal({
                   <p className="text-xs text-neutral-600">
                     {isDragging ? "Drop image here" : "Choose File or Drag & Drop"}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">Max 5MB</p>
+                  <p className="text-xs text-neutral-500 mt-1">Max 50MB</p>
                 </div>
               )}
               <input

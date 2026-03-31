@@ -2,8 +2,8 @@ import multer from "multer";
 import { Request } from "express";
 
 // File size limits (in bytes)
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024; // 50MB
 
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = [

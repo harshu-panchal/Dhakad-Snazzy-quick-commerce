@@ -16,7 +16,7 @@ export function validateImageFile(file: File): {
   valid: boolean;
   error?: string;
 } {
-  const maxSize = 5 * 1024 * 1024; // 5MB
+  const maxSize = 50 * 1024 * 1024; // 50MB
   const allowedTypes = [
     "image/jpeg",
     "image/jpg",
@@ -35,7 +35,7 @@ export function validateImageFile(file: File): {
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: `File size exceeds 5MB limit. Current size: ${(
+      error: `File size exceeds 50MB limit. Current size: ${(
         file.size /
         1024 /
         1024
@@ -53,7 +53,7 @@ export function validateDocumentFile(file: File): {
   valid: boolean;
   error?: string;
 } {
-  const maxSize = 10 * 1024 * 1024; // 10MB
+  const maxSize = 50 * 1024 * 1024; // 50MB
   const allowedTypes = [
     "image/jpeg",
     "image/jpg",
@@ -72,7 +72,7 @@ export function validateDocumentFile(file: File): {
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: `File size exceeds 10MB limit. Current size: ${(
+      error: `File size exceeds 50MB limit. Current size: ${(
         file.size /
         1024 /
         1024

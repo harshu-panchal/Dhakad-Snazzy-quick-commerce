@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { uploadImage, uploadImages } from "../../../services/api/uploadService";
 import {
@@ -1145,7 +1145,7 @@ export default function SellerAddProduct() {
                         Upload Main Image
                       </p>
                       <p className="text-xs text-neutral-500 mt-1">
-                        Max 5MB, JPG/PNG/WEBP
+                        Max 50MB, JPG/PNG/WEBP
                       </p>
                     </div>
                   )}
@@ -1240,7 +1240,7 @@ export default function SellerAddProduct() {
                           Upload Other Product Images Here
                         </p>
                         <p className="text-xs text-neutral-500 mt-1">
-                          Max 5MB per image, up to 10 images
+                          Max 50MB per image, up to 10 images
                         </p>
                       </div>
                     </label>

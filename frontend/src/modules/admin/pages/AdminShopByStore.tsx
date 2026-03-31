@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
@@ -708,7 +708,7 @@ export default function AdminShopByStore() {
                       <line x1="12" y1="3" x2="12" y2="15"></line>
                     </svg>
                     <p className="text-xs text-neutral-600">Choose File</p>
-                    <p className="text-xs text-neutral-500 mt-1">Max 5MB</p>
+                    <p className="text-xs text-neutral-500 mt-1">Max 50MB</p>
                   </div>
                 )}
                 <input
