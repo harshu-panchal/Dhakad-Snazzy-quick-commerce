@@ -3,12 +3,111 @@ import Admin from "../models/Admin";
 import Seller from "../models/Seller";
 import Customer from "../models/Customer";
 import Delivery from "../models/Delivery";
+import { sendNotificationToUser } from "./firebaseAdmin";
+
+type RecipientType = "Admin" | "Seller" | "Customer" | "Delivery";
+
+const DEFAULT_NOTIFICATION_LINKS: Record<RecipientType, string> = {
+  Admin: "/admin/notification",
+  Seller: "/seller/notifications",
+  Customer: "/notifications",
+  Delivery: "/delivery/notifications",
+};
+
+const buildPushPayload = (
+  recipientType: RecipientType,
+  title: string,
+  message: string,
+  options?: {
+    type?:
+      | "Info"
+      | "Success"
+      | "Warning"
+      | "Error"
+      | "Order"
+      | "Payment"
+      | "System";
+    link?: string;
+    actionLabel?: string;
+    priority?: "Low" | "Medium" | "High" | "Urgent";
+    expiresAt?: Date;
+  },
+) => ({
+  title,
+  body: message,
+  data: {
+    type: options?.type || "Info",
+    link: options?.link || DEFAULT_NOTIFICATION_LINKS[recipientType],
+    recipientType,
+    priority: options?.priority || "Medium",
+  },
+});
+
+const markNotificationsAsSent = async (notificationIds: string[]) => {
+  if (notificationIds.length === 0) {
+    return;
+  }
+
+  await Notification.updateMany(
+    { _id: { $in: notificationIds } },
+    { sentAt: new Date() },
+  );
+};
+
+const pushNotificationToRecipients = async (
+  recipientType: RecipientType,
+  recipients: Array<{ notificationId: string; userId: string }>,
+  title: string,
+  message: string,
+  options?: {
+    type?:
+      | "Info"
+      | "Success"
+      | "Warning"
+      | "Error"
+      | "Order"
+      | "Payment"
+      | "System";
+    link?: string;
+    actionLabel?: string;
+    priority?: "Low" | "Medium" | "High" | "Urgent";
+    expiresAt?: Date;
+  },
+) => {
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const payload = buildPushPayload(recipientType, title, message, options);
+  const results = await Promise.allSettled(
+    recipients.map(({ userId }) =>
+      sendNotificationToUser(userId, recipientType, payload),
+    ),
+  );
+
+  const sentNotificationIds = recipients
+    .map((recipient, index) => {
+      const result = results[index];
+      if (
+        result?.status === "fulfilled" &&
+        result.value &&
+        typeof result.value.successCount === "number" &&
+        result.value.successCount > 0
+      ) {
+        return recipient.notificationId;
+      }
+      return null;
+    })
+    .filter((notificationId): notificationId is string => Boolean(notificationId));
+
+  await markNotificationsAsSent(sentNotificationIds);
+};
 
 /**
  * Send notification to specific user
  */
 export const sendNotification = async (
-  recipientType: "Admin" | "Seller" | "Customer" | "Delivery",
+  recipientType: RecipientType,
   recipientId: string,
   title: string,
   message: string,
@@ -40,8 +139,13 @@ export const sendNotification = async (
     isRead: false,
   });
 
-  // Here you would integrate with push notification service (FCM, APNS, etc.)
-  // For now, we'll just create the notification record
+  await pushNotificationToRecipients(
+    recipientType,
+    [{ notificationId: notification._id.toString(), userId: recipientId }],
+    title,
+    message,
+    options,
+  );
 
   return notification;
 };
@@ -50,7 +154,7 @@ export const sendNotification = async (
  * Send notification to all users of a type
  */
 export const sendBroadcastNotification = async (
-  recipientType: "Admin" | "Seller" | "Customer" | "Delivery",
+  recipientType: RecipientType,
   title: string,
   message: string,
   options?: {
@@ -112,6 +216,17 @@ export const sendBroadcastNotification = async (
         isRead: false,
       }),
     ),
+  );
+
+  await pushNotificationToRecipients(
+    recipientType,
+    notifications.map((notification, index) => ({
+      notificationId: notification._id.toString(),
+      userId: userIds[index],
+    })),
+    title,
+    message,
+    options,
   );
 
   return notifications;

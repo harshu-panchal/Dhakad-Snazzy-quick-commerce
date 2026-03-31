@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Notification from "../../../models/Notification";
-import { sendBroadcastNotification } from "../../../services/notificationService";
+import {
+  sendBroadcastNotification,
+  sendNotification as createAndSendNotification,
+} from "../../../services/notificationService";
 import crypto from "crypto";
 
 /**
@@ -112,19 +115,24 @@ export const createNotification = asyncHandler(
       // Return the first notification record for response compatibility.
       notification = createdNotifications[0] || null;
     } else {
-      notification = await Notification.create({
+      notification = await createAndSendNotification(
         recipientType,
         recipientId,
         title,
         message,
-        type: notificationType,
-        link,
-        actionLabel,
-        priority: notificationPriority,
-        expiresAt: notificationExpiresAt,
-        createdBy: req.user?.userId,
-        isRead: false,
-      });
+        {
+          type: notificationType,
+          link,
+          actionLabel,
+          priority: notificationPriority,
+          expiresAt: notificationExpiresAt,
+        },
+      );
+
+      if (req.user?.userId && !notification.createdBy) {
+        notification.createdBy = req.user.userId;
+        await notification.save();
+      }
     }
 
     // Fallback (in case there were no users to broadcast to).
