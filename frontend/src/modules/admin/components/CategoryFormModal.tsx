@@ -8,6 +8,7 @@ import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
+  compressImage,
 } from "../../../utils/imageUpload";
 import {
   getAvailableParents,
@@ -344,7 +345,9 @@ export default function CategoryFormModal({
       // Upload image if a new file is selected
       if (imageFile) {
         setUploading(true);
-        const imageResult = await uploadImage(imageFile, "dhakadsnazzy/categories");
+        // Compress image before upload
+        const compressedFile = await compressImage(imageFile);
+        const imageResult = await uploadImage(compressedFile, "dhakadsnazzy/categories");
         imageUrl = imageResult.secureUrl;
         setUploading(false);
       }

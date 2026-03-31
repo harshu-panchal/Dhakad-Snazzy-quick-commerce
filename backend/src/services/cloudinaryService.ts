@@ -29,7 +29,7 @@ export async function uploadImage(
   try {
     const uploadOptions = {
       folder: options.folder || CLOUDINARY_FOLDERS.PRODUCTS,
-      resource_type: options.resourceType || "image",
+      resource_type: options.resourceType || "auto",
       transformation: options.transformation,
       overwrite: options.overwrite || false,
       invalidate: options.invalidate || true,
@@ -81,7 +81,7 @@ export async function uploadDocument(
   try {
     const uploadOptions = {
       folder: options.folder || CLOUDINARY_FOLDERS.SELLER_DOCUMENTS,
-      resource_type: options.resourceType || "raw",
+      resource_type: options.resourceType || "auto",
       overwrite: options.overwrite || false,
       invalidate: options.invalidate || true,
     };
@@ -114,7 +114,7 @@ export async function uploadImageFromBuffer(
   return new Promise((resolve, reject) => {
     const uploadOptions = {
       folder: options.folder || CLOUDINARY_FOLDERS.PRODUCTS,
-      resource_type: options.resourceType || "image",
+      resource_type: options.resourceType || "auto",
       transformation: options.transformation,
       overwrite: options.overwrite || false,
       invalidate: options.invalidate || true,
@@ -155,7 +155,7 @@ export async function uploadDocumentFromBuffer(
   return new Promise((resolve, reject) => {
     const uploadOptions = {
       folder: options.folder || CLOUDINARY_FOLDERS.SELLER_DOCUMENTS,
-      resource_type: options.resourceType || "raw",
+      resource_type: options.resourceType || "auto",
       overwrite: options.overwrite || false,
       invalidate: options.invalidate || true,
     };

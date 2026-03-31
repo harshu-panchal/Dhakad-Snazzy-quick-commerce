@@ -6,7 +6,7 @@ import {
   verifyOTP,
 } from "../../../services/api/auth/deliveryAuthService";
 import { uploadDocument } from "../../../services/api/uploadService";
-import { validateDocumentFile } from "../../../utils/imageUpload";
+import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
 import OTPInput from "../../../components/OTPInput";
 
 export default function DeliverySignUp() {
@@ -168,16 +168,22 @@ export default function DeliverySignUp() {
         setUploadingDocs(true);
 
         if (drivingLicenseFile) {
+          const fileToUpload = drivingLicenseFile.type.startsWith('image/') 
+            ? await compressImage(drivingLicenseFile) 
+            : drivingLicenseFile;
           const drivingLicenseResult = await uploadDocument(
-            drivingLicenseFile,
+            fileToUpload,
             "dhakadsnazzy/delivery/documents"
           );
           drivingLicenseUrl = drivingLicenseResult.secureUrl;
         }
 
         if (nationalIdentityCardFile) {
+          const fileToUpload = nationalIdentityCardFile.type.startsWith('image/') 
+            ? await compressImage(nationalIdentityCardFile) 
+            : nationalIdentityCardFile;
           const nationalIdResult = await uploadDocument(
-            nationalIdentityCardFile,
+            fileToUpload,
             "dhakadsnazzy/delivery/documents"
           );
           nationalIdentityCardUrl = nationalIdResult.secureUrl;

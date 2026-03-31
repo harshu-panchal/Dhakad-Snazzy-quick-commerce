@@ -3,6 +3,7 @@ import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
+  compressImage,
 } from "../../../utils/imageUpload";
 import {
   getSubCategories,
@@ -145,8 +146,9 @@ export default function AdminSubCategory() {
 
       // Upload subcategory image if a new file is selected
       if (subcategoryImageFile) {
+        const compressedFile = await compressImage(subcategoryImageFile);
         const imageResult = await uploadImage(
-          subcategoryImageFile,
+          compressedFile,
           "dhakadsnazzy/subcategories"
         );
         imageUrl = imageResult.secureUrl;

@@ -3,6 +3,7 @@ import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
+  compressImage,
 } from "../../../utils/imageUpload";
 import {
   getCoupons,
@@ -133,7 +134,8 @@ export default function AdminCoupon() {
 
       // Upload coupon image if provided
       if (couponImageFile) {
-        const imageResult = await uploadImage(couponImageFile, "dhakadsnazzy/coupons");
+        const compressedFile = await compressImage(couponImageFile);
+        const imageResult = await uploadImage(compressedFile, "dhakadsnazzy/coupons");
         imageUrl = imageResult.secureUrl;
       }
 

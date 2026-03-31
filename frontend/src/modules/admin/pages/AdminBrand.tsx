@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { uploadImage } from "../../../services/api/uploadService";
-import { validateImageFile, createImagePreview } from "../../../utils/imageUpload";
+import { validateImageFile, createImagePreview, compressImage } from "../../../utils/imageUpload";
 import {
   getBrands,
   createBrand,
@@ -118,7 +118,8 @@ export default function AdminBrand() {
 
       // Upload brand image if a new file is selected
       if (brandImageFile) {
-        const imageResult = await uploadImage(brandImageFile, "dhakadsnazzy/brands");
+        const compressedFile = await compressImage(brandImageFile);
+        const imageResult = await uploadImage(compressedFile, "dhakadsnazzy/brands");
         imageUrl = imageResult.secureUrl;
       }
 

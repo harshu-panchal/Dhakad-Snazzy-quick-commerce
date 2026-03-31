@@ -3,6 +3,7 @@ import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
+  compressImage,
 } from "../../../utils/imageUpload";
 import { getProducts, getCategories, getBrands, getSellers, Product, Category, Brand, Seller } from "../../../services/api/admin/adminProductService";
 import {
@@ -231,7 +232,8 @@ export default function AdminShopByStore() {
 
       // Upload store image if provided
       if (storeImageFile) {
-        const imageResult = await uploadImage(storeImageFile, "dhakadsnazzy/stores");
+        const compressedFile = await compressImage(storeImageFile);
+        const imageResult = await uploadImage(compressedFile, "dhakadsnazzy/stores");
         imageUrl = imageResult.secureUrl;
       } else if (editingId && !storeImagePreview) {
         // If editing and no new image and no preview, we need at least one image
