@@ -13,6 +13,7 @@ import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
 import { getOrderItemCommissionRate } from "../../../services/commissionService";
 import DeliveryAssignment from "../../../models/DeliveryAssignment";
+import Coupon from "../../../models/Coupon";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -30,7 +31,7 @@ export const createOrder = async (req: Request, res: Response) => {
       session = null;
     }
 
-    const { items, address, paymentMethod, fees, deliveryOption } = req.body;
+    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging } = req.body;
     const userId = req.user!.userId;
 
     // Log incoming request for debugging
@@ -175,6 +176,8 @@ export const createOrder = async (req: Request, res: Response) => {
       discount: 0,
       total: 0,
       items: [],
+      tipAmount: Number(tipAmount) || 0,
+      giftPackaging: !!giftPackaging,
     });
 
     // Pre-fetch settings for various calculations
@@ -497,11 +500,92 @@ export const createOrder = async (req: Request, res: Response) => {
       deliveryFee = Number(fees?.deliveryFee) || settings?.deliveryCharges || 0;
     }
 
-    const finalTotal = calculatedSubtotal + platformFee + deliveryFee;
+    const finalTipAmount = Number(tipAmount) || 0;
+    const giftPackagingFee = giftPackaging ? 30 : 0;
+    
+    // The base amount for coupon eligibility and calculation
+    // Matches frontend's subtotalBeforeCoupon (calculatedSubtotal is essentially discountedTotal)
+    const baseForCoupon = calculatedSubtotal + platformFee + deliveryFee;
+    let discountAmount = 0;
+
+    // Validate and Apply Coupon
+    if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
+      try {
+        const normalizedCode = couponCode.trim().toUpperCase();
+        const coupon = await Coupon.findOne({
+          code: normalizedCode,
+          isActive: true,
+        });
+
+        if (coupon) {
+          const now = new Date();
+          const startOfToday = new Date(now);
+          startOfToday.setHours(0, 0, 0, 0);
+
+          // Use the same leniency as getCoupons
+          if (now >= coupon.startDate && startOfToday <= coupon.endDate) {
+            // Check usage limit
+            if (
+              !coupon.usageLimit ||
+              coupon.usageCount < coupon.usageLimit
+            ) {
+              // Check minimum purchase (on baseForCoupon)
+              if (
+                !coupon.minimumPurchase ||
+                baseForCoupon >= coupon.minimumPurchase
+              ) {
+                // Calculate discount
+                if (coupon.discountType === "Percentage") {
+                  discountAmount =
+                    (baseForCoupon * coupon.discountValue) / 100;
+                  if (
+                    coupon.maximumDiscount &&
+                    discountAmount > coupon.maximumDiscount
+                  ) {
+                    discountAmount = coupon.maximumDiscount;
+                  }
+                } else {
+                  discountAmount = coupon.discountValue;
+                }
+
+                // Increment usage count
+                await Coupon.findByIdAndUpdate(coupon._id, {
+                  $inc: { usageCount: 1 },
+                });
+
+                newOrder.couponCode = normalizedCode;
+                newOrder.discount = Number(discountAmount.toFixed(2));
+                console.log(
+                  `📢 Applied coupon ${normalizedCode}: ₹${discountAmount.toFixed(2)} discount`,
+                );
+              } else {
+                console.warn(
+                  `⚠️ Coupon ${normalizedCode} rejected: min purchase ₹${coupon.minimumPurchase} not met (Base: ₹${baseForCoupon})`,
+                );
+              }
+            } else {
+              console.warn(
+                `⚠️ Coupon ${normalizedCode} rejected: usage limit ${coupon.usageLimit} reached`,
+              );
+            }
+          } else {
+            console.warn(`⚠️ Coupon ${normalizedCode} rejected: expired or not yet valid`);
+          }
+        } else {
+          console.warn(`⚠️ Coupon code ${normalizedCode} not found or inactive`);
+        }
+      } catch (couponError) {
+        console.error("❌ Error applying coupon:", couponError);
+        // We continue with the order even if coupon fails
+      }
+    }
+
+    const finalTotal = Math.max(0, baseForCoupon + finalTipAmount + giftPackagingFee - discountAmount);
 
     // Update Order with calculated values and items
     newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
     newOrder.total = Number(finalTotal.toFixed(2));
+    newOrder.grandTotal = Number(finalTotal.toFixed(2)); // Sync grandTotal alias
     newOrder.items = orderItemIds;
     newOrder.shipping = deliveryFee; // Update with calculated fee
     newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc

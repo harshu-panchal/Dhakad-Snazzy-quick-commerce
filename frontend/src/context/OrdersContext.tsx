@@ -121,6 +121,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           platformFee: order.fees?.platformFee || 0,
         },
         deliveryOption: order.deliveryOption,
+        couponCode: order.couponCode,
+        tipAmount: order.tipAmount,
+        giftPackaging: order.giftPackaging,
       };
 
       const response = await createOrder(payload);

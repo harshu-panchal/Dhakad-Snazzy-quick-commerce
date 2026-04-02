@@ -4,12 +4,14 @@ import Coupon from "../../../models/Coupon";
 // Get available coupons
 export const getCoupons = async (_req: Request, res: Response) => {
     try {
-        const currentDate = new Date();
+        const now = new Date();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
 
         const coupons = await Coupon.find({
             isActive: true,
-            startDate: { $lte: currentDate },
-            endDate: { $gte: currentDate },
+            startDate: { $lte: now },
+            endDate: { $gte: startOfToday },
         }).sort({ endDate: 1 });
 
         return res.status(200).json({
@@ -51,8 +53,11 @@ export const validateCoupon = async (req: Request, res: Response) => {
         }
 
         // Check dates
-        const currentDate = new Date();
-        if (currentDate < coupon.startDate || currentDate > coupon.endDate) {
+        const now = new Date();
+        const startOfToday = new Date(now);
+        startOfToday.setHours(0, 0, 0, 0);
+
+        if (now < coupon.startDate || startOfToday > coupon.endDate) {
             return res.status(400).json({
                 success: false,
                 message: "Coupon has expired",

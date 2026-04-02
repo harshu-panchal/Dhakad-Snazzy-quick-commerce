@@ -103,6 +103,8 @@ export interface IOrder extends Document {
 
   deliveryOption: "Instant" | "Standard";
   deliveryPreference?: "Self" | "Admin";
+  tipAmount: number;
+  giftPackaging: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -379,6 +381,14 @@ const OrderSchema = new Schema<IOrder>(
     deliveryPreference: {
       type: String,
       enum: ["Self", "Admin"],
+    },
+    tipAmount: {
+      type: Number,
+      default: 0,
+    },
+    giftPackaging: {
+      type: Boolean,
+      default: false,
     },
   },
   {

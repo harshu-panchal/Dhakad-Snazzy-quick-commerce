@@ -2286,29 +2286,37 @@ export default function Checkout() {
           </SheetHeader>
 
           <div className="px-4 pb-4 overflow-y-auto max-h-[calc(85vh-80px)]">
+            {couponError && (
+              <div className="mt-2 p-2 bg-red-50 border border-red-100 rounded text-xs text-red-600">
+                {couponError}
+              </div>
+            )}
             <div className="space-y-2.5 mt-2">
               {availableCoupons.length === 0 ? (
                 <div className="text-center py-8 text-neutral-500">
                   <p>No coupons available at the moment.</p>
                 </div>
               ) : (
-                availableCoupons.map((coupon) => {
+                availableCoupons.map((coupon, index) => {
                   const subtotalBeforeCoupon =
                     discountedTotal + handlingCharge + deliveryCharge;
                   const meetsMinOrder =
                     !coupon.minOrderValue ||
                     subtotalBeforeCoupon >= coupon.minOrderValue;
-                  const isSelected = selectedCoupon?._id === coupon._id;
+                  const isApplied = selectedCoupon?.code === coupon.code;
 
                   return (
                     <div
-                      key={coupon._id}
-                      className={`border-2 rounded-lg p-2.5 transition-all ${
-                        isSelected
-                          ? "border-green-600 bg-green-50"
+                      key={coupon._id || index}
+                      onClick={() =>
+                        meetsMinOrder && !isValidatingCoupon && handleApplyCoupon(coupon)
+                      }
+                      className={`p-3 rounded-lg border transition-all cursor-pointer hover:shadow-sm ${
+                        isApplied
+                          ? "border-green-500 bg-green-50/30"
                           : meetsMinOrder
-                            ? "border-neutral-200 bg-white"
-                            : "border-neutral-200 bg-neutral-50 opacity-60"
+                          ? "border-neutral-200 bg-white"
+                          : "border-neutral-200 bg-neutral-50 opacity-60 cursor-not-allowed"
                       }`}>
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
@@ -2316,9 +2324,11 @@ export default function Checkout() {
                             <span className="text-xs font-bold text-green-600">
                               {coupon.code}
                             </span>
-                            <span className="text-xs font-semibold text-neutral-900">
-                              {coupon.title}
-                            </span>
+                            {coupon.title && coupon.title !== coupon.code && (
+                              <span className="text-xs font-semibold text-neutral-900">
+                                {coupon.title}
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] text-neutral-600 mb-1">
                             {coupon.description}
@@ -2329,7 +2339,7 @@ export default function Checkout() {
                             </p>
                           )}
                         </div>
-                        {isSelected ? (
+                        {isApplied ? (
                           <div className="flex items-center gap-1 text-green-600">
                             <svg
                               width="16"
