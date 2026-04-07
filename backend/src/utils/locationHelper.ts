@@ -48,7 +48,7 @@ export async function findSellersWithinRange(
   }
 
   try {
-    // Fetch all approved sellers with location
+    // Fetch all approved sellers with location data
     const sellers = await Seller.find({
       status: "Approved",
     }).select("_id location serviceRadiusKm latitude longitude");

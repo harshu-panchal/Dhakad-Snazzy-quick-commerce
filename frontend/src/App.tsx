@@ -6,6 +6,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LocationProvider } from "./context/LocationContext";
 import { ToastProvider } from "./context/ToastContext";
+import { WishlistProvider } from "./context/WishlistContext";
 
 import { LoadingProvider } from "./context/LoadingContext";
 import { AxiosLoadingInterceptor } from "./context/AxiosLoadingInterceptor";
@@ -18,17 +19,15 @@ import LoadingSpinner from "./components/LoadingSpinner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import RouteTransition from "./components/RouteTransition";
 import { useEffect } from "react";
-import {
-  initializePushNotifications,
-  setupForegroundNotificationHandler,
-} from "./services/pushNotificationService";
 
-// Critical routes - load immediately (Home, Cart, Checkout)
+// Critical routes - load immediately (Home, Cart)
 import Home from "./modules/user/Home";
 import Cart from "./modules/user/Cart";
-import Checkout from "./modules/user/Checkout";
-import CheckoutAddress from "./modules/user/CheckoutAddress";
-import ProductDetail from "./modules/user/ProductDetail";
+
+// Lazy load large frontend sections
+const Checkout = lazy(() => import("./modules/user/Checkout"));
+const CheckoutAddress = lazy(() => import("./modules/user/CheckoutAddress"));
+const ProductDetail = lazy(() => import("./modules/user/ProductDetail"));
 
 // Lazy load less critical routes for code splitting
 const Search = lazy(() => import("./modules/user/Search"));
@@ -292,15 +291,66 @@ const AdminBillingSettings = lazy(
 );
 
 function App() {
-  // Initialize push notifications on app load
   useEffect(() => {
-    initializePushNotifications();
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleCallbackId: number | null = null;
+    let unsubscribeForegroundHandler: (() => void) | void;
 
-    // Setup foreground notification handler
-    setupForegroundNotificationHandler((payload) => {
-      console.log("Notification received in app:", payload);
-      // You can add custom handling here (e.g., show toast, update UI)
-    });
+    const bootstrapPushNotifications = async () => {
+      try {
+        const {
+          initializePushNotifications,
+          setupForegroundNotificationHandler,
+        } = await import("./services/pushNotificationService");
+
+        if (cancelled) {
+          return;
+        }
+
+        await initializePushNotifications();
+
+        if (cancelled) {
+          return;
+        }
+
+        unsubscribeForegroundHandler = await setupForegroundNotificationHandler(
+          (payload) => {
+            console.log("Notification received in app:", payload);
+          },
+        );
+      } catch (error) {
+        console.error("Failed to bootstrap push notifications:", error);
+      }
+    };
+
+    const scheduleBootstrap = () => {
+      if ("requestIdleCallback" in window) {
+        idleCallbackId = window.requestIdleCallback(() => {
+          void bootstrapPushNotifications();
+        });
+        return;
+      }
+
+      timeoutId = setTimeout(() => {
+        void bootstrapPushNotifications();
+      }, 0);
+    };
+
+    scheduleBootstrap();
+
+    return () => {
+      cancelled = true;
+      if (idleCallbackId !== null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+      if (typeof unsubscribeForegroundHandler === "function") {
+        unsubscribeForegroundHandler();
+      }
+    };
   }, []);
 
   return (
@@ -312,15 +362,16 @@ function App() {
             <ThemeProvider>
               <LocationProvider>
                 <ToastProvider>
-                  <CartProvider>
-                    <OrdersProvider>
-                      <BrowserRouter
-                        future={{
-                          v7_startTransition: true,
-                          v7_relativeSplatPath: true,
-                        }}>
-                        <RouteLoaderTrigger />
-                        <Routes>
+                  <WishlistProvider>
+                    <CartProvider>
+                      <OrdersProvider>
+                        <BrowserRouter
+                          future={{
+                            v7_startTransition: true,
+                            v7_relativeSplatPath: true,
+                          }}>
+                          <RouteLoaderTrigger />
+                          <Routes>
                           {/* Public Routes */}
                           <Route
                             path="/login"
@@ -893,10 +944,11 @@ function App() {
                               </AppLayout>
                             }
                           />
-                        </Routes>
-                      </BrowserRouter>
-                    </OrdersProvider>
-                  </CartProvider>
+                          </Routes>
+                        </BrowserRouter>
+                      </OrdersProvider>
+                    </CartProvider>
+                  </WishlistProvider>
                 </ToastProvider>
               </LocationProvider>
             </ThemeProvider>

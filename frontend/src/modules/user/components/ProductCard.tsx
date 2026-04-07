@@ -1,12 +1,9 @@
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useMemo, useCallback } from 'react';
 import { Product } from '../../../types/domain';
 import { useCart } from '../../../context/CartContext';
-import { useAuth } from '../../../context/AuthContext';
-import { useLocation } from '../../../hooks/useLocation';
-import { useToast } from '../../../context/ToastContext'; // Import useToast
-import { addToWishlist, removeFromWishlist, getWishlist } from '../../../services/api/customerWishlistService';
+import { useWishlist } from '../../../hooks/useWishlist';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
 
@@ -43,98 +40,34 @@ export default function ProductCard({
 }: ProductCardProps) {
   const navigate = useNavigate();
   const { cart, addToCart, updateQuantity } = useCart();
-  const { isAuthenticated } = useAuth();
-  const { location } = useLocation();
-  const { showToast } = useToast(); // Get toast function
   const imageRef = useRef<HTMLImageElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const [isWishlisted, setIsWishlisted] = useState(false);
   // Single ref to track any cart operation in progress for this product
   const isOperationPendingRef = useRef(false);
 
-  useEffect(() => {
-    // Only check wishlist if user is authenticated
-    if (!isAuthenticated) {
-      setIsWishlisted(false);
-      return;
-    }
+  // Stabilize IDs
+  const productId = useMemo(() => ((product as any).id || product._id) as string, [product.id, product._id]);
+  const { isWishlisted, toggleWishlist } = useWishlist(productId);
 
-    const checkWishlist = async () => {
-      try {
-        const res = await getWishlist({
-          latitude: location?.latitude,
-          longitude: location?.longitude
-        });
-        if (res.success && res.data && res.data.products) {
-          const targetId = String((product as any).id || product._id);
-          const exists = res.data.products.some(p => String(p._id || (p as any).id) === targetId);
-          setIsWishlisted(exists);
-        }
-      } catch (e) {
-        // Silently fail if not logged in
-        setIsWishlisted(false);
-      }
-    };
-    checkWishlist();
-  }, [product.id, product._id, isAuthenticated, location?.latitude, location?.longitude]);
+  const cartItem = useMemo(() => {
+    return cart.items.find((item) => {
+      if (!item?.product) return false;
+      const itemProdId = String(item.product.id || item.product._id);
+      return itemProdId === productId;
+    });
+  }, [cart.items, productId]);
 
-  const toggleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Redirect to login if not authenticated
-    if (!isAuthenticated) {
-      navigate('/login');
-      return;
-    }
-
-    const targetId = String((product as any).id || product._id);
-    const previousState = isWishlisted;
-
-    try {
-      if (isWishlisted) {
-        // Optimistic update
-        setIsWishlisted(false);
-        await removeFromWishlist(targetId);
-        showToast('Removed from wishlist');
-      } else {
-        if (!location?.latitude || !location?.longitude) {
-          showToast('Location is required to add items to wishlist', 'error');
-          return;
-        }
-        // Optimistic update
-        setIsWishlisted(true);
-        await addToWishlist(
-          targetId,
-          location?.latitude,
-          location?.longitude
-        );
-        showToast('Added to wishlist');
-      }
-    } catch (e: any) {
-      console.error('Failed to toggle wishlist:', e);
-      setIsWishlisted(previousState);
-      const errorMessage = e.response?.data?.message || e.message || 'Failed to update wishlist';
-      showToast(errorMessage, 'error');
-    }
-  };
-
-  const cartItem = cart.items.find((item) => {
-    if (!item?.product) return false;
-    const itemProdId = String(item.product.id || item.product._id);
-    const prodId = String((product as any).id || product._id);
-    return itemProdId === prodId;
-  });
   const inCartQty = cartItem?.quantity || 0;
 
-  // Get Price and MRP using utility
-  const { displayPrice, mrp, discount } = calculateProductPrice(product);
+  // Get Price and MRP using utility - Memoized to prevent re-calc
+  const priceDetails = useMemo(() => calculateProductPrice(product), [product]);
+  const { displayPrice, mrp, discount } = priceDetails;
 
-  const handleCardClick = () => {
-    navigate(`/product/${((product as any).id || product._id) as string}`);
-  };
+  const handleCardClick = useCallback(() => {
+    navigate(`/product/${productId}`);
+  }, [navigate, productId]);
 
-  const handleAdd = async (e: React.MouseEvent) => {
+  const handleAdd = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -156,9 +89,9 @@ export default function ProductCard({
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  };
+  }, [product, addToCart]);
 
-  const handleDecrease = async (e: React.MouseEvent) => {
+  const handleDecrease = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -170,14 +103,14 @@ export default function ProductCard({
     isOperationPendingRef.current = true;
 
     try {
-      await updateQuantity(((product as any).id || product._id) as string, inCartQty - 1);
+      await updateQuantity(productId, inCartQty - 1);
     } finally {
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  };
+  }, [productId, inCartQty, updateQuantity]);
 
-  const handleIncrease = async (e: React.MouseEvent) => {
+  const handleIncrease = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
@@ -195,7 +128,7 @@ export default function ProductCard({
 
     try {
       if (inCartQty > 0) {
-        await updateQuantity(((product as any).id || product._id) as string, inCartQty + 1);
+        await updateQuantity(productId, inCartQty + 1);
       } else {
         await addToCart(product, addButtonRef.current);
       }
@@ -203,7 +136,20 @@ export default function ProductCard({
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  };
+  }, [product, productId, inCartQty, updateQuantity, addToCart]);
+
+  // Memoize class names
+  const cardClassName = useMemo(() => 
+    `${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative`
+  , [categoryStyle]);
+
+  const imageContainerClassName = useMemo(() => 
+    `w-full ${compact ? 'h-32 md:h-40' : categoryStyle ? 'h-28 md:h-36' : 'h-40 md:h-48'} bg-neutral-100 flex items-center justify-center overflow-hidden relative`
+  , [compact, categoryStyle]);
+
+  const infoContainerClassName = useMemo(() => 
+    `${compact ? 'p-3 md:p-4' : categoryStyle ? 'px-2.5 md:px-3 pt-1.5 md:pt-2 pb-2 md:pb-3' : 'p-4 md:p-5'} flex-1 flex flex-col`
+  , [compact, categoryStyle]);
 
   return (
     <motion.div
@@ -212,19 +158,20 @@ export default function ProductCard({
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.2 }}
-      className={`${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative`}
+      className={cardClassName}
     >
       <div
         onClick={handleCardClick}
         className="cursor-pointer flex-1 flex flex-col"
       >
-        <div className={`w-full ${compact ? 'h-32 md:h-40' : categoryStyle ? 'h-28 md:h-36' : 'h-40 md:h-48'} bg-neutral-100 flex items-center justify-center overflow-hidden relative`}>
+        <div className={imageContainerClassName}>
           {product.imageUrl || product.mainImage ? (
             <img
               ref={imageRef}
               src={product.imageUrl || product.mainImage}
               alt={product.name || product.productName || 'Product'}
               className="w-full h-full object-cover"
+              loading="lazy"
               referrerPolicy="no-referrer"
               onError={(e) => {
                 // Hide broken image and show fallback
@@ -366,7 +313,7 @@ export default function ProductCard({
           </div>
         )}
 
-        <div className={`${compact ? 'p-3 md:p-4' : categoryStyle ? 'px-2.5 md:px-3 pt-1.5 md:pt-2 pb-2 md:pb-3' : 'p-4 md:p-5'} flex-1 flex flex-col`}>
+        <div className={infoContainerClassName}>
           {categoryStyle ? (
             // Category Style Layout: Quantity, Name, Time, % off, Price
             <>

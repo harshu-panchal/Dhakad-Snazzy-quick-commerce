@@ -1,57 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getWishlist, removeFromWishlist } from '../../services/api/customerWishlistService';
 import { Product } from '../../types/domain';
 import { useCart } from '../../context/CartContext';
-import { useLocation } from '../../hooks/useLocation';
 import { useToast } from '../../context/ToastContext';
+import { useWishlistContext } from '../../context/WishlistContext';
 import Button from '../../components/ui/button';
+import LazyImage from '../../components/LazyImage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateProductPrice } from '../../utils/priceUtils';
 
 export default function Wishlist() {
   const navigate = useNavigate();
-  const { location } = useLocation();
   const { addToCart } = useCart();
   const { showToast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const fetchWishlist = async () => {
-    try {
-      setLoading(true);
-      const res = await getWishlist({
-        latitude: location?.latitude,
-        longitude: location?.longitude
-      });
-      if (res.success && res.data) {
-        setProducts(res.data.products.map(p => ({
-          ...p,
-          id: p._id || (p as any).id,
-          name: p.productName || (p as any).name,
-          imageUrl: p.mainImageUrl || p.mainImage || (p as any).imageUrl,
-          price: (p as any).price || (p as any).variations?.[0]?.price || 0,
-          pack: (p as any).pack || (p as any).variations?.[0]?.name || 'Standard'
-        })) as any);
-      }
-    } catch (error: any) {
-      console.error('Failed to fetch wishlist:', error);
-      showToast(error.message || 'Failed to fetch wishlist', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchWishlist();
-  }, [location?.latitude, location?.longitude]);
+  const { wishlistProducts, loading, removeWishlistProduct } = useWishlistContext();
+  const products = useMemo(() => wishlistProducts as Product[], [wishlistProducts]);
 
   const handleRemove = async (productId: string) => {
     try {
-      await removeFromWishlist(productId);
-      setProducts(products.filter(p => (p.id !== productId && p._id !== productId)));
-    } catch (error) {
+      await removeWishlistProduct(productId);
+    } catch (error: any) {
       console.error('Failed to remove from wishlist:', error);
+      showToast(error.message || 'Failed to remove from wishlist', 'error');
     }
   };
 
@@ -72,6 +42,9 @@ export default function Wishlist() {
         ) : products.length > 0 ? (
           <div className="grid grid-cols-2 gap-4">
             {products.map((product) => (
+              (() => {
+                const productImage = product.imageUrl || product.mainImage || "";
+                return (
               <motion.div
                 key={product.id}
                 layout
@@ -89,7 +62,11 @@ export default function Wishlist() {
 
                 <Link to={`/product/${product.id}`} className="aspect-square bg-neutral-50 flex items-center justify-center p-4">
                   {product.imageUrl || product.mainImage ? (
-                    <img src={product.imageUrl || product.mainImage} alt={product.name} className="w-full h-full object-contain" />
+                    <LazyImage
+                      src={productImage}
+                      alt={product.name}
+                      className="w-full h-full object-contain"
+                    />
                   ) : (
                     <span className="text-4xl">📦</span>
                   )}
@@ -121,6 +98,8 @@ export default function Wishlist() {
                   </div>
                 </div>
               </motion.div>
+                );
+              })()
             ))}
           </div>
         ) : (

@@ -26,7 +26,12 @@ interface CartContextType {
   removeFromCart: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => Promise<void>;
   clearCart: () => Promise<void>;
-  refreshCart: (latitude?: number, longitude?: number, deliveryOption?: string) => Promise<void>;
+  refreshCart: (
+    latitude?: number,
+    longitude?: number,
+    deliveryOption?: string,
+    options?: { preserveItems?: boolean },
+  ) => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
 }
@@ -57,13 +62,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const pendingOperationsRef = useRef<Set<string>>(new Set());
   const hasSyncedRef = useRef(false);
+  const saveCartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { isAuthenticated, user } = useAuth();
   const { location } = useLocation();
   const { showToast } = useToast();
 
   // Helper to map API cart items to internal CartItem structure
-  const mapApiItemsToState = (apiItems: any[]): ExtendedCartItem[] => {
+  const mapApiItemsToState = useCallback((apiItems: any[]): ExtendedCartItem[] => {
     return apiItems
       .filter((item: any) => item.product) // Safety filter
       .map((item: any) => ({
@@ -84,16 +90,31 @@ export function CartProvider({ children }: { children: ReactNode }) {
         quantity: item.quantity,
         variant: item.variation // Also preserve it here for order placement
       }));
-  };
+  }, []);
 
-  // Sync to localStorage whenever items change
+  // Sync to localStorage whenever items change (Debounced to improve UI responsiveness)
   useEffect(() => {
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    if (saveCartTimeoutRef.current) {
+      clearTimeout(saveCartTimeoutRef.current);
+    }
+    saveCartTimeoutRef.current = setTimeout(() => {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+    }, 500); // 500ms debounce
+
+    return () => {
+      if (saveCartTimeoutRef.current) {
+        clearTimeout(saveCartTimeoutRef.current);
+      }
+    };
   }, [items]);
 
   // Helper to sync cart from API
-  const fetchCart = useCallback(async (lat?: number, lng?: number, deliveryOption?: string) => {
-    console.log('fetchCart called with:', { lat, lng, deliveryOption, isAuthenticated, userType: user?.userType });
+  const fetchCart = useCallback(async (
+    lat?: number,
+    lng?: number,
+    deliveryOption?: string,
+    options?: { preserveItems?: boolean },
+  ) => {
     if (!isAuthenticated || user?.userType !== 'Customer') {
       // If we cleared it above but had things in localStorage, we keep them for guests?
       // For now, if logged out, we clear if it was an authenticated session.
@@ -108,28 +129,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const queryLat = lat !== undefined ? lat : location?.latitude;
       const queryLng = lng !== undefined ? lng : location?.longitude;
 
-      console.log('Fetching cart from API with:', { queryLat, queryLng, deliveryOption });
       const response = await getCart({
         latitude: queryLat,
         longitude: queryLng,
         deliveryOption: deliveryOption
       });
-      console.log('fetchCart response:', response);
-      console.log('fetchCart response items:', response?.data?.items);
       if (response && response.data && response.data.items) {
         const newItems = mapApiItemsToState(response.data.items);
         // Attach debug info to the new items array
         (newItems as any).debug_config = response.data.debug_config;
         (newItems as any).backendTotal = response.data.backendTotal;
 
-        console.log('Setting items from fetchCart:', newItems);
-        setItems(newItems);
+        if (!options?.preserveItems) {
+          setItems(newItems);
+        }
         setEstimatedFee(response.data.estimatedDeliveryFee);
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
-      } else {
-        console.log('fetchCart: No items in response, setting empty cart');
+      } else if (!options?.preserveItems) {
         setItems([]);
+        setEstimatedFee(undefined);
+        setPlatformFee(undefined);
+        setFreeDeliveryThreshold(undefined);
+      } else {
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
@@ -158,7 +180,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const localItems = items.filter(item => item?.product);
         
         if (localItems.length > 0) {
-          console.log('Syncing', localItems.length, 'local cart items to backend');
           try {
             for (const item of localItems) {
               const productId = item.product.id || item.product._id;
@@ -178,7 +199,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 location?.longitude
               );
             }
-            console.log('Local cart synced successfully');
             hasSyncedRef.current = true;
             // Refresh cart to get updated data from backend
             await fetchCart();
@@ -203,11 +223,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
     const validItems = items.filter(item => item?.product);
-    const total = validItems.reduce((sum, item) => {
+    
+    // Compute total and item count in a single pass for performance
+    const { total, itemCount } = validItems.reduce((acc, item) => {
       const { displayPrice } = calculateProductPrice(item.product, item.variant);
-      return sum + displayPrice * (item.quantity || 0);
-    }, 0);
-    const itemCount = validItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+      acc.total += displayPrice * (item.quantity || 0);
+      acc.itemCount += (item.quantity || 0);
+      return acc;
+    }, { total: 0, itemCount: 0 });
+
     return {
       items: validItems,
       total,
@@ -324,7 +348,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
           variation = product.pack;
         }
 
-        console.log('Adding to cart API:', { productId, variation, latitude: location?.latitude, longitude: location?.longitude });
         const response = await apiAddToCart(
           productId,
           1,
@@ -332,12 +355,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           location?.latitude,
           location?.longitude
         );
-        console.log('Add to cart response:', response);
-        console.log('Response data items:', response?.data?.items);
         if (response && response.data && response.data.items) {
           // Atomic update from server response
           const mappedItems = mapApiItemsToState(response.data.items);
-          console.log('Mapped items to set:', mappedItems);
           setItems(mappedItems);
           setEstimatedFee(response.data.estimatedDeliveryFee);
           setPlatformFee(response.data.platformFee);
@@ -500,8 +520,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const refreshCart = useCallback(async (latitude?: number, longitude?: number, deliveryOption?: string) => {
-    await fetchCart(latitude, longitude, deliveryOption);
+  const refreshCart = useCallback(async (
+    latitude?: number,
+    longitude?: number,
+    deliveryOption?: string,
+    options?: { preserveItems?: boolean },
+  ) => {
+    await fetchCart(latitude, longitude, deliveryOption, options);
   }, [fetchCart]);
 
   return (

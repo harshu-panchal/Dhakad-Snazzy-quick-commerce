@@ -6,7 +6,6 @@ import CategoryTileSection from "./components/CategoryTileSection";
 import FeaturedThisWeek from "./components/FeaturedThisWeek";
 import ProductCard from "./components/ProductCard";
 import { getHomeContent } from "../../services/api/customerHomeService";
-import { getHeaderCategoriesPublic } from "../../services/api/headerCategoryService";
 import { useLocation } from "../../hooks/useLocation";
 import { useLoading } from "../../context/LoadingContext";
 import PageLoader from "../../components/PageLoader";
@@ -84,61 +83,7 @@ export default function Home() {
 
     fetchData();
 
-    // Preload Logic (kept same)
-    const preloadHeaderCategories = async () => {
-      try {
-        // ... (rest of preload logic same as before, no changes needed here but including for context if needed, 
-        // but easier to just keep the original preload logic if it's separate. 
-        // Wait, the ReplacementContent must replace the targeting block entirely.)
-        // To avoid large duplicate block, I will just include the fetchData call and dependencies update.
-      } catch (error) {
-        console.debug("Failed to preload header categories:", error);
-      }
-    };
-
-    // We only want to preload once on mount, so we can keep the preload logic in a separate effect or just here
-    // But since this effect now runs on activeTab change, we shouldn't preload every time.
-    // Let's separate preload to a mount-only effect or use a ref.
-
   }, [location?.latitude, location?.longitude, activeTab]);
-
-  // Separate effect for preloading only on mount/location change, NOT activeTab
-  useEffect(() => {
-    const preloadHeaderCategories = async () => {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const headerCategories = await getHeaderCategoriesPublic(true);
-        const slugsToPreload = ['all', ...headerCategories.map(cat => cat.slug)];
-
-        const batchSize = 2;
-        for (let i = 0; i < slugsToPreload.length; i += batchSize) {
-          const batch = slugsToPreload.slice(i, i + batchSize);
-          await Promise.all(
-            batch.map(slug =>
-              getHomeContent(
-                slug,
-                location?.latitude,
-                location?.longitude,
-                true,
-                5 * 60 * 1000,
-                true
-              ).catch(err => {
-                console.debug(`Failed to preload data for ${slug}:`, err);
-              })
-            )
-          );
-          if (i + batchSize < slugsToPreload.length) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-        }
-      } catch (error) {
-        console.debug("Failed to preload header categories:", error);
-      }
-    };
-
-    preloadHeaderCategories();
-  }, [location?.latitude, location?.longitude]);
 
   // Restore scroll position when returning to this page
   useEffect(() => {
@@ -387,6 +332,7 @@ export default function Home() {
                               }
                               alt={tile.name}
                               className="w-full h-16 object-cover"
+                              loading="lazy"
                             />
                           ) : (
                             <div

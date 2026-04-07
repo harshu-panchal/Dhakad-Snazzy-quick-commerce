@@ -99,6 +99,7 @@ export default function FeaturedThisWeek() {
                         src={product.imageUrl}
                         alt={product.name || 'Product'}
                         className="w-full h-full object-contain p-2 drop-shadow-lg"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="text-5xl drop-shadow-md">

@@ -46,7 +46,7 @@ export default function AddToCartAnimation({
   bottomOffset = 96,
   pillClassName = '',
   hideOnPages = true,
-  linkTo = '/checkout',
+  linkTo = '/cart',
 }: AddToCartAnimationProps) {
   const { cart, lastAddEvent } = useCart();
   const location = useLocation();

@@ -165,15 +165,11 @@ async function fetchSectionData(
         }
       }
 
-      console.log(`[fetchSectionData] Products query:`, JSON.stringify(query, null, 2));
-
       const products = await Product.find(query)
         .sort({ createdAt: -1 }) // Show newest items first
         .limit(limit || 8)
         .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations")
         .lean();
-
-      console.log(`[fetchSectionData] Found ${products.length} products`);
 
       return products.map((p: any) => {
         // If we filtered by radius above, this should always be true when hasUserLocation is set.
@@ -510,12 +506,6 @@ export const getHomeContent = async (req: Request, res: Response) => {
 
       if (headerCategory) {
         categoryQuery.headerCategoryId = headerCategory._id;
-      } else {
-        // If header category not found, return empty promo cards for this header category
-        // The query will still work but won't match any categories
-        console.log(
-          `Header category with slug "${headerCategorySlug}" not found`
-        );
       }
     }
 
@@ -630,9 +620,6 @@ export const getHomeContent = async (req: Request, res: Response) => {
           nearbySellerIds,
           hasUserLocation
         );
-        
-        // Debug logging
-        console.log(`[HomeSection] Section: ${section.title}, DisplayType: ${section.displayType}, Categories: ${section.categories?.length || 0}, Data returned: ${sectionData.length}`);
         
         return {
           id: section._id.toString(),

@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getProducts } from '../../../services/api/customerProductService';
+import LazyImage from '../../../components/LazyImage';
 
 import { getTheme } from '../../../utils/themes';
 import { useCart } from '../../../context/CartContext';
@@ -62,7 +63,7 @@ const ProductCard = memo(({
         <div className="relative block">
           <div className="w-full h-28 bg-neutral-100 flex items-center justify-center overflow-hidden relative">
             {product.imageUrl ? (
-              <img
+              <LazyImage
                 src={product.imageUrl}
                 alt={product.name}
                 className="w-full h-full object-contain"

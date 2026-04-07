@@ -1,6 +1,7 @@
 import express, { Application, Request, Response } from "express";
 import { createServer } from "http";
 import cors from "cors";
+import compression from "compression";
 import dotenv from "dotenv";
 import connectDB from "./config/db";
 import routes from "./routes";
@@ -63,6 +64,9 @@ const corsOptions = {
   maxAge: 86400,
 };
 
+// Apply compression middleware - Reduces payload size effectively
+app.use(compression());
+
 // Apply CORS middleware - This handles everything including preflight
 app.use(cors(corsOptions));
 
@@ -80,12 +84,6 @@ app.get("/", (_req: Request, res: Response) => {
     version: "1.0.0",
     socketIO: "Listening for WebSocket connections",
   });
-});
-
-// Debug middleware - log all incoming requests
-app.use((req: Request, _res: Response, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
 });
 
 // API Routes

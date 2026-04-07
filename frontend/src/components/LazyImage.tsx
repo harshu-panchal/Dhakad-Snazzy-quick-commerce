@@ -5,6 +5,7 @@ interface LazyImageProps {
   alt: string;
   className?: string;
   placeholder?: string;
+  rootMargin?: string;
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
   [key: string]: any;
 }
@@ -18,6 +19,7 @@ export default function LazyImage({
   alt,
   className = '',
   placeholder,
+  rootMargin = '200px',
   onError,
   ...props
 }: LazyImageProps) {
@@ -50,7 +52,7 @@ export default function LazyImage({
         });
       },
       {
-        rootMargin: '50px', // Start loading 50px before entering viewport
+        rootMargin,
       }
     );
 
@@ -61,7 +63,7 @@ export default function LazyImage({
     return () => {
       observer.disconnect();
     };
-  }, [src, onError]);
+  }, [src, rootMargin, onError]);
 
   return (
     <img

@@ -39,6 +39,7 @@ export default function SimilarProducts({ products, currentProductId }: SimilarP
                       src={product.imageUrl}
                       alt={product.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                       referrerPolicy="no-referrer"
                     />
                   ) : (

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../../context/CartContext";
@@ -72,14 +72,21 @@ export default function Checkout() {
   const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
     "Standard",
   );
+  const hasSkippedInitialCartRefreshRef = useRef(false);
 
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
     if (selectedAddress?.latitude && selectedAddress?.longitude) {
+      if (!hasSkippedInitialCartRefreshRef.current) {
+        hasSkippedInitialCartRefreshRef.current = true;
+        return;
+      }
+
       refreshCart(
         selectedAddress.latitude,
         selectedAddress.longitude,
         deliveryOption,
+        { preserveItems: true },
       );
     }
   }, [selectedAddress, deliveryOption, refreshCart]);

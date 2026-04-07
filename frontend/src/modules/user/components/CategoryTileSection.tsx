@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import LazyImage from "../../../components/LazyImage";
 
 interface CategoryTile {
   id: string;
@@ -164,12 +165,12 @@ export default function CategoryTileSection({
                         <div className="w-full h-full grid grid-cols-2 gap-0.5 p-0.5">
                           {images.slice(0, 4).map((img, idx) =>
                             img ? (
-                              <img
-                                key={idx}
-                                src={img}
-                                alt=""
-                                className="w-full h-full object-contain bg-white rounded-sm"
-                                onError={(e) => {
+                                <LazyImage
+                                  key={idx}
+                                  src={img}
+                                  alt=""
+                                  className="w-full h-full object-contain bg-white rounded-sm"
+                                  onError={(e) => {
                                   // Hide broken image
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
@@ -186,8 +187,8 @@ export default function CategoryTileSection({
                         </div>
                       ) : (
                         // Other sections: Single image - use contain to show full image without cropping
-                        <img
-                          src={images[0]}
+                        <LazyImage
+                          src={images[0] || ""}
                           alt={tile.name}
                           className="w-full h-full object-contain rounded-lg"
                           onError={(e) => {
