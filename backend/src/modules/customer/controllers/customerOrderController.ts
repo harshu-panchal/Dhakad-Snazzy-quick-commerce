@@ -502,7 +502,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
     const finalTipAmount = Number(tipAmount) || 0;
     const giftPackagingFee = giftPackaging ? 30 : 0;
-    
+
     // The base amount for coupon eligibility and calculation
     // Matches frontend's subtotalBeforeCoupon (calculatedSubtotal is essentially discountedTotal)
     const baseForCoupon = calculatedSubtotal + platformFee + deliveryFee;

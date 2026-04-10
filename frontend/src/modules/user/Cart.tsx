@@ -8,8 +8,9 @@ export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const navigate = useNavigate();
 
-  const deliveryFee = cart.total >= appConfig.freeDeliveryThreshold ? 0 : appConfig.deliveryFee;
-  const platformFee = appConfig.platformFee;
+  const platformFee = cart.platformFee || appConfig.platformFee;
+  const deliveryFee = cart.estimatedDeliveryFee || 
+    (cart.total >= (cart.freeDeliveryThreshold || appConfig.freeDeliveryThreshold) ? 0 : appConfig.deliveryFee);
   const totalAmount = cart.total + deliveryFee + platformFee;
 
   const handleCheckout = () => {

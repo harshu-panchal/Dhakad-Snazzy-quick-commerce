@@ -68,8 +68,8 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
 
     try {
         const settings = await AppSettings.getSettings();
-        platformFee = settings.platformFee || 0;
-        freeDeliveryThreshold = settings.freeDeliveryThreshold || 0;
+        platformFee = settings.platformFee || 2;
+        freeDeliveryThreshold = settings.freeDeliveryThreshold || 199;
 
         // Check free delivery threshold
         if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
@@ -77,7 +77,7 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
         }
         // Standard Delivery: Always Fixed Price
         else if (deliveryOption === 'Standard') {
-            estimatedDeliveryFee = settings.deliveryCharges || 0;
+            estimatedDeliveryFee = settings.deliveryCharges || 40;
         }
         // Instant Delivery: Distance Based (if config exists)
         else if (deliveryOption === 'Instant' && settings.deliveryConfig) {
@@ -128,7 +128,7 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
             }
         } else {
             // Fallback for unknown options
-            estimatedDeliveryFee = settings.deliveryCharges || 0;
+            estimatedDeliveryFee = settings.deliveryCharges || 40;
         }
     } catch (err) {
         console.error("Error calculating delivery stuff:", err);
@@ -152,7 +152,7 @@ export const getCart = async (req: Request, res: Response) => {
 
         let nearbySellerIds: mongoose.Types.ObjectId[] = [];
         const hasValidLocation = userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng);
-        
+
         if (hasValidLocation) {
             nearbySellerIds = await findSellersWithinRange(userLat, userLng);
         }

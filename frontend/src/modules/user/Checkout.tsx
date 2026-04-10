@@ -355,15 +355,9 @@ export default function Checkout() {
 
   const discountedTotal = displayCart.total;
   const savedAmount = itemsTotal - discountedTotal;
-  const handlingCharge = cart.platformFee ?? appConfig.platformFee;
-
-  // Use dynamic delivery fee if available (and valid), otherwise fallback to static config
-  const deliveryCharge =
-    displayCart.estimatedDeliveryFee !== undefined
-      ? displayCart.estimatedDeliveryFee
-      : displayCart.total >= freeDeliveryThreshold
-        ? 0
-        : appConfig.deliveryFee;
+  const handlingCharge = cart.platformFee || appConfig.platformFee;
+  const deliveryCharge = cart.estimatedDeliveryFee || 
+    (cart.total >= (cart.freeDeliveryThreshold || appConfig.freeDeliveryThreshold) ? 0 : appConfig.deliveryFee);
 
   // Recalculate or use validated discount
   // If we have a selected coupon, we should re-validate if cart total changes,
