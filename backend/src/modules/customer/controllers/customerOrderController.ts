@@ -435,7 +435,7 @@ export const createOrder = async (req: Request, res: Response) => {
       }
       // Standard Delivery flow: Always Fixed Price
       else if (deliveryOption === "Standard") {
-        deliveryFee = settings.deliveryCharges || 0;
+        deliveryFee = settings.deliveryCharges ?? 0;
       }
       // Instant Delivery flow: Distance Based calculation
       else if (deliveryOption === "Instant" && settings.deliveryConfig) {
@@ -491,13 +491,18 @@ export const createOrder = async (req: Request, res: Response) => {
         }
       } else {
         // Fallback: If no settings or unhandled option, use provided fee or default
-        deliveryFee =
-          Number(fees?.deliveryFee) || settings?.deliveryCharges || 0;
+        const providedDeliveryFee = Number(fees?.deliveryFee);
+        deliveryFee = Number.isFinite(providedDeliveryFee)
+          ? providedDeliveryFee
+          : settings?.deliveryCharges ?? 0;
       }
     } catch (calcError) {
       console.error("Error calculating delivery fee:", calcError);
       // Fallback to provided fee or settings default (using pre-fetched settings)
-      deliveryFee = Number(fees?.deliveryFee) || settings?.deliveryCharges || 0;
+      const providedDeliveryFee = Number(fees?.deliveryFee);
+      deliveryFee = Number.isFinite(providedDeliveryFee)
+        ? providedDeliveryFee
+        : settings?.deliveryCharges ?? 0;
     }
 
     const finalTipAmount = Number(tipAmount) || 0;
