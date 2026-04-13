@@ -141,8 +141,8 @@ export default function AdminBillingSettings() {
                                 <input
                                     type="number"
                                     min="0"
-                                    value={platformFee}
-                                    onChange={(e) => setPlatformFee(Number(e.target.value))}
+                                    value={platformFee === 0 ? '' : platformFee}
+                                    onChange={(e) => setPlatformFee(e.target.value === '' ? 0 : Number(e.target.value))}
                                     className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                                     placeholder="e.g. 2"
                                 />
@@ -159,8 +159,8 @@ export default function AdminBillingSettings() {
                                 <input
                                     type="number"
                                     min="0"
-                                    value={freeDeliveryThreshold}
-                                    onChange={(e) => setFreeDeliveryThreshold(Number(e.target.value))}
+                                    value={freeDeliveryThreshold === 0 ? '' : freeDeliveryThreshold}
+                                    onChange={(e) => setFreeDeliveryThreshold(e.target.value === '' ? 0 : Number(e.target.value))}
                                     className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                                     placeholder="e.g. 499"
                                 />
@@ -210,8 +210,8 @@ export default function AdminBillingSettings() {
                                 <input
                                     type="number"
                                     min="0"
-                                    value={deliveryCharges}
-                                    onChange={(e) => setDeliveryCharges(Number(e.target.value))}
+                                    value={deliveryCharges === 0 ? '' : deliveryCharges}
+                                    onChange={(e) => setDeliveryCharges(e.target.value === '' ? 0 : Number(e.target.value))}
                                     className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                                     placeholder="e.g. 40"
                                 />
@@ -237,9 +237,10 @@ export default function AdminBillingSettings() {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={baseCharge}
-                                        onChange={(e) => setBaseCharge(Number(e.target.value))}
+                                        value={baseCharge === 0 ? '' : baseCharge}
+                                        onChange={(e) => setBaseCharge(e.target.value === '' ? 0 : Number(e.target.value))}
                                         className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
                                     />
                                 </div>
                                 <p className="mt-1 text-xs text-gray-500">Min charge for first X kms.</p>
@@ -254,9 +255,10 @@ export default function AdminBillingSettings() {
                                         type="number"
                                         min="0"
                                         step="0.1"
-                                        value={baseDistance}
-                                        onChange={(e) => setBaseDistance(Number(e.target.value))}
+                                        value={baseDistance === 0 ? '' : baseDistance}
+                                        onChange={(e) => setBaseDistance(e.target.value === '' ? 0 : Number(e.target.value))}
                                         className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
                                     />
                                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">km</span>
                                 </div>
@@ -272,9 +274,10 @@ export default function AdminBillingSettings() {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={kmRate}
-                                        onChange={(e) => setKmRate(Number(e.target.value))}
+                                        value={kmRate === 0 ? '' : kmRate}
+                                        onChange={(e) => setKmRate(e.target.value === '' ? 0 : Number(e.target.value))}
                                         className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
                                     />
                                 </div>
                                 <p className="mt-1 text-xs text-gray-500">Charged for every km after base distance.</p>
@@ -289,9 +292,10 @@ export default function AdminBillingSettings() {
                                     <input
                                         type="number"
                                         min="0"
-                                        value={deliveryBoyKmRate}
-                                        onChange={(e) => setDeliveryBoyKmRate(Number(e.target.value))}
+                                        value={deliveryBoyKmRate === 0 ? '' : deliveryBoyKmRate}
+                                        onChange={(e) => setDeliveryBoyKmRate(e.target.value === '' ? 0 : Number(e.target.value))}
                                         className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
                                     />
                                 </div>
                                 <p className="mt-1 text-xs text-gray-500">Amount paid to delivery partner per km.</p>
