@@ -185,6 +185,58 @@ export default function Checkout() {
           if (defaultAddr.latitude && defaultAddr.longitude) {
             setIsMapSelected(true);
           }
+        } else if (isPlaceholderUser && userLocation?.latitude && userLocation?.longitude) {
+          // NEW USER: Auto-create default address from app's initial location
+          console.log('[Checkout] New user detected, creating default address from initial location');
+          try {
+            const { addAddress } = await import('../../services/api/customerAddressService');
+            
+            // Use user's name and phone from auth context
+            const userName = user?.name || 'User';
+            const userPhone = user?.phone || '';
+            
+            const addressPayload = {
+              fullName: userName,
+              phone: userPhone,
+              flat: 'Current Location',
+              street: userLocation.address || `${userLocation.latitude.toFixed(6)}, ${userLocation.longitude.toFixed(6)}`,
+              city: userLocation.city || '',
+              state: userLocation.state || '',
+              pincode: userLocation.pincode || '',
+              landmark: '',
+              type: 'Home' as const,
+              isDefault: true,
+              address: userLocation.address || `${userLocation.latitude.toFixed(6)}, ${userLocation.longitude.toFixed(6)}`,
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            };
+
+            const createResponse = await addAddress(addressPayload);
+            
+            if (createResponse.success && createResponse.data) {
+              const newAddr = createResponse.data as any;
+              const mappedAddress: OrderAddress = {
+                name: newAddr.fullName,
+                phone: newAddr.phone,
+                flat: '',
+                street: newAddr.address,
+                city: newAddr.city,
+                state: newAddr.state,
+                pincode: newAddr.pincode,
+                landmark: newAddr.landmark || '',
+                latitude: newAddr.latitude,
+                longitude: newAddr.longitude,
+                id: newAddr._id,
+                _id: newAddr._id,
+              };
+              setSavedAddress(mappedAddress);
+              setSelectedAddress(mappedAddress);
+              setIsMapSelected(true);
+              console.log('[Checkout] Default address created successfully:', newAddr._id);
+            }
+          } catch (err) {
+            console.error('[Checkout] Failed to create default address for new user:', err);
+          }
         }
 
         if (couponResponse.success) {
@@ -579,7 +631,8 @@ export default function Checkout() {
   };
 
   const handleUpdateLocation = async () => {
-    if (!selectedAddress?.id || !mapLocation) return;
+    if (!mapLocation) return;
+    
     setIsUpdatingLocation(true);
     try {
       // Prepare update payload
@@ -602,22 +655,71 @@ export default function Checkout() {
           updatePayload.landmark = mapLocation.address.landmark;
       }
 
-      // Update the address in backend
-      await updateAddress(selectedAddress.id, updatePayload);
+      // If user has an existing address, update it
+      if (selectedAddress?.id) {
+        await updateAddress(selectedAddress.id, updatePayload);
 
-      // Update local state
-      const updated = {
-        ...selectedAddress,
-        latitude: mapLocation.lat,
-        longitude: mapLocation.lng,
-        street: mapLocation.address?.street || selectedAddress.street,
-        city: mapLocation.address?.city || selectedAddress.city,
-        state: mapLocation.address?.state || selectedAddress.state,
-        pincode: mapLocation.address?.pincode || selectedAddress.pincode,
-        landmark: mapLocation.address?.landmark || selectedAddress.landmark,
-      };
-      setSelectedAddress(updated);
-      setSavedAddress(updated); // Sync
+        // Update local state
+        const updated = {
+          ...selectedAddress,
+          latitude: mapLocation.lat,
+          longitude: mapLocation.lng,
+          street: mapLocation.address?.street || selectedAddress.street,
+          city: mapLocation.address?.city || selectedAddress.city,
+          state: mapLocation.address?.state || selectedAddress.state,
+          pincode: mapLocation.address?.pincode || selectedAddress.pincode,
+          landmark: mapLocation.address?.landmark || selectedAddress.landmark,
+        };
+        setSelectedAddress(updated);
+        setSavedAddress(updated); // Sync
+      } else {
+        // NEW USER: Create a new address with the selected location
+        console.log('[Checkout] No existing address, creating new one with selected location');
+        const { addAddress } = await import('../../services/api/customerAddressService');
+        
+        const userName = user?.name || 'User';
+        const userPhone = user?.phone || '';
+        
+        const newAddressPayload = {
+          fullName: userName,
+          phone: userPhone,
+          flat: 'Current Location',
+          street: mapLocation.address?.street || `${mapLocation.lat.toFixed(6)}, ${mapLocation.lng.toFixed(6)}`,
+          city: mapLocation.address?.city || '',
+          state: mapLocation.address?.state || '',
+          pincode: mapLocation.address?.pincode || '',
+          landmark: mapLocation.address?.landmark || '',
+          type: 'Home' as const,
+          isDefault: true,
+          address: mapLocation.address?.street || `${mapLocation.lat.toFixed(6)}, ${mapLocation.lng.toFixed(6)}`,
+          latitude: mapLocation.lat,
+          longitude: mapLocation.lng,
+        };
+
+        const createResponse = await addAddress(newAddressPayload);
+        
+        if (createResponse.success && createResponse.data) {
+          const newAddr = createResponse.data as any;
+          const newAddress: OrderAddress = {
+            name: newAddr.fullName,
+            phone: newAddr.phone,
+            flat: '',
+            street: newAddr.address,
+            city: newAddr.city,
+            state: newAddr.state,
+            pincode: newAddr.pincode,
+            landmark: newAddr.landmark || '',
+            latitude: newAddr.latitude,
+            longitude: newAddr.longitude,
+            id: newAddr._id,
+            _id: newAddr._id,
+          };
+          setSelectedAddress(newAddress);
+          setSavedAddress(newAddress);
+          console.log('[Checkout] New address created with location:', newAddr._id);
+        }
+      }
+      
       setShowMapPicker(false);
       setIsMapSelected(true); // Mark map as selected
       showGlobalToast("Location and address updated successfully!");
