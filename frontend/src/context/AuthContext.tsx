@@ -28,6 +28,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const inferLegacyUserType = (
+  userData: Record<string, any>,
+): User["userType"] | undefined => {
+  if (!userData || typeof userData !== "object") {
+    return undefined;
+  }
+
+  if (userData.userType) {
+    return userData.userType;
+  }
+
+  if (userData.role === "Admin" || userData.role === "Super Admin") {
+    return "Admin";
+  }
+
+  if (userData.storeName || userData.sellerName) {
+    return "Seller";
+  }
+
+  if (
+    userData.mobile &&
+    userData.city &&
+    userData.status &&
+    !userData.phone &&
+    !userData.storeName &&
+    !userData.sellerName &&
+    !userData.role
+  ) {
+    return "Delivery";
+  }
+
+  if (userData.phone || userData.walletAmount !== undefined || userData.refCode) {
+    return "Customer";
+  }
+
+  return undefined;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Initialize state synchronously from localStorage
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -41,12 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         const userData = JSON.parse(storedUser);
-        // Ensure userType is set for backward compatibility
-        if (!userData.userType) {
-          userData.userType = 'Customer';
+        const inferredUserType = inferLegacyUserType(userData);
+        if (inferredUserType && !userData.userType) {
+          userData.userType = inferredUserType;
         }
-        // If user is authenticated but userType is missing, we'll infer it from context
-        // For now, we'll set it when needed in OrdersContext
         return userData;
       } catch (error) {
         return null;
@@ -67,11 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (storedToken && storedUser) {
       try {
         const userData = JSON.parse(storedUser);
-        // Ensure userType is set for backward compatibility
-        if (!userData.userType) {
-          userData.userType = 'Customer';
+        const inferredUserType = inferLegacyUserType(userData);
+        if (inferredUserType && !userData.userType) {
+          userData.userType = inferredUserType;
+          localStorage.setItem("userData", JSON.stringify(userData));
         }
-        // If missing, we'll let OrdersContext handle it based on context
         // Only update if state doesn't match to avoid loops
         if (!isAuthenticated || token !== storedToken || JSON.stringify(user) !== JSON.stringify(userData)) {
           setToken(storedToken);

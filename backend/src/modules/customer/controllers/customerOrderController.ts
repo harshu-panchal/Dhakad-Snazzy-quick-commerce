@@ -178,6 +178,8 @@ export const createOrder = async (req: Request, res: Response) => {
       items: [],
       tipAmount: Number(tipAmount) || 0,
       giftPackaging: !!giftPackaging,
+      sellerConfirmationStatus: "Pending",
+      deliveryAssignmentStatus: "NotStarted",
     });
 
     // Pre-fetch settings for various calculations

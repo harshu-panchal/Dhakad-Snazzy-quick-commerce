@@ -437,6 +437,8 @@ export const assignDeliveryBoy = asyncHandler(
     order.deliveryBoy = deliveryBoyId as any;
     order.deliveryBoyStatus = "Assigned";
     order.assignedAt = new Date();
+    order.deliveryAssignmentStatus = "Assigned" as any;
+    order.deliveryAssignmentResolvedAt = new Date();
     await order.save();
 
     // Create or update delivery assignment

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import { notifyDeliveryBoysOfNewOrder } from "../../../services/orderNotificationService";
+import { recomputeOrderFulfillment } from "../../../services/orderFulfillmentOrchestrator";
 import { Server as SocketIOServer } from "socket.io";
 import {
   calculateCODOrderBreakdown,
@@ -452,6 +452,7 @@ export const getOrderById = asyncHandler(
 
 /**
  * Update order status (seller can update: Accepted, On the way, Delivered, Cancelled)
+ * Supports multi-seller orders: delivery boys notified only after ALL sellers respond.
  */
 export const updateOrderStatus = asyncHandler(
   async (req: Request, res: Response) => {
@@ -483,13 +484,11 @@ export const updateOrderStatus = asyncHandler(
     if (!sellerItems) {
       return res.status(404).json({
         success: false,
-        message:
-          "Order not found or you are not authorized to manage this order",
+        message: "Order not found or you are not authorized to manage this order",
       });
     }
 
     const order = await Order.findById(id);
-
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -497,86 +496,100 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
-    // Allow same status only when updating deliveryPreference (e.g. seller chose Self after Accept)
     const previousStatus = order.status;
-    if (order.status === status && !deliveryPreference) {
+
+    // Allow same status only when updating deliveryPreference or in multi-seller acceptance phase
+    if (order.status === status && !deliveryPreference && status !== "Accepted" && status !== "Rejected") {
       return res.status(400).json({
         success: false,
         message: `Order is already ${status}`,
       });
     }
-    if (order.status !== status) {
-      order.status = status;
-    }
 
-    if (deliveryPreference && (status === "Accepted" || order.status === "Accepted")) {
-      // For Instant delivery, never persist "Admin" — delivery is auto-assigned, order must not go to admin
-      if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
-        order.deliveryPreference = undefined;
-      } else {
-        order.deliveryPreference = deliveryPreference;
-      }
-      // When seller chooses Self, ensure no delivery boy is assigned (order must not go to delivery boy)
-      if (deliveryPreference === "Self") {
-        order.deliveryBoy = undefined;
-      }
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // MULTI-SELLER ACCEPTANCE / REJECTION LOGIC
+    // ─────────────────────────────────────────────────────────────────────────
+    if (status === "Accepted" || status === "Rejected") {
+      const sellerIdStr = sellerId.toString();
 
-    await order.save();
-
-    // For Instant: notify delivery boys only when seller did NOT choose Self (Self = seller delivers, no delivery boy)
-    // For Standard: only notify when seller did not choose Self or Admin (legacy/fallback)
-    const isInstantAccept =
-      status === "Accepted" &&
-      previousStatus !== "Accepted" &&
-      order.deliveryOption === "Instant" &&
-      order.deliveryPreference !== "Self";
-    const isStandardAutoAccept =
-      status === "Accepted" &&
-      previousStatus !== "Accepted" &&
-      order.deliveryOption !== "Instant" &&
-      (!deliveryPreference || (deliveryPreference !== "Self" && deliveryPreference !== "Admin"));
-
-    if (isInstantAccept || isStandardAutoAccept) {
-      try {
-        console.log(
-          `\n🔔 [SELLER] Order ${order.orderNumber} accepted by seller. Triggering delivery broadcast...`,
-        );
-        const io: SocketIOServer = req.app.get("io") as SocketIOServer;
-        if (io) {
-          const fullOrder = await Order.findById(order._id)
-            .populate({
-              path: "items",
-              populate: { path: "seller" },
-            })
-            .lean();
-
-          if (fullOrder) {
-            await notifyDeliveryBoysOfNewOrder(io, fullOrder);
-            console.log(
-              `✅ [SELLER] Delivery notification broadcast initiated for ${order.orderNumber}`,
-            );
-          } else {
-            console.error(
-              `❌ [SELLER] Could not fetch full order details for ${order._id}`,
-            );
-          }
-        } else {
-          console.error(`❌ [SELLER] Socket.io instance (io) not found in app`);
-        }
-      } catch (notifyError) {
-        console.error(
-          "❌ [SELLER ERROR] Error notifying delivery boys:",
-          notifyError,
-        );
-      }
-    } else if (status === "Accepted") {
-      console.log(
-        `ℹ️ [SELLER] Order ${order.orderNumber} accepted, broadcast skipped. Type: ${order.deliveryOption}, Prev: ${previousStatus}`,
+      // Step 1: Mark all items of this seller with the new sellerStatus
+      await OrderItem.updateMany(
+        { order: id, seller: sellerId },
+        { $set: { sellerStatus: status } }
       );
+      // If rejecting: also mark items as Cancelled
+      if (status === "Rejected") {
+        await OrderItem.updateMany(
+          { order: id, seller: sellerId },
+          { $set: { status: "Cancelled" } }
+        );
+        console.log(`🚫 [MULTI-SELLER] Seller ${sellerIdStr} rejected order ${order.orderNumber}. Their items cancelled.`);
+      }
+
+      // Step 3: Record this seller's response on the Order document
+      if (!order.sellerResponses) order.sellerResponses = [];
+      const mongoose = await import("mongoose");
+      const sellerObjId = new mongoose.Types.ObjectId(sellerIdStr);
+      const existingIdx = (order.sellerResponses as any[]).findIndex(
+        (r: any) => r.seller.toString() === sellerIdStr
+      );
+      if (existingIdx >= 0) {
+        (order.sellerResponses as any[])[existingIdx].status = status;
+        (order.sellerResponses as any[])[existingIdx].respondedAt = new Date();
+      } else {
+        (order.sellerResponses as any[]).push({ seller: sellerObjId, status, respondedAt: new Date() });
+      }
+
+      // Apply delivery preference from the accepting seller before recomputing fulfillment.
+      if (deliveryPreference && status === "Accepted") {
+        if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
+          order.deliveryPreference = undefined;
+        } else {
+          order.deliveryPreference = deliveryPreference as "Self" | "Admin";
+        }
+        if (deliveryPreference === "Self") {
+          order.deliveryBoy = undefined;
+        }
+      }
+      await order.save();
+
+      const io: SocketIOServer = req.app.get("io") as SocketIOServer;
+      const fulfillment = await recomputeOrderFulfillment(id, io);
+
+      if (fulfillment.outcome === "all_rejected") {
+        console.log(`❌ [MULTI-SELLER] All sellers rejected order ${order.orderNumber}. Fully cancelled.`);
+      } else if (fulfillment.outcome === "ready_for_delivery") {
+        console.log(`✅ [MULTI-SELLER] Seller resolution complete for ${order.orderNumber}. Delivery assignment flow started.`);
+      } else if (fulfillment.outcome === "self_delivery") {
+        console.log(`🚚 [MULTI-SELLER] Seller resolution complete for ${order.orderNumber}. Order remains self-delivery.`);
+      } else {
+        console.log(`⏳ [MULTI-SELLER] Waiting for remaining seller responses on ${order.orderNumber}.`);
+      }
+
+    } else {
+      // ──────────────────────────────────────────────────────────────────────
+      // NON-ACCEPT/REJECT STATUS UPDATES (On the way, Delivered, Cancelled)
+      // These are unchanged from the original logic for full compatibility
+      // ──────────────────────────────────────────────────────────────────────
+      if (order.status !== status) {
+        order.status = status;
+      }
+
+      if (deliveryPreference && (status === "Accepted" || order.status === "Accepted")) {
+        if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
+          order.deliveryPreference = undefined;
+        } else {
+          order.deliveryPreference = deliveryPreference as "Self" | "Admin";
+        }
+        if (deliveryPreference === "Self") {
+          order.deliveryBoy = undefined;
+        }
+      }
+
+      await order.save();
     }
 
-    // If order is delivered, use commission service (handles Self Assign: seller gets net + delivery charge; no delivery boy)
+    // Distribute commissions on delivery (unchanged)
     if (status === "Delivered" && previousStatus !== "Delivered") {
       try {
         const { distributeCommissions } = await import(
@@ -584,10 +597,7 @@ export const updateOrderStatus = asyncHandler(
         );
         await distributeCommissions(order._id.toString());
       } catch (commissionError) {
-        console.error(
-          "Error distributing commissions on seller delivery:",
-          commissionError,
-        );
+        console.error("Error distributing commissions on seller delivery:", commissionError);
       }
     }
 
@@ -601,3 +611,4 @@ export const updateOrderStatus = asyncHandler(
     });
   },
 );
+

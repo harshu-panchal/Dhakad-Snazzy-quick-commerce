@@ -85,10 +85,34 @@ export interface IOrder extends Document {
   sellerPickups?: Array<{
     seller: mongoose.Types.ObjectId;
     pickedUpAt?: Date;
-    pickedUpBy?: mongoose.Types.ObjectId; // delivery boy who picked up
-    latitude?: number; // location where pickup was confirmed
+    pickedUpBy?: mongoose.Types.ObjectId;
+    latitude?: number;
     longitude?: number;
   }>;
+
+  // Per-seller acceptance tracking for multi-seller orders
+  sellerResponses?: Array<{
+    seller: mongoose.Types.ObjectId;
+    status: "Pending" | "Accepted" | "Rejected";
+    respondedAt?: Date;
+  }>;
+  sellerConfirmationStatus?:
+    | "Pending"
+    | "Partial"
+    | "Resolved"
+    | "Rejected";
+  deliveryAssignmentStatus?:
+    | "NotStarted"
+    | "Queued"
+    | "Searching"
+    | "Assigned"
+    | "Failed"
+    | "Cancelled";
+  deliveryAssignmentTriggeredAt?: Date;
+  deliveryAssignmentResolvedAt?: Date;
+  acceptedSellerIds?: mongoose.Types.ObjectId[];
+  rejectedSellerIds?: mongoose.Types.ObjectId[];
+  fulfillableItems?: mongoose.Types.ObjectId[];
 
   // Notes
   adminNotes?: string;
@@ -343,6 +367,59 @@ const OrderSchema = new Schema<IOrder>(
       },
     ],
 
+    // Per-seller acceptance tracking for multi-seller orders
+    sellerResponses: [
+      {
+        seller: {
+          type: Schema.Types.ObjectId,
+          ref: "Seller",
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ["Pending", "Accepted", "Rejected"],
+          default: "Pending",
+        },
+        respondedAt: {
+          type: Date,
+        },
+      },
+    ],
+    sellerConfirmationStatus: {
+      type: String,
+      enum: ["Pending", "Partial", "Resolved", "Rejected"],
+      default: "Pending",
+    },
+    deliveryAssignmentStatus: {
+      type: String,
+      enum: ["NotStarted", "Queued", "Searching", "Assigned", "Failed", "Cancelled"],
+      default: "NotStarted",
+    },
+    deliveryAssignmentTriggeredAt: {
+      type: Date,
+    },
+    deliveryAssignmentResolvedAt: {
+      type: Date,
+    },
+    acceptedSellerIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Seller",
+      },
+    ],
+    rejectedSellerIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Seller",
+      },
+    ],
+    fulfillableItems: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "OrderItem",
+      },
+    ],
+
     // Notes
     adminNotes: {
       type: String,
@@ -412,6 +489,7 @@ OrderSchema.pre("validate", async function (this: IOrder, next) {
 OrderSchema.index({ customer: 1, orderDate: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ orderDate: -1 });
+OrderSchema.index({ sellerConfirmationStatus: 1, deliveryAssignmentStatus: 1 });
 OrderSchema.index({ deliveryBoy: 1 });
 OrderSchema.index({ orderNumber: 1 });
 

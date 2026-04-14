@@ -81,8 +81,12 @@ export const verifyOTP = async (
   });
 
   if (response.data.success && response.data.data?.token) {
-    localStorage.setItem('authToken', response.data.data.token);
-    localStorage.setItem('userData', JSON.stringify(response.data.data.user));
+    setAuthToken(response.data.data.token);
+    const userData = {
+      ...response.data.data.user,
+      userType: 'Delivery' as const,
+    };
+    localStorage.setItem('userData', JSON.stringify(userData));
   }
 
   return response.data;

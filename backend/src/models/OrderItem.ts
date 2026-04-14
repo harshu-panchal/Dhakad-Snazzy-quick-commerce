@@ -21,6 +21,8 @@ export interface IOrderItem extends Document {
 
   // Status
   status: "Pending" | "Shipped" | "Delivered" | "Cancelled" | "Returned";
+  // Per-seller acceptance tracking (independent of main order status)
+  sellerStatus: "Pending" | "Accepted" | "Rejected";
   subtotal: number;
   orderId?: string;
   commissionRate: number;
@@ -94,6 +96,12 @@ const OrderItemSchema = new Schema<IOrderItem>(
     status: {
       type: String,
       enum: ["Pending", "Shipped", "Delivered", "Cancelled", "Returned"],
+      default: "Pending",
+    },
+    // Per-seller acceptance tracking
+    sellerStatus: {
+      type: String,
+      enum: ["Pending", "Accepted", "Rejected"],
       default: "Pending",
     },
     commissionRate: {

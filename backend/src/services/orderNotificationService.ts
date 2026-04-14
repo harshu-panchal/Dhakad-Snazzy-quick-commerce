@@ -83,12 +83,18 @@ function calculateDistance(
  */
 export async function findAvailableDeliveryBoys(): Promise<mongoose.Types.ObjectId[]> {
     try {
+        console.log('📝 [DEBUG] Searching for all online and active delivery boys...');
         const deliveryBoys = await Delivery.find({
             isOnline: true,
             status: 'Active',
-        }).select('_id');
+        });
 
-        return deliveryBoys.map(db => db._id);
+        console.log(`📝 [DEBUG] Found ${deliveryBoys.length} eligible delivery boys:`);
+        deliveryBoys.forEach(db => {
+            console.log(`   - ${db.name} (ID: ${db._id}, status: ${db.status}, isOnline: ${db.isOnline})`);
+        });
+
+        return deliveryBoys.map(db => db._id as mongoose.Types.ObjectId);
     } catch (error) {
         console.error('Error finding available delivery boys:', error);
         return [];
@@ -401,11 +407,12 @@ export async function notifyDeliveryBoysOfNewOrder(
                 }
             });
 
+            const beforeFilterCount = nearbyDeliveryBoyIds.length;
             nearbyDeliveryBoyIds = nearbyDeliveryBoyIds.filter(id => !busyIdsSet.has(id.toString()));
-            console.log(`ℹ️ [NOTIFICATION] Drivers remaining after "Busy" filter: ${nearbyDeliveryBoyIds.length}`);
+            console.log(`ℹ️ [NOTIFICATION] Drivers remaining after "Busy" filter: ${nearbyDeliveryBoyIds.length} (Filtered out ${beforeFilterCount - nearbyDeliveryBoyIds.length})`);
 
             if (nearbyDeliveryBoyIds.length === 0) {
-                console.log('⚠️ [NOTIFICATION] All targeted delivery boys are currently busy.');
+                console.log('⚠️ [NOTIFICATION] All targeted delivery boys are currently busy with other orders.');
                 return;
             }
         }
@@ -512,11 +519,13 @@ export async function handleOrderAcceptance(
 
         // Handling Idempotency first (Optimization):
         // Check if this driver ALREADY has it. This requires a read, but it's safe.
-        const existingOrder = await Order.findById(orderId).select('deliveryBoy status');
+        const existingOrder = await Order.findById(orderId).select('deliveryBoy status deliveryAssignmentStatus deliveryAssignmentResolvedAt');
         if (existingOrder && existingOrder.deliveryBoy && existingOrder.deliveryBoy.toString() === normalizedDeliveryBoyId) {
             console.log(`✅ [ACCEPT] Idempotent success. Order already assigned to this driver.`);
             if (existingOrder.status !== 'Processed') {
                 existingOrder.status = 'Processed';
+                (existingOrder as any).deliveryAssignmentStatus = 'Assigned';
+                (existingOrder as any).deliveryAssignmentResolvedAt = new Date();
                 await existingOrder.save();
             }
             return { success: true, message: 'Order accepted successfully' };
@@ -535,7 +544,9 @@ export async function handleOrderAcceptance(
                     deliveryBoy: new mongoose.Types.ObjectId(normalizedDeliveryBoyId),
                     deliveryBoyStatus: 'Assigned',
                     assignedAt: new Date(),
-                    status: 'Processed'
+                    status: 'Processed',
+                    deliveryAssignmentStatus: 'Assigned',
+                    deliveryAssignmentResolvedAt: new Date()
                 }
             },
             { new: true } // Return the updated document
