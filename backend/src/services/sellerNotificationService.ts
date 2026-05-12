@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import OrderItem from '../models/OrderItem';
 import mongoose from 'mongoose';
+import { sendNotification } from './notificationService';
 
 /**
  * Notify all sellers involved in an order about a new order or status change
@@ -60,6 +61,20 @@ export async function notifySellersOfOrderUpdate(
             // Emit to seller-specific room
             io.to(`seller-${sellerId}`).emit('seller-notification', notificationData);
             console.log(`📤 Emitted notification to seller-${sellerId}`);
+
+            // Send Notification (Database + Push)
+            const title = type === 'NEW_ORDER' ? 'New Order Received' : 
+                         type === 'ORDER_CANCELLED' ? 'Order Cancelled' : 'Order Status Update';
+            
+            const body = type === 'NEW_ORDER' ? `You have received a new order #${order.orderNumber}` :
+                         type === 'ORDER_CANCELLED' ? `Order #${order.orderNumber} has been cancelled` :
+                         `Order #${order.orderNumber} status updated to ${order.status}`;
+
+            sendNotification('Seller', sellerId, title, body, {
+                type: 'Order',
+                link: `/seller/orders/${order._id}`,
+                priority: type === 'NEW_ORDER' ? 'High' : 'Medium'
+            }).catch(err => console.error(`❌ [Seller Notification Error] ${sellerId}:`, err?.message));
         }
     } catch (error) {
         console.error('Error in notifySellersOfOrderUpdate:', error);

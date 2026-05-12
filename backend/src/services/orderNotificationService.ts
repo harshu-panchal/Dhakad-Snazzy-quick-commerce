@@ -454,9 +454,7 @@ export async function notifyDeliveryBoysOfNewOrder(
             io.to(roomName).emit('new-order', orderData);
             console.log(`📤 [Socket] Emitted 'new-order' to ${idString}`);
 
-            // 2. Database Notification (Persist it)
-            // We use Fire-and-Forget for speed here, or await if reliability is critical. 
-            // Await ensures we don't overwhelm DB connection if thousands of drivers.
+            // 2. Database Notification & FCM Push
             await sendNotification(
                 'Delivery',
                 idString,
@@ -468,18 +466,6 @@ export async function notifyDeliveryBoysOfNewOrder(
                     priority: 'High'
                 }
             ).catch(err => console.error(`❌ [DB Notif Error] ${idString}:`, err.message));
-
-            // 3. FCM push (so alert shows/rings when app is closed or in background)
-            sendNotificationToUser(idString, 'Delivery', {
-                title: 'New Order Request',
-                body: `New ${order.deliveryOption} Order #${order.orderNumber} is available. Earning: ₹${deliveryBoyEarning}`,
-                data: {
-                    orderId: order._id.toString(),
-                    type: 'NEW_ORDER_REQUEST',
-                    link: `/delivery/orders/${order._id}`,
-                },
-                icon: 'notification_icon',
-            }).catch(err => console.error(`❌ [FCM Error] ${idString}:`, err?.message));
         }
 
         // Also emit to the global 'delivery-notifications' room as a backup/monitor
@@ -747,18 +733,7 @@ export async function notifyDeliveryBoyOfAssignment(
         io.to(roomName).emit('new-order', orderData);
         console.log(`📤 Emitted manual assignment (new-order) to delivery boy: ${deliveryBoyIdString}`);
 
-        // 2. Send Push Notification (FCM)
-        await sendNotificationToUser(deliveryBoyIdString, 'Delivery', {
-            title: 'New Order Assigned',
-            body: `Order #${order.orderNumber} has been assigned to you.`,
-            data: {
-                orderId: order._id.toString(),
-                type: 'ORDER_ASSIGNMENT'
-            },
-            icon: 'notification_icon' // Use a default icon resource name
-        });
-
-        // 3. Create Database Notification
+        // 2. Send Notification (Database + FCM Push)
         await sendNotification(
             'Delivery',
             deliveryBoyIdString,
@@ -769,7 +744,7 @@ export async function notifyDeliveryBoyOfAssignment(
                 link: `/delivery/orders/${order._id}`,
                 priority: 'High'
             }
-        );
+        ).catch(err => console.error(`❌ [Delivery Assignment Notif Error] ${deliveryBoyIdString}:`, err.message));
 
         // Initializing notification state for potential fallback handling
         notificationStates.set(order._id.toString(), {

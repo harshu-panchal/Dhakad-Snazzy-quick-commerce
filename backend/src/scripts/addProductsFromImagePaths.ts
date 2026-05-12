@@ -22,7 +22,7 @@ function log(msg: any) {
 // --- Configuration ---
 const MONGO_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/dhakadsnazzy";
 const FRONTEND_ASSETS_PATH = path.join(__dirname, "../../../frontend/assets");
-const SELLER_MOBILE = "6268423925";
+const SELLER_MOBILE = "6268423926";
 
 // Product image paths provided by user
 const PRODUCT_IMAGE_PATHS = [

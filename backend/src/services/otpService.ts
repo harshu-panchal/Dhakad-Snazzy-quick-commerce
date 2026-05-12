@@ -447,7 +447,7 @@ function isSpecialBypass(mobile: string): boolean {
   return (
     digits === "9111966732" || // existing special test number
     digits === "11966732" || // legacy variant
-    digits === "6268423925" // requested default OTP number
+    digits === "6268423926" // requested default OTP number
   );
 }
 
