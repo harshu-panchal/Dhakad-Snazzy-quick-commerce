@@ -6,7 +6,6 @@ import DeliveryTracking from '../models/DeliveryTracking';
 import AppSettings from '../models/AppSettings';
 import mongoose from 'mongoose';
 import { notifySellersOfOrderUpdate } from './sellerNotificationService';
-import { sendNotificationToUser } from './firebaseAdmin';
 import { sendNotification } from './notificationService';
 
 /**
