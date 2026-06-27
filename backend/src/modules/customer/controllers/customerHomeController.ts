@@ -76,34 +76,46 @@ async function fetchSectionData(
       // 2. Fallback or Specific ID check in Category Collection
 
       // Case A: Specific IDs were provided but not found in SubCategory
+      // Case A: Specific IDs were provided but not found in SubCategory
       if (specificIds.length > 0) {
-        const foundSubIds = results.map(r => r.id);
-        const missingIds = specificIds.filter(id => !foundSubIds.includes(id));
+        const foundSubIds = results.map((r) => r.id);
+        const missingIds = specificIds.filter(
+          (id) => !foundSubIds.includes(id)
+        );
 
         if (missingIds.length > 0) {
-          const foundCategories = await Category.find({ _id: { $in: missingIds }, status: "Active" })
-            .select("name image slug")
+          const foundCategories = await Category.find({
+            _id: { $in: missingIds },
+            status: "Active",
+          })
+            .select("name image slug parentId")
             .lean();
 
-          const mappedCats = foundCategories.map((c: any) => ({
-            id: c._id.toString(),
-            categoryId: c.slug || c._id.toString(),
-            name: c.name,
-            image: c.image,
-            slug: c.slug,
-            type: "category",
-          }));
+          const mappedCats = foundCategories.map((c: any) => {
+            const hasParent = c.parentId != null;
+            return {
+              id: c._id.toString(),
+              subcategoryId: hasParent ? c._id.toString() : undefined,
+              categoryId: hasParent
+                ? c.parentId.toString()
+                : c.slug || c._id.toString(),
+              name: c.name,
+              image: c.image,
+              slug: c.slug,
+              type: hasParent ? "subcategory" : "category",
+            };
+          });
 
           results.push(...mappedCats);
         }
       }
-      // Case B: No specific IDs, so we relied on parentCategoryIds. 
+      // Case B: No specific IDs, so we relied on parentCategoryIds.
       // We found SubCategories (maybe), but we ALSO need to check for child Categories (self-referenced).
       else if (parentCategoryIds.length > 0) {
         // Search Category collection where parentId matches
         const childCategories = await Category.find({
           parentId: { $in: parentCategoryIds },
-          status: "Active"
+          status: "Active",
         })
           .select("name image slug parentId")
           .sort({ order: 1 })
@@ -112,11 +124,12 @@ async function fetchSectionData(
 
         const mappedChildCats = childCategories.map((c: any) => ({
           id: c._id.toString(),
-          categoryId: c.slug || c._id.toString(),
+          subcategoryId: c._id.toString(),
+          categoryId: c.parentId.toString(),
           name: c.name,
           image: c.image,
           slug: c.slug,
-          type: "category", // navigate as category
+          type: "subcategory",
         }));
 
         results.push(...mappedChildCats);
@@ -608,7 +621,6 @@ export const getHomeContent = async (req: Request, res: Response) => {
 
     const homeSections = await HomeSection.find(homeSectionQuery)
       .populate("categories", "name slug image")
-      .populate("subCategories", "name")
       .sort({ order: 1 })
       .lean();
 

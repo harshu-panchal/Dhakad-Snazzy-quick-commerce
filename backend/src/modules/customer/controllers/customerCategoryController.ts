@@ -237,9 +237,58 @@ export const getCategoryById = async (req: Request, res: Response) => {
       `[getCategoryById] Found category: ${category.name} (${category._id})`
     );
 
+    // Check if this category is actually a subcategory (has a parentId)
+    if (category.parentId) {
+      console.log(
+        `[getCategoryById] Category ${category.name} is a subcategory. Fetching parent category...`
+      );
+      const parentCategory = await Category.findOne({
+        _id: category.parentId,
+        status: "Active",
+      }).lean();
+
+      if (parentCategory) {
+        let parentCatId = parentCategory._id;
+        if (typeof parentCatId === "string") {
+          try {
+            parentCatId = new mongoose.Types.ObjectId(parentCatId);
+          } catch (e) {
+            console.error("Failed to cast parent category ID to ObjectId:", e);
+          }
+        }
+
+        const subcategories = await Category.find({
+          parentId: { $in: [parentCatId, parentCatId.toString()] },
+          status: "Active",
+        })
+          .select("name image order slug icon")
+          .sort({
+            order: 1,
+          });
+
+        console.log(
+          `[getCategoryById] Found ${subcategories.length} sibling subcategories for parent ${parentCategory.name}`
+        );
+
+        const responseData = {
+          category: parentCategory,
+          subcategories,
+          currentSubcategory: category,
+        };
+
+        // Cache for 10 minutes
+        cache.set(cacheKey, responseData, 10 * 60 * 1000);
+
+        return res.status(200).json({
+          success: true,
+          data: responseData,
+        });
+      }
+    }
+
     // Ensure category._id is treated as ObjectId for the query
     let catId = category._id;
-    if (typeof catId === 'string') {
+    if (typeof catId === "string") {
       try {
         catId = new mongoose.Types.ObjectId(catId);
       } catch (e) {
@@ -252,14 +301,16 @@ export const getCategoryById = async (req: Request, res: Response) => {
     // Using parentId to find children
     const subcategories = await Category.find({
       parentId: { $in: [catId, catId.toString()] },
-      status: "Active"
+      status: "Active",
     })
       .select("name image order slug icon")
       .sort({
         order: 1,
       });
 
-    console.log(`[getCategoryById] Found ${subcategories.length} subcategories for ${category.name}`);
+    console.log(
+      `[getCategoryById] Found ${subcategories.length} subcategories for ${category.name}`
+    );
 
     const responseData = {
       category,

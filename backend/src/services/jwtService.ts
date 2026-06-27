@@ -30,9 +30,11 @@ export function generateToken(userId: string, userType: UserType, role?: string)
  */
 export function verifyToken(token: string): TokenPayload {
   try {
+    console.log('JWT_SECRET in verifyToken:', JWT_SECRET.substring(0, 10) + '...');
     const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
     return decoded;
   } catch (error: any) {
+    console.error('JWT verify error:', error.message, 'token:', token.substring(0, 20) + '...');
     if (error.name === 'TokenExpiredError') {
       throw new Error('Token has expired');
     }
@@ -42,4 +44,5 @@ export function verifyToken(token: string): TokenPayload {
     throw new Error(`Token verification failed: ${error.message}`);
   }
 }
+
 
