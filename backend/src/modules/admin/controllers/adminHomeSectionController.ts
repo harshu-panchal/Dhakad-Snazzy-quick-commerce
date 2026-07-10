@@ -1,16 +1,72 @@
 import { Request, Response } from "express";
 import HomeSection from "../../../models/HomeSection";
+import Category from "../../../models/Category";
+import SubCategory from "../../../models/SubCategory";
 import mongoose from "mongoose";
+
+// Helper function to populate subCategories from both SubCategory and Category collections
+const populateSubCategories = async (sections: any) => {
+    if (!sections) return;
+    const isArray = Array.isArray(sections);
+    const sectionsList = isArray ? sections : [sections];
+
+    // Gather all unique subcategory IDs
+    const subCategoryIds: string[] = [];
+    sectionsList.forEach((section) => {
+        if (section && section.subCategories && section.subCategories.length > 0) {
+            section.subCategories.forEach((id: any) => {
+                if (id) {
+                    const idStr = id.toString();
+                    if (!subCategoryIds.includes(idStr)) {
+                        subCategoryIds.push(idStr);
+                    }
+                }
+            });
+        }
+    });
+
+    if (subCategoryIds.length === 0) {
+        return;
+    }
+
+    // Fetch names from both collections
+    const subCats = await SubCategory.find({ _id: { $in: subCategoryIds } })
+        .select("name")
+        .lean();
+
+    const catSubs = await Category.find({ _id: { $in: subCategoryIds } })
+        .select("name")
+        .lean();
+
+    // Create lookup map
+    const nameMap = new Map<string, string>();
+    subCats.forEach((item) => nameMap.set(item._id.toString(), item.name));
+    catSubs.forEach((item) => nameMap.set(item._id.toString(), item.name));
+
+    // Replace the IDs with populated objects in the list
+    sectionsList.forEach((section) => {
+        if (section && section.subCategories && section.subCategories.length > 0) {
+            section.subCategories = section.subCategories.map((idVal: any) => {
+                const idStr = idVal.toString();
+                return {
+                    _id: idStr,
+                    name: nameMap.get(idStr) || "Unknown Subcategory",
+                };
+            });
+        }
+    });
+};
 
 // Get all home sections
 export const getHomeSections = async (_req: Request, res: Response) => {
     try {
         const sections = await HomeSection.find()
             .populate("categories", "name slug image")
-            .populate("subCategories", "name")
             .populate("targetHeaderCategory", "name")
             .sort({ order: 1 })
             .lean();
+
+        await populateSubCategories(sections);
 
         return res.status(200).json({
             success: true,
@@ -39,9 +95,10 @@ export const getHomeSectionById = async (req: Request, res: Response) => {
 
         const section = await HomeSection.findById(id)
             .populate("categories", "name slug image")
-            .populate("subCategories", "name")
             .populate("targetHeaderCategory", "name")
             .lean();
+
+        await populateSubCategories(section);
 
         if (!section) {
             return res.status(404).json({
@@ -110,9 +167,10 @@ export const createHomeSection = async (req: Request, res: Response) => {
 
         const populatedSection = await HomeSection.findById(newSection._id)
             .populate("categories", "name slug image")
-            .populate("subCategories", "name")
             .populate("targetHeaderCategory", "name")
             .lean();
+
+        await populateSubCategories(populatedSection);
 
         return res.status(201).json({
             success: true,
@@ -177,9 +235,10 @@ export const updateHomeSection = async (req: Request, res: Response) => {
 
         const updatedSection = await HomeSection.findById(id)
             .populate("categories", "name slug image")
-            .populate("subCategories", "name")
             .populate("targetHeaderCategory", "name")
             .lean();
+
+        await populateSubCategories(updatedSection);
 
         return res.status(200).json({
             success: true,
@@ -251,10 +310,12 @@ export const reorderHomeSections = async (req: Request, res: Response) => {
         await Promise.all(updatePromises);
 
         const updatedSections = await HomeSection.find()
-            .populate("category", "name slug image")
-            .populate("subCategory", "name")
+            .populate("categories", "name slug image")
+            .populate("targetHeaderCategory", "name")
             .sort({ order: 1 })
             .lean();
+
+        await populateSubCategories(updatedSections);
 
         return res.status(200).json({
             success: true,

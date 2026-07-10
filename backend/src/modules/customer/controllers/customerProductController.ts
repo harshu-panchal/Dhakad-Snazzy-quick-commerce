@@ -126,7 +126,15 @@ export const getProducts = async (req: Request, res: Response) => {
         category as string,
         "Category"
       );
-      if (categoryId) query.category = categoryId;
+      if (categoryId) {
+        const categoryDoc = await Category.findById(categoryId).lean();
+        if (categoryDoc && categoryDoc.parentId) {
+          query.category = categoryDoc.parentId;
+          query.subcategory = categoryDoc._id;
+        } else {
+          query.category = categoryId;
+        }
+      }
     }
 
     if (subcategory) {
