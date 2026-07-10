@@ -9,6 +9,29 @@ import {
   verifyDeliveryOtp,
 } from "../../../services/deliveryOtpService";
 import { processOrderStatusTransition } from "../../../services/orderService";
+import { getDeliveryPendingOrderAlerts } from "../../../services/orderAlertService";
+
+/**
+ * Get pending delivery order alerts (survives page refresh).
+ */
+export const getPendingOrderAlerts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const deliveryId = req.user?.userId;
+    if (!deliveryId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const alerts = await getDeliveryPendingOrderAlerts(deliveryId);
+
+    return res.status(200).json({
+      success: true,
+      data: alerts,
+    });
+  },
+);
 
 /**
  * Helper to map order items for response

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { OrderNotificationData } from '../services/api/delivery/deliveryOrderNotificationService';
 import { acceptOrder, rejectOrder } from '../services/api/delivery/deliveryOrderNotificationService';
 import { getSocketBaseURL } from '../services/api/config';
+import { getPendingOrderAlerts } from '../services/api/delivery/deliveryService';
 
 interface NotificationState {
     currentNotification: OrderNotificationData | null;
@@ -14,6 +15,23 @@ interface NotificationState {
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 2000;
+
+function mergeUniqueOrderNotifications(
+    existing: OrderNotificationData[],
+    incoming: OrderNotificationData[],
+): OrderNotificationData[] {
+    const seen = new Set(existing.map((notification) => notification.orderId));
+    const merged = [...existing];
+
+    for (const notification of incoming) {
+        if (!seen.has(notification.orderId)) {
+            seen.add(notification.orderId);
+            merged.push(notification);
+        }
+    }
+
+    return merged;
+}
 
 export const useDeliveryOrderNotifications = () => {
     const { isAuthenticated, user } = useAuth();
@@ -27,6 +45,40 @@ export const useDeliveryOrderNotifications = () => {
     const socketRef = useRef<Socket | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const reconnectAttemptsRef = useRef(0);
+    const hasRehydratedRef = useRef(false);
+
+    const applyIncomingNotifications = useCallback((incoming: OrderNotificationData[]) => {
+        if (incoming.length === 0) {
+            return;
+        }
+
+        setState((prev) => {
+            if (prev.currentNotification) {
+                return {
+                    ...prev,
+                    notificationQueue: mergeUniqueOrderNotifications(prev.notificationQueue, incoming),
+                };
+            }
+
+            const [first, ...rest] = incoming;
+            return {
+                ...prev,
+                currentNotification: first,
+                notificationQueue: mergeUniqueOrderNotifications(prev.notificationQueue, rest),
+            };
+        });
+    }, []);
+
+    const rehydratePendingAlerts = useCallback(async () => {
+        try {
+            const alerts = await getPendingOrderAlerts();
+            if (Array.isArray(alerts) && alerts.length > 0) {
+                applyIncomingNotifications(alerts);
+            }
+        } catch (error) {
+            console.error('Failed to rehydrate delivery order alerts:', error);
+        }
+    }, [applyIncomingNotifications]);
 
     const connectSocket = useCallback(() => {
         if (!isAuthenticated || user?.userType !== 'Delivery' || !user?.id) {
@@ -68,6 +120,7 @@ export const useDeliveryOrderNotifications = () => {
             const userId = String(user.id);
             console.log(`📡 [SOCKET] Connected. Joining delivery-notifications for UserID: ${userId}`);
             socket.emit('join-delivery-notifications', userId);
+            rehydratePendingAlerts();
         });
 
         socket.on('joined-notifications-room', (data: any) => {
@@ -198,7 +251,7 @@ export const useDeliveryOrderNotifications = () => {
         });
 
         return socket;
-    }, [isAuthenticated, user]);
+    }, [isAuthenticated, user, rehydratePendingAlerts]);
 
     const attemptReconnect = useCallback(() => {
         reconnectAttemptsRef.current += 1;
@@ -317,6 +370,11 @@ export const useDeliveryOrderNotifications = () => {
             return;
         }
 
+        if (!hasRehydratedRef.current) {
+            hasRehydratedRef.current = true;
+            rehydratePendingAlerts();
+        }
+
         const socket = connectSocket();
 
         return () => {
@@ -325,7 +383,7 @@ export const useDeliveryOrderNotifications = () => {
             }
             disconnectSocket();
         };
-    }, [isAuthenticated, user, connectSocket, disconnectSocket]);
+    }, [isAuthenticated, user, connectSocket, disconnectSocket, rehydratePendingAlerts]);
 
     return {
         currentNotification: state.currentNotification,

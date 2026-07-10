@@ -67,6 +67,11 @@ export const getPendingOrders = async () => {
   return response.data.data;
 };
 
+export const getPendingOrderAlerts = async () => {
+  const response = await api.get("/delivery/orders/pending-alerts");
+  return response.data.data;
+};
+
 export const getOrderDetails = async (id: string) => {
   try {
     const response = await api.get(`${BASE_URL}/orders/${id}`);

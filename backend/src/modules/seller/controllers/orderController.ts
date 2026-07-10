@@ -8,6 +8,22 @@ import {
   calculateCODOrderBreakdown,
   getOrderEarningBreakdown,
 } from "../../../services/commissionService";
+import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
+
+/**
+ * Get pending order alerts that require seller action (survives page refresh).
+ */
+export const getPendingOrderAlerts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+    const alerts = await getSellerPendingOrderAlerts(sellerId);
+
+    return res.status(200).json({
+      success: true,
+      data: alerts,
+    });
+  },
+);
 
 /**
  * Get seller's orders with filters, sorting, and pagination

@@ -28,6 +28,7 @@ router.get("/help", deliveryDashboardController.getHelpSupport);
 // Orders
 router.get("/orders/history", deliveryOrderController.getAllOrdersHistory);
 router.get("/orders/today", deliveryOrderController.getTodayOrders);
+router.get("/orders/pending-alerts", deliveryOrderController.getPendingOrderAlerts);
 router.get("/orders/pending", deliveryOrderController.getPendingOrders);
 router.get("/orders/returns", deliveryOrderController.getReturnOrders);
 router.get("/orders/:id", deliveryOrderController.getOrderDetails); // Specific order details

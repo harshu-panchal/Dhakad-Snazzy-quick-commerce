@@ -6,9 +6,10 @@ import { useNavigate } from 'react-router-dom';
 interface SellerNotificationAlertProps {
   notification: SellerNotification | null;
   onClose: () => void;
+  onResolved?: () => void;
 }
 
-const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notification, onClose }) => {
+const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notification, onClose, onResolved }) => {
   const [volume, setVolume] = useState(0.8);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
@@ -26,7 +27,11 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
         payload.deliveryPreference = pref;
       }
       await updateOrderStatus(notification.orderId, payload);
-      onClose();
+      if (onResolved) {
+        onResolved();
+      } else {
+        onClose();
+      }
       // Optionally navigate to order detail or just close
       if (status === 'Accepted') {
         navigate(`/seller/orders/${notification.orderId}`);

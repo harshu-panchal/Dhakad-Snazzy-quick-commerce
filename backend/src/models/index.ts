@@ -32,6 +32,7 @@ export { default as Review } from "./Review";
 export { default as Commission } from "./Commission";
 export { default as DeliveryArea } from "./DeliveryArea";
 export { default as DeliveryAssignment } from "./DeliveryAssignment";
+export { default as DeliveryOrderOffer } from "./DeliveryOrderOffer";
 export { default as DeliveryTracking } from "./DeliveryTracking";
 export { default as PaymentMethod } from "./PaymentMethod";
 export { default as CashCollection } from "./CashCollection";

@@ -3,46 +3,17 @@ import Delivery from '../models/Delivery';
 import Order from '../models/Order';
 import Seller from '../models/Seller';
 import DeliveryTracking from '../models/DeliveryTracking';
-import AppSettings from '../models/AppSettings';
 import mongoose from 'mongoose';
 import { notifySellersOfOrderUpdate } from './sellerNotificationService';
 import { sendNotification } from './notificationService';
-
-/**
- * Calculate estimated delivery boy earning for a new order
- * Uses the same logic as commission distribution but provides an estimate
- * before the order is assigned
- */
-async function calculateEstimatedDeliveryBoyEarning(order: any): Promise<number> {
-    try {
-        // @ts-ignore - getSettings is a static method
-        const settings = await AppSettings.getSettings();
-
-        // Check if distance-based delivery is enabled
-        if (
-            settings?.deliveryConfig?.isDistanceBased === true &&
-            settings.deliveryConfig?.deliveryBoyKmRate &&
-            order.deliveryDistanceKm &&
-            order.deliveryDistanceKm > 0
-        ) {
-            // Distance-based calculation
-            const earning = order.deliveryDistanceKm * settings.deliveryConfig.deliveryBoyKmRate;
-            console.log(`📊 [Earning Calc] Distance-based: ${order.deliveryDistanceKm}km × ₹${settings.deliveryConfig.deliveryBoyKmRate}/km = ₹${earning.toFixed(2)}`);
-            return Math.round(earning * 100) / 100;
-        }
-
-        // Fallback to percentage-based on subtotal (default 5%)
-        // Since we don't know which delivery boy will accept, use default rate
-        const defaultCommissionRate = 5;
-        const earning = (order.subtotal * defaultCommissionRate) / 100;
-        console.log(`📊 [Earning Calc] Percentage-based: ${order.subtotal} × ${defaultCommissionRate}% = ₹${earning.toFixed(2)}`);
-        return Math.round(earning * 100) / 100;
-    } catch (error) {
-        console.error('Error calculating estimated delivery boy earning:', error);
-        // Return a safe default - 5% of subtotal
-        return Math.round((order.subtotal * 5) / 100 * 100) / 100;
-    }
-}
+import {
+    upsertDeliveryOrderOffers,
+    markDeliveryOfferRejected,
+    markDeliveryOfferAccepted,
+    expireDeliveryOffersForOrder,
+    getPendingDeliveryOfferState,
+} from './orderAlertService';
+import { calculateEstimatedDeliveryBoyEarning } from './orderNotificationHelpers';
 
 // Track order notification state
 export interface OrderNotificationState {
@@ -477,6 +448,15 @@ export async function notifyDeliveryBoysOfNewOrder(
                 rejectedDeliveryBoys: new Set(),
                 acceptedBy: null,
             });
+
+            await upsertDeliveryOrderOffers(
+                orderId,
+                Array.from(notifiedIds),
+                deliveryBoyEarning,
+            ).catch((err) =>
+                console.error(`❌ [DB Offer Error] Failed to persist offers for order ${orderId}:`, err.message),
+            );
+
             console.log(`\n📢 [SUCCESS] Broadcast complete. Notified ${notifiedIds.size} delivery boys.\n`);
         }
     } catch (error) {
@@ -507,6 +487,7 @@ export async function handleOrderAcceptance(
         const existingOrder = await Order.findById(orderId).select('deliveryBoy status deliveryAssignmentStatus deliveryAssignmentResolvedAt');
         if (existingOrder && existingOrder.deliveryBoy && existingOrder.deliveryBoy.toString() === normalizedDeliveryBoyId) {
             console.log(`✅ [ACCEPT] Idempotent success. Order already assigned to this driver.`);
+            await markDeliveryOfferAccepted(orderId, normalizedDeliveryBoyId).catch(() => undefined);
             if (existingOrder.status !== 'Processed') {
                 existingOrder.status = 'Processed';
                 (existingOrder as any).deliveryAssignmentStatus = 'Assigned';
@@ -557,6 +538,10 @@ export async function handleOrderAcceptance(
         // 2. SUCCESS PATH
         console.log(`🏆 [ACCEPT WINNER] Order ${orderId} successfully assigned to ${normalizedDeliveryBoyId}`);
 
+        await markDeliveryOfferAccepted(orderId, normalizedDeliveryBoyId).catch((err) =>
+            console.error(`❌ [DB Offer Error] Failed to mark acceptance for order ${orderId}:`, err.message),
+        );
+
         // 3. BROADCAST "TAKEN" STATUS
         // Tell everyone (including the winner) that the order is taken.
         // The frontend for the winner should handle the success response to navigate.
@@ -599,10 +584,15 @@ export async function handleOrderRejection(
     deliveryBoyId: string
 ): Promise<{ success: boolean; message: string; allRejected: boolean }> {
     try {
-        const state = notificationStates.get(orderId);
+        let state = notificationStates.get(orderId);
 
         if (!state) {
-            return { success: false, message: 'Order notification not found', allRejected: false };
+            const dbState = await getPendingDeliveryOfferState(orderId);
+            if (!dbState) {
+                return { success: false, message: 'Order notification not found', allRejected: false };
+            }
+            state = dbState;
+            notificationStates.set(orderId, state);
         }
 
         // Check if already accepted
@@ -624,6 +614,10 @@ export async function handleOrderRejection(
 
         // Mark as rejected
         state.rejectedDeliveryBoys.add(normalizedDeliveryBoyId);
+
+        await markDeliveryOfferRejected(orderId, normalizedDeliveryBoyId).catch((err) =>
+            console.error(`❌ [DB Offer Error] Failed to mark rejection for order ${orderId}:`, err.message),
+        );
 
         // Check if all delivery boys have rejected
         const allRejected = state.rejectedDeliveryBoys.size === state.notifiedDeliveryBoys.size;
@@ -664,6 +658,9 @@ export async function handleOrderRejection(
 
             // Clean up notification state
             notificationStates.delete(orderId);
+            await expireDeliveryOffersForOrder(orderId).catch((err) =>
+                console.error(`❌ [DB Offer Error] Failed to expire offers for order ${orderId}:`, err.message),
+            );
         } else {
             // Emit rejection acknowledgment to the specific delivery boy
             io.to(`delivery-${deliveryBoyId}`).emit('order-rejection-acknowledged', {
@@ -752,6 +749,14 @@ export async function notifyDeliveryBoyOfAssignment(
             rejectedDeliveryBoys: new Set(),
             acceptedBy: null,
         });
+
+        await upsertDeliveryOrderOffers(
+            order._id.toString(),
+            [deliveryBoyIdString],
+            deliveryBoyEarning,
+        ).catch((err) =>
+            console.error(`❌ [DB Offer Error] Failed to persist manual assignment offer:`, err.message),
+        );
 
     } catch (error) {
         console.error('Error notifying delivery boy of assignment:', error);

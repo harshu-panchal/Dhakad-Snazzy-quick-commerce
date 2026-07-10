@@ -100,6 +100,14 @@ export const getOrders = async (params?: GetOrdersParams): Promise<ApiResponse<O
 };
 
 /**
+ * Get pending order alerts that require seller action (persists across refresh).
+ */
+export const getPendingOrderAlerts = async (): Promise<ApiResponse<any[]>> => {
+  const response = await api.get('/orders/pending-alerts');
+  return response.data;
+};
+
+/**
  * Get order by ID
  */
 export const getOrderById = async (id: string): Promise<ApiResponse<OrderDetail>> => {

@@ -7,6 +7,7 @@ import {
   getSettlementOrders,
   markOrderCODPaidSeller,
   updateOrderStatus,
+  getPendingOrderAlerts,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType } from "../middleware/auth";
 
@@ -18,6 +19,8 @@ router.use(requireUserType("Seller"));
 
 // Get seller's orders with filters
 router.get("/", getOrders);
+// Pending actionable order alerts (must be before /:id)
+router.get("/pending-alerts", getPendingOrderAlerts);
 // Settlement page (must be before /:id)
 router.get("/settlement", getSettlementOrders);
 
