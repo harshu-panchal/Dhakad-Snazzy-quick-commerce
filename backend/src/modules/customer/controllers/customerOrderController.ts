@@ -376,6 +376,22 @@ export const createOrder = async (req: Request, res: Response) => {
       orderItemIds.push(newOrderItem._id as mongoose.Types.ObjectId);
     }
 
+    // Enforce minimum order value (cart subtotal of products)
+    const minimumOrderValue = Number(settings?.minimumOrderValue) || 0;
+    if (minimumOrderValue > 0 && calculatedSubtotal < minimumOrderValue) {
+      if (session) await session.abortTransaction();
+      const shortfall = Number((minimumOrderValue - calculatedSubtotal).toFixed(2));
+      return res.status(400).json({
+        success: false,
+        message: `Minimum order value is ₹${minimumOrderValue}. Please add ₹${shortfall} more to place your order.`,
+        data: {
+          minimumOrderValue,
+          currentSubtotal: Number(calculatedSubtotal.toFixed(2)),
+          shortfall,
+        },
+      });
+    }
+
     // Validate all sellers can deliver to user's location
     if (sellerIds.size > 0) {
       const uniqueSellerIds = Array.from(sellerIds).map(

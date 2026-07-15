@@ -146,15 +146,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setEstimatedFee(response.data.estimatedDeliveryFee);
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+        setMinimumOrderValue(response.data.minimumOrderValue);
       } else if (!options?.preserveItems) {
         setItems([]);
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
+        setMinimumOrderValue(undefined);
       } else {
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
+        setMinimumOrderValue(undefined);
       }
     } catch (error) {
       console.error("Failed to fetch cart:", error);
@@ -219,6 +222,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [estimatedFee, setEstimatedFee] = useState<number | undefined>(undefined);
   const [platformFee, setPlatformFee] = useState<number | undefined>(undefined);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | undefined>(undefined);
+  const [minimumOrderValue, setMinimumOrderValue] = useState<number | undefined>(undefined);
 
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
@@ -239,10 +243,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       estimatedDeliveryFee: estimatedFee,
       platformFee,
       freeDeliveryThreshold,
+      minimumOrderValue,
       debug_config: (items as any).debug_config,
       backendTotal: (items as any).backendTotal
     };
-  }, [items, estimatedFee, platformFee, freeDeliveryThreshold]);
+  }, [items, estimatedFee, platformFee, freeDeliveryThreshold, minimumOrderValue]);
 
   const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
     // Get consistent product ID - MongoDB returns _id, frontend expects id
@@ -362,6 +367,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setEstimatedFee(response.data.estimatedDeliveryFee);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+          setMinimumOrderValue(response.data.minimumOrderValue);
         } else {
           console.warn('Response missing data or items:', response);
         }
@@ -408,6 +414,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setEstimatedFee(response.data.estimatedDeliveryFee);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+          setMinimumOrderValue(response.data.minimumOrderValue);
         }
       } catch (error) {
         console.error("Remove from cart failed", error);
@@ -495,6 +502,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setEstimatedFee(response.data.estimatedDeliveryFee);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+          setMinimumOrderValue(response.data.minimumOrderValue);
         }
       } catch (error) {
         console.error("Update quantity failed", error);

@@ -76,6 +76,7 @@ export interface AppSettings {
   deliveryCharges: number;
   platformFee?: number;
   freeDeliveryThreshold?: number;
+  minimumOrderValue?: number;
   deliveryConfig?: {
     isDistanceBased: boolean;
     googleMapsKey?: string;

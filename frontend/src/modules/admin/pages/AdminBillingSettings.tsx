@@ -12,6 +12,7 @@ export default function AdminBillingSettings() {
     // Form State
     const [platformFee, setPlatformFee] = useState<number>(0);
     const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(0);
+    const [minimumOrderValue, setMinimumOrderValue] = useState<number>(0);
     const [deliveryCharges, setDeliveryCharges] = useState<number>(0);
 
     // Distance Based Config
@@ -37,6 +38,7 @@ export default function AdminBillingSettings() {
                 // Initialize State
                 setPlatformFee(data.platformFee || 0);
                 setFreeDeliveryThreshold(data.freeDeliveryThreshold || 0);
+                setMinimumOrderValue(data.minimumOrderValue || 0);
                 setDeliveryCharges(data.deliveryCharges || 0);
 
                 if (data.deliveryConfig) {
@@ -66,6 +68,7 @@ export default function AdminBillingSettings() {
             const updatePayload: any = {
                 platformFee,
                 freeDeliveryThreshold,
+                minimumOrderValue,
                 deliveryCharges,
                 deliveryConfig: {
                     isDistanceBased,
@@ -166,6 +169,26 @@ export default function AdminBillingSettings() {
                                 />
                             </div>
                             <p className="mt-1 text-xs text-gray-500">Orders above this amount will have free delivery.</p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Minimum Order Value (₹)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={minimumOrderValue === 0 ? '' : minimumOrderValue}
+                                    onChange={(e) => setMinimumOrderValue(e.target.value === '' ? 0 : Number(e.target.value))}
+                                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                    placeholder="e.g. 99"
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Cart subtotal must reach this amount before an order can be placed. Set 0 to disable.
+                            </p>
                         </div>
                     </div>
                 </div>

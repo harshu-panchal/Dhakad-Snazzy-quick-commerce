@@ -13,8 +13,12 @@ export default function Cart() {
   const deliveryFee = cart.estimatedDeliveryFee ??
     (cart.total >= freeDeliveryThreshold ? 0 : appConfig.deliveryFee);
   const totalAmount = cart.total + deliveryFee + platformFee;
+  const minimumOrderValue = cart.minimumOrderValue ?? 0;
+  const meetsMinimumOrder = minimumOrderValue <= 0 || cart.total >= minimumOrderValue;
+  const amountNeededForMinimumOrder = Math.max(0, minimumOrderValue - cart.total);
 
   const handleCheckout = () => {
+    if (!meetsMinimumOrder) return;
     navigate('/checkout');
   };
 
@@ -160,6 +164,11 @@ export default function Cart() {
                 Add ₹{(freeDeliveryThreshold - cart.total).toLocaleString('en-IN')} more for free delivery
               </div>
             )}
+            {minimumOrderValue > 0 && !meetsMinimumOrder && (
+              <div className="text-xs md:text-sm text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                Minimum order ₹{minimumOrderValue.toLocaleString('en-IN')}. Add ₹{amountNeededForMinimumOrder.toLocaleString('en-IN')} more to checkout.
+              </div>
+            )}
           </div>
           <div className="border-t border-neutral-200 pt-4 md:pt-6">
             <div className="flex justify-between items-center mb-4 md:mb-6">
@@ -172,9 +181,12 @@ export default function Cart() {
               variant="default"
               size="lg"
               onClick={handleCheckout}
+              disabled={!meetsMinimumOrder}
               className="w-full md:py-3 md:text-lg"
             >
-              Proceed to Checkout
+              {meetsMinimumOrder
+                ? 'Proceed to Checkout'
+                : `Add ₹${amountNeededForMinimumOrder.toLocaleString('en-IN')} more`}
             </Button>
           </div>
         </div>

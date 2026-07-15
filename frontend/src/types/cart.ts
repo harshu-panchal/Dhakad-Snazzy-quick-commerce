@@ -14,6 +14,7 @@ export interface Cart {
   estimatedDeliveryFee?: number;
   platformFee?: number;
   freeDeliveryThreshold?: number;
+  minimumOrderValue?: number;
   debug_config?: any;
   backendTotal?: number;
 }
