@@ -394,6 +394,13 @@ export default function Checkout() {
     0,
     freeDeliveryThreshold - (displayCart.total || 0),
   );
+  const minimumOrderValue = cart.minimumOrderValue ?? 0;
+  const meetsMinimumOrder =
+    minimumOrderValue <= 0 || (displayCart.total || 0) >= minimumOrderValue;
+  const amountNeededForMinimumOrder = Math.max(
+    0,
+    minimumOrderValue - (displayCart.total || 0),
+  );
   const cartItem = displayItems[0];
 
   /* DEBUG: Display Backend Configuration */
@@ -523,6 +530,14 @@ export default function Checkout() {
     const bypassProfileCheck = arg === true;
 
     if (!selectedAddress || cart.items.length === 0) {
+      return;
+    }
+
+    if (!meetsMinimumOrder) {
+      showGlobalToast(
+        `Minimum order value is ₹${minimumOrderValue}. Please add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more.`,
+        "error",
+      );
       return;
     }
 
@@ -2486,16 +2501,29 @@ export default function Checkout() {
 
       {/* Bottom Sticky Button */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg">
+        {!meetsMinimumOrder && (
+          <div className="px-4 py-2 text-xs text-center text-amber-800 bg-amber-50 border-b border-amber-100">
+            Minimum order ₹{minimumOrderValue.toLocaleString("en-IN")}. Add ₹
+            {amountNeededForMinimumOrder.toLocaleString("en-IN")} more to place
+            order.
+          </div>
+        )}
         {selectedAddress ? (
           <button
             onClick={handlePlaceOrder}
-            disabled={cart.items.length === 0 || isProcessingOrder}
+            disabled={
+              cart.items.length === 0 || isProcessingOrder || !meetsMinimumOrder
+            }
             className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
-              cart.items.length > 0 && !isProcessingOrder
+              cart.items.length > 0 && !isProcessingOrder && meetsMinimumOrder
                 ? "bg-green-600 text-white hover:bg-green-700"
                 : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
             }`}>
-            {isProcessingOrder ? "Processing..." : "Place Order"}
+            {isProcessingOrder
+              ? "Processing..."
+              : !meetsMinimumOrder
+                ? `Add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more`
+                : "Place Order"}
           </button>
         ) : (
           <button

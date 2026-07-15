@@ -56,6 +56,8 @@ export interface IAppSettings extends Document {
   platformFee?: number;
   deliveryCharges: number;
   freeDeliveryThreshold?: number;
+  /** Cart subtotal must be at least this amount to place an order. 0 = no minimum. */
+  minimumOrderValue?: number;
   deliveryConfig?: {
     isDistanceBased: boolean;
     googleMapsKey?: string;
@@ -266,6 +268,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     freeDeliveryThreshold: {
       type: Number,
       min: [0, "Free delivery threshold cannot be negative"],
+    },
+    minimumOrderValue: {
+      type: Number,
+      default: 0,
+      min: [0, "Minimum order value cannot be negative"],
     },
     deliveryConfig: {
       isDistanceBased: { type: Boolean, default: false },
