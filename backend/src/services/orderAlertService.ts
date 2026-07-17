@@ -67,10 +67,14 @@ function isSellerNotifiableOrder(order: any): boolean {
   return true;
 }
 
+/** Only rehydrate NEW_ORDER popups for recent pending orders (not historical backlog). */
+const SELLER_PENDING_ALERT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 export async function getSellerPendingOrderAlerts(
   sellerId: string,
 ): Promise<SellerOrderAlert[]> {
   const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
+  const alertCutoff = new Date(Date.now() - SELLER_PENDING_ALERT_MAX_AGE_MS);
 
   const pendingItems = await OrderItem.find({
     seller: sellerObjectId,
@@ -83,6 +87,7 @@ export async function getSellerPendingOrderAlerts(
   const orders = await Order.find({
     _id: { $in: orderIds },
     status: { $nin: ["Cancelled", "Rejected", "Returned", "Pending"] },
+    createdAt: { $gte: alertCutoff },
   })
     .sort({ createdAt: -1 })
     .lean();

@@ -35,6 +35,7 @@ export interface Product {
   tags?: string[];
   rating?: number;
   reviews?: number;
+  reviewsCount?: number;
   deliveryTime?: number;
   stock?: number;
   publish?: boolean;

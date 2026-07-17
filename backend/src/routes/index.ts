@@ -27,6 +27,7 @@ import customerHomeRoutes from "./customerHomeRoutes";
 import customerCartRoutes from "./customerCartRoutes";
 import wishlistRoutes from "./wishlistRoutes";
 import productReviewRoutes from "./productReviewRoutes";
+import sellerReviewRoutes from "./sellerReviewRoutes";
 import adminRoutes from "./adminRoutes";
 import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
@@ -133,6 +134,9 @@ router.use("/customer", customerRoutes);
 
 // Seller dashboard routes
 router.use("/seller/dashboard", dashboardRoutes);
+
+// Seller review routes (protected, seller only)
+router.use("/seller/reviews", sellerReviewRoutes);
 
 // Seller management routes (protected, admin only)
 router.use("/sellers", sellerRoutes);

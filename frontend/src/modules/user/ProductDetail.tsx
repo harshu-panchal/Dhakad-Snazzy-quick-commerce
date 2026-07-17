@@ -14,6 +14,12 @@ import Button from '../../components/ui/button';
 import Badge from '../../components/ui/badge';
 import { getProductById } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
+import StarRating from '../../components/ui/StarRating';
+import {
+  getProductReviews,
+  Review,
+  ReviewStats,
+} from '../../services/api/customerReviewService';
 
 import { calculateProductPrice } from '../../utils/priceUtils';
 
@@ -37,12 +43,20 @@ export default function ProductDetail() {
   const [isAvailableAtLocation, setIsAvailableAtLocation] =
     useState<boolean>(true);
 
-
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<ReviewStats>({
+    avgRating: 0,
+    totalReviews: 0,
+  });
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewPages, setReviewPages] = useState(1);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -112,6 +126,48 @@ export default function ProductDetail() {
 
     fetchProduct();
   }, [id, location?.latitude, location?.longitude]);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!id) return;
+      setReviewsLoading(true);
+      try {
+        const response = await getProductReviews(id, 1, 5);
+        if (response.success && response.data) {
+          setReviews(response.data.reviews || []);
+          setReviewStats(
+            response.data.stats || { avgRating: 0, totalReviews: 0 }
+          );
+          setReviewPage(response.data.pagination?.page || 1);
+          setReviewPages(response.data.pagination?.pages || 1);
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews', err);
+      } finally {
+        setReviewsLoading(false);
+      }
+    };
+
+    fetchReviews();
+  }, [id]);
+
+  const loadMoreReviews = async () => {
+    if (!id || reviewPage >= reviewPages || reviewsLoading) return;
+    const nextPage = reviewPage + 1;
+    setReviewsLoading(true);
+    try {
+      const response = await getProductReviews(id, nextPage, 5);
+      if (response.success && response.data) {
+        setReviews((prev) => [...prev, ...(response.data.reviews || [])]);
+        setReviewPage(response.data.pagination?.page || nextPage);
+        setReviewPages(response.data.pagination?.pages || reviewPages);
+      }
+    } catch (err) {
+      console.error('Failed to load more reviews', err);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
 
   // Get selected variant
   const selectedVariant = product?.variations?.[selectedVariantIndex] || null;
@@ -555,6 +611,24 @@ export default function ProductDetail() {
             {product.name}
           </h2>
 
+          {/* Aggregate rating */}
+          <div className="mt-1.5 mb-1">
+            <StarRating
+              rating={
+                reviewStats.avgRating ||
+                product.rating ||
+                0
+              }
+              reviewCount={
+                reviewStats.totalReviews ||
+                product.reviewsCount ||
+                product.reviews ||
+                0
+              }
+              size="md"
+            />
+          </div>
+
           {/* Variant Selection - Only show if multiple variants */}
           {product.variations && product.variations.length > 1 && (
             <div className="mb-2">
@@ -943,6 +1017,88 @@ export default function ProductDetail() {
         )}
 
 
+
+        {/* Customer Reviews */}
+        <div className="mt-4 mb-4 px-4 md:px-6 lg:px-8">
+          <div className="bg-white rounded-xl border border-neutral-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base md:text-lg font-semibold text-neutral-900">
+                Ratings & Reviews
+              </h3>
+              {(reviewStats.totalReviews > 0 || product.rating > 0) && (
+                <StarRating
+                  rating={reviewStats.avgRating || product.rating || 0}
+                  reviewCount={
+                    reviewStats.totalReviews ||
+                    product.reviewsCount ||
+                    product.reviews ||
+                    0
+                  }
+                  size="sm"
+                />
+              )}
+            </div>
+
+            {reviewsLoading && reviews.length === 0 ? (
+              <p className="text-sm text-neutral-500 py-4 text-center">
+                Loading reviews...
+              </p>
+            ) : reviews.length === 0 ? (
+              <p className="text-sm text-neutral-500 py-4 text-center">
+                No reviews yet. Be the first to review after your order is delivered.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {reviews.map((review) => (
+                  <div
+                    key={review._id}
+                    className="border-b border-neutral-100 last:border-0 pb-3 last:pb-0"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <p className="text-sm font-medium text-neutral-900">
+                        {review.customer?.name || 'Customer'}
+                      </p>
+                      <span className="text-[11px] text-neutral-400">
+                        {new Date(review.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    <StarRating
+                      rating={review.rating}
+                      showCount={false}
+                      size="sm"
+                      className="mb-1"
+                    />
+                    {review.title && (
+                      <p className="text-sm font-semibold text-neutral-800">
+                        {review.title}
+                      </p>
+                    )}
+                    {review.comment && (
+                      <p className="text-sm text-neutral-600 mt-0.5">
+                        {review.comment}
+                      </p>
+                    )}
+                  </div>
+                ))}
+
+                {reviewPage < reviewPages && (
+                  <button
+                    type="button"
+                    onClick={loadMoreReviews}
+                    disabled={reviewsLoading}
+                    className="w-full text-sm font-medium text-green-700 py-2 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {reviewsLoading ? 'Loading...' : 'Load more reviews'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Top products in this category */}
         {similarProducts.length > 0 && (

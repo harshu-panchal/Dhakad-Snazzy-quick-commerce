@@ -6,6 +6,7 @@ import { useCart } from '../../../context/CartContext';
 import { useWishlist } from '../../../hooks/useWishlist';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
+import StarRating from '../../../components/ui/StarRating';
 
 import { calculateProductPrice } from '../../../utils/priceUtils';
 
@@ -31,7 +32,7 @@ export default function ProductCard({
   showPackBadge = false,
   showStockInfo = false,
   showHeartIcon = false,
-  showRating = false,
+  showRating = true,
   showVegetarianIcon = false,
   showOptionsText = false,
   optionsCount = 2,
@@ -329,6 +330,16 @@ export default function ProductCard({
                 {product.name || product.productName || ''}
               </h3>
 
+              {showRating && ((product.rating ?? 0) > 0 || (product.reviewsCount ?? product.reviews ?? 0) > 0) && (
+                <div className="mb-0.5">
+                  <StarRating
+                    rating={product.rating || 0}
+                    reviewCount={product.reviewsCount ?? product.reviews ?? 0}
+                    size="sm"
+                  />
+                </div>
+              )}
+
               {/* 3. Time */}
               <p className="text-[9px] text-neutral-600 mb-0.5 flex items-center gap-0.5 leading-tight">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
@@ -378,6 +389,16 @@ export default function ProductCard({
               <h3 className={`${compact ? 'text-xs md:text-sm' : 'text-sm md:text-base'} font-semibold text-neutral-900 ${compact ? 'mb-1' : 'mb-2'} line-clamp-2 ${compact ? 'min-h-[2rem]' : 'min-h-[2.5rem]'}`}>
                 {product.name || product.productName || ''}
               </h3>
+
+              {showRating && ((product.rating ?? 0) > 0 || (product.reviewsCount ?? product.reviews ?? 0) > 0) && (
+                <div className={`${compact ? 'mb-1' : 'mb-2'}`}>
+                  <StarRating
+                    rating={product.rating || 0}
+                    reviewCount={product.reviewsCount ?? product.reviews ?? 0}
+                    size="sm"
+                  />
+                </div>
+              )}
 
               {showStockInfo && (
                 <p className="text-xs text-green-600 mb-2 font-medium">

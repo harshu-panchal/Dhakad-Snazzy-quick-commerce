@@ -11,6 +11,7 @@ import {
   Category as apiCategory,
 } from "../../../services/api/categoryService";
 import { useAuth } from "../../../context/AuthContext";
+import StarRating from "../../../components/ui/StarRating";
 
 // ... (interfaces remain same)
 
@@ -176,6 +177,8 @@ export default function SellerProductList() {
         variation: "Default",
         isPopular: product.popular,
         productId: product._id,
+        rating: product.rating || 0,
+        reviewsCount: product.reviewsCount || 0,
       }];
     }
     // If product has variations, map them
@@ -196,6 +199,8 @@ export default function SellerProductList() {
         variation.title || variation.value || variation.name || "Default",
       isPopular: product.popular,
       productId: product._id,
+      rating: product.rating || 0,
+      reviewsCount: product.reviewsCount || 0,
     }));
   });
 
@@ -485,6 +490,11 @@ export default function SellerProductList() {
                       Product Name <SortIcon column="productName" />
                     </div>
                   </th>
+                  <th className="p-4 border border-neutral-200">
+                    <div className="flex items-center justify-between">
+                      Rating
+                    </div>
+                  </th>
                   <th
                     className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
                     onClick={() => handleSort("sellerName")}>
@@ -594,6 +604,17 @@ export default function SellerProductList() {
                         <div className="flex flex-col gap-1">
                           <span>{variation.productName}</span>
                         </div>
+                      </td>
+                      <td className="p-4 align-middle border border-neutral-200">
+                        {(variation.rating > 0 || variation.reviewsCount > 0) ? (
+                          <StarRating
+                            rating={variation.rating}
+                            reviewCount={variation.reviewsCount}
+                            size="sm"
+                          />
+                        ) : (
+                          <span className="text-xs text-neutral-400">—</span>
+                        )}
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
                         {variation.sellerName}

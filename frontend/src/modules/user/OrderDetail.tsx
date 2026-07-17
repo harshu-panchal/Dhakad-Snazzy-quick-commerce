@@ -8,6 +8,11 @@ import GoogleMapsTracking from "../../components/GoogleMapsTracking";
 import { useDeliveryTracking } from "../../hooks/useDeliveryTracking";
 import DeliveryPartnerCard from "../../components/DeliveryPartnerCard";
 import { cancelOrder, updateOrderNotes, getSellerLocationsForOrder, refreshDeliveryOtp } from "../../services/api/customerOrderService";
+import {
+  addReview,
+  getMyReviewForOrderProduct,
+} from "../../services/api/customerReviewService";
+import StarRating from "../../components/ui/StarRating";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -474,6 +479,20 @@ export default function OrderDetail() {
   const [selectedTip, setSelectedTip] = useState<number | "other" | null>(null);
   const [customTip, setCustomTip] = useState("");
 
+  // Review states (delivered orders)
+  const [reviewStatusByProduct, setReviewStatusByProduct] = useState<
+    Record<string, { reviewed: boolean; rating?: number }>
+  >({});
+  const [activeReviewProductId, setActiveReviewProductId] = useState<
+    string | null
+  >(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
+
   // Real-time delivery tracking via WebSocket
   const {
     deliveryLocation,
@@ -553,6 +572,107 @@ export default function OrderDetail() {
       setOrderStatus(order.status);
     }
   }, [order]);
+
+  // Load existing review status for delivered order items
+  useEffect(() => {
+    const loadReviewStatuses = async () => {
+      if (!order || order.status !== "Delivered" || !id) return;
+      const items = order.items || [];
+      const statusMap: Record<string, { reviewed: boolean; rating?: number }> =
+        {};
+
+      await Promise.all(
+        items.map(async (item: any) => {
+          const productId =
+            item.product?._id ||
+            item.product?.id ||
+            (typeof item.product === "string" ? item.product : null);
+          if (!productId) return;
+          try {
+            const res = await getMyReviewForOrderProduct(
+              String(productId),
+              id
+            );
+            if (res.data) {
+              statusMap[String(productId)] = {
+                reviewed: true,
+                rating: res.data.rating,
+              };
+            } else {
+              statusMap[String(productId)] = { reviewed: false };
+            }
+          } catch {
+            statusMap[String(productId)] = { reviewed: false };
+          }
+        })
+      );
+
+      setReviewStatusByProduct(statusMap);
+    };
+
+    loadReviewStatuses();
+  }, [order?.status, order?.items, id]);
+
+  const getItemProductId = (item: any): string | null => {
+    const productId =
+      item.product?._id ||
+      item.product?.id ||
+      (typeof item.product === "string" ? item.product : null);
+    return productId ? String(productId) : null;
+  };
+
+  const handleOpenReview = (productId: string) => {
+    setActiveReviewProductId(productId);
+    setReviewRating(5);
+    setReviewTitle("");
+    setReviewComment("");
+    setReviewError(null);
+    setReviewSuccess(null);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!id || !activeReviewProductId) return;
+    if (reviewRating < 1 || reviewRating > 5) {
+      setReviewError("Please select a rating");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    setReviewError(null);
+    setReviewSuccess(null);
+    try {
+      const res = await addReview({
+        productId: activeReviewProductId,
+        orderId: id,
+        rating: reviewRating,
+        title: reviewTitle.trim() || undefined,
+        comment: reviewComment.trim() || undefined,
+      });
+      if (res.success) {
+        setReviewStatusByProduct((prev) => ({
+          ...prev,
+          [activeReviewProductId]: {
+            reviewed: true,
+            rating: reviewRating,
+          },
+        }));
+        setReviewSuccess("Thanks for your review!");
+        setActiveReviewProductId(null);
+        setReviewTitle("");
+        setReviewComment("");
+      } else {
+        setReviewError(res.message || "Failed to submit review");
+      }
+    } catch (err: any) {
+      setReviewError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to submit review"
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   // Real-time order status updates from socket
   useEffect(() => {
@@ -1145,6 +1265,142 @@ export default function OrderDetail() {
             onClick={() => setShowSpecialRequestsModal(true)}
           />
         </motion.div>
+
+        {/* Rate & Review — only for delivered orders */}
+        {order?.status === "Delivered" && (
+          <motion.div
+            className="bg-white rounded-xl shadow-sm overflow-hidden p-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.78 }}>
+            <h3 className="font-semibold text-gray-900 mb-1">
+              Rate & Review
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Share your experience with the products you ordered
+            </p>
+
+            {reviewSuccess && (
+              <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-3">
+                {reviewSuccess}
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {order.items?.map((item: any, index: number) => {
+                const productId = getItemProductId(item);
+                if (!productId) return null;
+                const status = reviewStatusByProduct[productId];
+                const name =
+                  item.product?.productName ||
+                  item.product?.name ||
+                  item.productName ||
+                  "Product";
+                const isActive = activeReviewProductId === productId;
+
+                return (
+                  <div
+                    key={productId + index}
+                    className="border border-gray-100 rounded-xl p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                        {(item.product?.mainImage || item.productImage) ? (
+                          <img
+                            src={item.product?.mainImage || item.productImage}
+                            alt={name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-lg">
+                            📦
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">
+                          {name}
+                        </p>
+                        {status?.reviewed ? (
+                          <div className="mt-1 flex items-center gap-2">
+                            <StarRating
+                              rating={status.rating || 0}
+                              showCount={false}
+                              size="sm"
+                            />
+                            <span className="text-xs text-green-700 font-medium">
+                              Reviewed
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReview(productId)}
+                            className="mt-1.5 text-sm font-medium text-green-700 hover:text-green-800">
+                            {isActive ? "Writing review…" : "Rate & Review"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isActive && !status?.reviewed && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">
+                            Your rating
+                          </p>
+                          <StarRating
+                            rating={reviewRating}
+                            interactive
+                            onChange={setReviewRating}
+                            size="lg"
+                            showCount={false}
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Title (optional)"
+                          value={reviewTitle}
+                          onChange={(e) => setReviewTitle(e.target.value)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                          maxLength={100}
+                        />
+                        <textarea
+                          placeholder="Share your experience (optional)"
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          rows={3}
+                          maxLength={500}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                        {reviewError && (
+                          <p className="text-sm text-red-600">{reviewError}</p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setActiveReviewProductId(null);
+                              setReviewError(null);
+                            }}
+                            disabled={reviewSubmitting}>
+                            Cancel
+                          </Button>
+                          <Button
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                            onClick={handleSubmitReview}
+                            disabled={reviewSubmitting}>
+                            {reviewSubmitting ? "Submitting…" : "Submit"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Help Section */}
         <motion.div

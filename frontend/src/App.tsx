@@ -155,6 +155,9 @@ const SellerAccountSettings = lazy(
 const SellerDeliveryTracking = lazy(
   () => import("./modules/seller/pages/SellerDeliveryTracking"),
 );
+const SellerReviews = lazy(
+  () => import("./modules/seller/pages/SellerReviews"),
+);
 const SellerLogin = lazy(() => import("./modules/seller/pages/SellerLogin"));
 const SellerSignUp = lazy(() => import("./modules/seller/pages/SellerSignUp"));
 
@@ -545,6 +548,10 @@ function App() {
                                       <Route
                                         path="orders/:id"
                                         element={<SellerOrderDetail />}
+                                      />
+                                      <Route
+                                        path="reviews"
+                                        element={<SellerReviews />}
                                       />
                                       <Route
                                         path="category"

@@ -70,6 +70,8 @@ export interface Product {
   // Shop by Store fields
   isShopByStoreOnly?: boolean;
   shopId?: string | any;
+  rating?: number;
+  reviewsCount?: number;
 }
 
 export interface CreateProductData {

@@ -9,6 +9,46 @@ interface SellerLayoutProps {
   children: ReactNode;
 }
 
+const DISMISSED_ALERTS_KEY = 'seller_dismissed_order_alerts';
+const PENDING_ALERT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function getDismissedOrderIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_ALERTS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDismissedOrderId(orderId: string) {
+  const dismissed = getDismissedOrderIds();
+  dismissed.add(orderId);
+  sessionStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify([...dismissed]));
+}
+
+function clearDismissedOrderId(orderId: string) {
+  const dismissed = getDismissedOrderIds();
+  if (!dismissed.delete(orderId)) return;
+  sessionStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify([...dismissed]));
+}
+
+function isRecentAlert(notification: SellerNotification): boolean {
+  if (!notification.timestamp) return true;
+  const createdAt = new Date(notification.timestamp).getTime();
+  if (Number.isNaN(createdAt)) return true;
+  return Date.now() - createdAt <= PENDING_ALERT_MAX_AGE_MS;
+}
+
+function filterAlerts(alerts: SellerNotification[]): SellerNotification[] {
+  const dismissed = getDismissedOrderIds();
+  return alerts.filter(
+    (alert) => isRecentAlert(alert) && !dismissed.has(alert.orderId),
+  );
+}
+
 function mergeUniqueNotifications(
   existing: SellerNotification[],
   incoming: SellerNotification[],
@@ -39,6 +79,9 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
   }, []);
 
   const enqueueNotification = useCallback((notification: SellerNotification) => {
+    if (!isRecentAlert(notification)) return;
+    clearDismissedOrderId(notification.orderId);
+
     setActiveNotification((current) => {
       if (!current) {
         return notification;
@@ -56,7 +99,7 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
   const rehydratePendingAlerts = useCallback(async () => {
     try {
       const response = await getPendingOrderAlerts();
-      const alerts = response.data ?? [];
+      const alerts = filterAlerts(response.data ?? []);
 
       if (alerts.length === 0) {
         return;
@@ -92,10 +135,16 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
   };
 
   const closeNotification = () => {
+    if (activeNotification?.orderId) {
+      rememberDismissedOrderId(activeNotification.orderId);
+    }
     showNextNotification(notificationQueue);
   };
 
   const handleNotificationResolved = () => {
+    if (activeNotification?.orderId) {
+      clearDismissedOrderId(activeNotification.orderId);
+    }
     setActiveNotification(null);
     showNextNotification(notificationQueue);
     rehydratePendingAlerts();
