@@ -353,7 +353,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
 
     for (const gw of gwidCandidates) {
       for (const dltKey of dltKeyCandidates) {
-        const testParams = { ...params, gwid: gw };
+        const testParams: Record<string, string> = { ...params, gwid: gw };
         delete testParams.DLT_TE_ID;
         delete testParams.templateid;
         delete testParams.tempid;
