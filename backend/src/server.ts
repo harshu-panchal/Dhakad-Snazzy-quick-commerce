@@ -87,7 +87,7 @@ app.get("/", (_req: Request, res: Response) => {
 });
 
 // Request logger for home page debugging
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   if (req.path.includes('/customer/home')) {
     console.log(`[REQUEST] ${req.method} ${req.originalUrl} - query:`, req.query);
   }

@@ -256,7 +256,14 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
     gwid: "2",
   };
   if (useApiKeyParam()) {
-    params.APIKey = password;
+    // When using APIKey param, use the actual API key (not panel password)
+    const apiKey = getSmsApiKey();
+    if (!apiKey) {
+      throw new Error(
+        "SMS India HUB: SMS_INDIA_HUB_API_KEY is not set. Set it to your API key from the SMS India HUB panel.",
+      );
+    }
+    params.APIKey = apiKey;
   } else {
     params.password = password;
   }
@@ -327,7 +334,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
     });
     const params2 = { ...params };
     delete params2.password;
-    params2.APIKey = password;
+    params2.APIKey = getSmsApiKey() || password;
     response = await doRequest(params2);
     data = response?.data;
   }
