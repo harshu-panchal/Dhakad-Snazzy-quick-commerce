@@ -1,16 +1,9 @@
 import axios from "axios";
 import Otp from "../models/Otp";
 
-// SMS India HUB Configuration - exact URL from official documentation
-// Ref: https://www.smsindiahub.in/free-sms-api-india/ (Transactional: pushsms.aspx?user=...&password=...&msisdn=919898xxxxxx&sid=SenderId&msg=...&fl=0&gwid=2)
-// SMS India HUB Configuration
-const SMS_INDIA_HUB_DLT_TEMPLATE_ID = process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID;
-// Set this to your EXACT DLT-registered template text, using {OTP} as the placeholder
-const SMS_INDIA_HUB_DLT_TEMPLATE_TEXT =
-  process.env.SMS_INDIA_HUB_DLT_TEMPLATE_TEXT;
 const SMS_INDIA_HUB_API_URL =
   "http://cloud.smsindiahub.in/vendorsms/pushsms.aspx";
-const API_TIMEOUT = 30000; // 30 seconds
+const API_TIMEOUT = 30000;
 
 const DEBUG_SMS = process.env.DEBUG_SMS === "true";
 function debugLog(label: string, data: Record<string, unknown>): void {
@@ -20,38 +13,42 @@ function debugLog(label: string, data: Record<string, unknown>): void {
 }
 
 function getSmsApiKey(): string | undefined {
-  return process.env.SMS_INDIA_HUB_API_KEY;
+  return process.env.SMS_INDIA_HUB_API_KEY?.trim();
 }
-/** API password: use SMS_INDIA_HUB_PASSWORD (panel login password) if set, else SMS_INDIA_HUB_API_KEY. */
-function getSmsPassword(): string | undefined {
-  const p = process.env.SMS_INDIA_HUB_PASSWORD?.trim();
-  if (p) return p;
-  return getSmsApiKey();
+
+/**
+ * SMS India HUB `password` param:
+ * - Prefer panel password when set (this account rejects API key as password)
+ * - Else fall back to API key
+ * Override with SMS_INDIA_HUB_AUTH=api_key to force API key as password.
+ */
+function getSmsAuthPassword(): string | undefined {
+  if (process.env.SMS_INDIA_HUB_AUTH === "api_key") {
+    return getSmsApiKey() || process.env.SMS_INDIA_HUB_PASSWORD?.trim();
+  }
+  return process.env.SMS_INDIA_HUB_PASSWORD?.trim() || getSmsApiKey();
 }
-/** When true, send APIKey= instead of password=. Use when you have API Key from panel (no separate panel password). */
-function useApiKeyParam(): boolean {
-  if (process.env.SMS_INDIA_HUB_USE_APIKEY === "true") return true;
-  if (process.env.SMS_INDIA_HUB_PASSWORD?.trim()) return false;
-  return true;
-}
+
 function getSmsSenderId(): string | undefined {
-  return process.env.SMS_INDIA_HUB_SENDER_ID;
+  return process.env.SMS_INDIA_HUB_SENDER_ID?.trim();
 }
+
 function getSmsDltTemplateId(): string | undefined {
-  return process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID;
+  return process.env.SMS_INDIA_HUB_DLT_TEMPLATE_ID?.trim();
 }
+
 function getSmsUsername(): string {
   return (
-    process.env.SMS_INDIA_HUB_USERNAME || process.env.APP_NAME || "DHAKADSNAZZY"
+    process.env.SMS_INDIA_HUB_USERNAME?.trim() ||
+    process.env.APP_NAME?.trim() ||
+    "DHAKADSNAZZY"
   );
 }
 
-if (
-  process.env.NODE_ENV === "production" &&
-  (!getSmsUsername() || !getSmsPassword() || !getSmsSenderId())
-) {
-  console.warn(
-    "SMS India HUB credentials are not fully set (SMS_INDIA_HUB_USERNAME, SMS_INDIA_HUB_PASSWORD or SMS_INDIA_HUB_API_KEY, SMS_INDIA_HUB_SENDER_ID)",
+function getDltTemplateText(): string | undefined {
+  return (
+    process.env.SMS_INDIA_HUB_DLT_TEMPLATE_TEXT?.trim() ||
+    process.env.SMS_INDIA_HUB_OTP_TEMPLATE?.trim()
   );
 }
 
@@ -132,43 +129,28 @@ function normalizeMobileNumber(mobile: string): string {
 }
 
 /**
- * Build DLT-compliant message. Must match approved template exactly (no extra spaces, same punctuation).
- * Use SMS_INDIA_HUB_OTP_APP_NAME in .env if your DLT template uses a different brand name than USERNAME.
- * Build DLT-compliant message
- * Uses SMS_INDIA_HUB_DLT_TEMPLATE_TEXT env var if set (replace {OTP} with the actual code).
- * The template text must EXACTLY match what is registered on the SMS India HUB DLT portal.
+ * Build DLT-compliant message. Must match approved template exactly.
+ * Template: Welcome to the ##var## powered by Appzeto.Your OTP for registration is ##var##.BGADEC
  */
 function buildOtpMessage(otp: string): string {
   const appName = (
     process.env.SMS_INDIA_HUB_OTP_APP_NAME?.trim() ||
     getSmsUsername() ||
-    "Dhakad Snazzy"
+    "DHAKADSNAZZY"
   ).trim();
   const otpTrimmed = String(otp).trim().replace(/\s/g, "");
-
-  if (
-    SMS_INDIA_HUB_DLT_TEMPLATE_TEXT &&
-    SMS_INDIA_HUB_DLT_TEMPLATE_TEXT.trim()
-  ) {
-    return SMS_INDIA_HUB_DLT_TEMPLATE_TEXT.trim()
-      .replace(/\{APP_NAME\}/g, appName)
-      .replace(/\{OTP\}/g, otpTrimmed);
-  }
-
   const template =
-    process.env.SMS_INDIA_HUB_OTP_TEMPLATE?.trim() ||
-    "Welcome to the {APP_NAME} powered by SMSINDIAHUB. Your OTP for registration is {OTP}";
-  const msg = template
+    getDltTemplateText() ||
+    "Welcome to the {APP_NAME} powered by Appzeto.Your OTP for registration is {OTP}.BGADEC";
+
+  return template
     .replace(/\{APP_NAME\}/g, appName)
     .replace(/\{OTP\}/g, otpTrimmed)
-    .replace(/\s+/g, " ")
     .trim();
-  return msg;
 }
 
 /**
  * Parse and handle SMS India HUB API response.
- * Gateway may return JSON or plain text (e.g. "Failed#Invalid Login...").
  */
 function handleSmsResponse(
   responseData: SmsIndiaHubResponse | string | null | undefined,
@@ -177,12 +159,27 @@ function handleSmsResponse(
     throw new Error("Invalid SMS gateway response: empty body");
   }
 
-  // Plain text response (e.g. "Failed#Invalid LoginThread was being aborted.")
   if (typeof responseData === "string") {
     const s = responseData.trim();
-    if (s.toLowerCase().includes("invalid login") || s.startsWith("Failed#")) {
+    const failedMatch = s.match(/^Failed#\s*(.*)$/i);
+    if (failedMatch) {
+      const reason = (failedMatch[1] || s).trim();
+      const reasonLower = reason.toLowerCase();
+      if (reasonLower.includes("invalid login")) {
+        throw new Error(
+          "SMS India HUB: Invalid login. Use SMS_INDIA_HUB_API_KEY as API password (default), or set SMS_INDIA_HUB_AUTH=panel_password with SMS_INDIA_HUB_PASSWORD.",
+        );
+      }
+      if (reasonLower.includes("sender")) {
+        throw new Error(
+          `SMS India HUB: Sender ID not valid (${reason}). Check SMS_INDIA_HUB_SENDER_ID.`,
+        );
+      }
+      throw new Error(`SMS India HUB: ${reason}`);
+    }
+    if (s.toLowerCase().includes("invalid login")) {
       throw new Error(
-        "SMS India HUB: Invalid login. Set SMS_INDIA_HUB_PASSWORD to the password you use at https://cloud.smsindiahub.in (panel login). If you use API Key as password, ensure SMS_INDIA_HUB_API_KEY is correct.",
+        "SMS India HUB: Invalid login. Check SMS_INDIA_HUB_API_KEY / password.",
       );
     }
     throw new Error(
@@ -190,38 +187,37 @@ function handleSmsResponse(
     );
   }
 
-  const errorCode = responseData.ErrorCode || "";
+  const errorCode = String(responseData.ErrorCode || "");
   const errorMsg = responseData.ErrorMessage || "";
 
-  // Success indicators
   if (
     errorCode === "000" ||
     errorMsg === "Done" ||
-    responseData.JobId ||
-    responseData.MessageData
+    (responseData.JobId && String(responseData.JobId).trim() !== "") ||
+    (Array.isArray(responseData.MessageData) &&
+      responseData.MessageData.length > 0)
   ) {
-    return; // Success
+    return;
   }
 
-  // Error handling
   if (errorCode || errorMsg) {
     switch (errorCode) {
       case "001":
         throw new Error("SMS India HUB: Account details cannot be blank.");
-      case "006": {
-        const fix = [
-          "Invalid DLT template (006). Message must match the template in SMS India Hub panel character-for-character.",
-          "Fix: 1) In panel, copy the exact template text into .env as SMS_INDIA_HUB_OTP_TEMPLATE (use {APP_NAME} and {OTP}).",
-          "2) Set SMS_INDIA_HUB_OTP_APP_NAME to the exact brand name as in DLT (e.g. DHAKADSNAZZY).",
-          "3) Try SMS_INDIA_HUB_SKIP_DLT_TE_ID=true to send without template ID.",
-          "4) For development use USE_MOCK_OTP=true (OTP will be logged in console).",
-        ].join(" ");
-        throw new Error(`SMS India HUB: ${fix}`);
-      }
+      case "006":
+        throw new Error(
+          `SMS India HUB: Invalid DLT template (006): ${errorMsg || "template mismatch"}. Message must match approved template exactly.`,
+        );
       case "007":
-        throw new Error("SMS India HUB: Invalid API key or credentials.");
+        throw new Error("SMS India HUB: Invalid username or password/API key.");
+      case "015":
+        throw new Error("SMS India HUB: Invalid Sender ID.");
       case "021":
-        throw new Error("SMS India HUB: Insufficient credits in your account.");
+        throw new Error("SMS India HUB: Insufficient credits.");
+      case "024":
+        throw new Error(
+          `SMS India HUB: Invalid template or template mismatch (024): ${errorMsg}`,
+        );
       default:
         throw new Error(
           `SMS India HUB API Error (Code: ${errorCode}): ${errorMsg}`,
@@ -231,152 +227,112 @@ function handleSmsResponse(
 }
 
 /**
- * Send SMS via SMS India HUB API.
- * Official doc: user, password, msisdn (10 digits or 91+10), sid, msg, fl=0, gwid=2 for transactional.
+ * Send SMS via SMS India HUB — official pushsms.aspx:
+ * user + password + msisdn + sid + msg + fl=0 + gwid=2 + DLT_TE_ID + EntityId
  */
 async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
-  const username = getSmsUsername()?.trim();
-  const password = getSmsPassword();
-  const senderId = getSmsSenderId()?.trim();
+  const username = getSmsUsername();
+  const password = getSmsAuthPassword();
+  const senderId = getSmsSenderId();
+  const apiKey = getSmsApiKey();
   if (!username || !password || !senderId) {
     throw new Error(
-      "SMS India HUB credentials are missing. Set SMS_INDIA_HUB_USERNAME, SMS_INDIA_HUB_PASSWORD (or SMS_INDIA_HUB_API_KEY), and SMS_INDIA_HUB_SENDER_ID.",
+      "SMS India HUB credentials missing. Set SMS_INDIA_HUB_USERNAME, SMS_INDIA_HUB_PASSWORD (or API_KEY), SMS_INDIA_HUB_SENDER_ID.",
     );
   }
 
-  const mobileStr = String(mobile).trim();
-  const msisdn = normalizeMobileNumber(mobileStr);
+  const msisdn = normalizeMobileNumber(mobile);
 
-  const params: Record<string, string> = {
-    user: username,
-    msisdn,
-    sid: senderId,
-    msg: message,
-    fl: "0",
-    gwid: "2",
-  };
-  if (useApiKeyParam()) {
-    // When using APIKey param, use the actual API key (not panel password)
-    const apiKey = getSmsApiKey();
-    if (!apiKey) {
-      throw new Error(
-        "SMS India HUB: SMS_INDIA_HUB_API_KEY is not set. Set it to your API key from the SMS India HUB panel.",
-      );
+  const buildParams = (auth: "password" | "APIKey"): Record<string, string> => {
+    const params: Record<string, string> = {
+      user: username,
+      msisdn,
+      sid: senderId,
+      msg: message,
+      fl: "0",
+      gwid: "2",
+    };
+    if (auth === "APIKey") {
+      params.APIKey = apiKey || password;
+    } else {
+      params.password = password;
     }
-    params.APIKey = apiKey;
-  } else {
-    params.password = password;
-  }
 
-  const dltId = getSmsDltTemplateId()?.trim();
-  const skipDltId = process.env.SMS_INDIA_HUB_SKIP_DLT_TE_ID === "true";
-  if (dltId && !skipDltId) {
-    params.DLT_TE_ID = dltId;
-  }
+    const dltId = getSmsDltTemplateId();
+    if (dltId && process.env.SMS_INDIA_HUB_SKIP_DLT_TE_ID !== "true") {
+      params.DLT_TE_ID = dltId;
+    }
+    const entityId = process.env.SMS_INDIA_HUB_ENTITY_ID?.trim();
+    if (entityId) {
+      params.EntityId = entityId;
+    }
+    return params;
+  };
 
-  debugLog("SMS request (credentials masked)", {
+  const doRequest = (params: Record<string, string>) =>
+    axios.get<SmsIndiaHubResponse | string>(SMS_INDIA_HUB_API_URL, {
+      params,
+      timeout: API_TIMEOUT,
+      validateStatus: () => true,
+    });
+
+  let params = buildParams("password");
+
+  debugLog("SMS India HUB request", {
     url: SMS_INDIA_HUB_API_URL,
-    method: "GET",
-    authParam: useApiKeyParam() ? "APIKey" : "password",
-    msisdn,
-    msisdnLength: msisdn.length,
+    user: username,
     sid: senderId,
+    msisdn,
     DLT_TE_ID: params.DLT_TE_ID || "(not set)",
-    msgLength: message.length,
-    msgPreview: message.substring(0, 50) + (message.length > 50 ? "..." : ""),
-    fl: params.fl,
-    gwid: params.gwid,
+    EntityId: params.EntityId || "(not set)",
+    msg: message,
+    auth: "password",
   });
 
-  if (SMS_INDIA_HUB_DLT_TEMPLATE_ID?.trim()) {
-    params.DLT_TE_ID = SMS_INDIA_HUB_DLT_TEMPLATE_ID.trim();
-  }
-
-  // Add Entity ID (PE ID) if available
-  const entityId = process.env.SMS_INDIA_HUB_ENTITY_ID;
-  if (entityId?.trim()) {
-    params.EntityId = entityId.trim();
-  }
-
-  // Debug logging for DLT Template issues
-  console.log("--- SMS DLT Debug Info ---");
+  console.log("--- SMS India HUB Debug ---");
+  console.log("Provider: SMS_INDIA_HUB");
   console.log("Template ID:", params.DLT_TE_ID);
   console.log("Entity ID (PE ID):", params.EntityId);
   console.log("Message Content:", params.msg);
   console.log("Sender ID:", params.sid);
   console.log("Mobile:", params.msisdn);
-  console.log("gwid:", params.gwid);
   console.log("--------------------------");
 
-  const doRequest = (reqParams: Record<string, string>) =>
-    axios.get<SmsIndiaHubResponse | string>(SMS_INDIA_HUB_API_URL, {
-      params: reqParams,
-      paramsSerializer: (p) =>
-        Object.keys(p)
-          .map(
-            (k) =>
-              `${encodeURIComponent(k)}=${encodeURIComponent((p as Record<string, string>)[k])}`,
-          )
-          .join("&"),
-      timeout: API_TIMEOUT,
-      validateStatus: () => true,
-    });
-
   let response = await doRequest(params);
-  let data: SmsIndiaHubResponse | string | undefined = response?.data;
+  let data = response.data;
 
   const isInvalidLogin =
-    typeof data === "string" &&
-    (data.includes("Invalid Login") || data.startsWith("Failed#"));
-  if (isInvalidLogin && !useApiKeyParam()) {
-    debugLog("SMS retry with APIKey param", {
-      note: "Retrying with APIKey= instead of password=",
-    });
-    const params2 = { ...params };
-    delete params2.password;
-    params2.APIKey = getSmsApiKey() || password;
-    response = await doRequest(params2);
-    data = response?.data;
+    (typeof data === "string" &&
+      (data.toLowerCase().includes("invalid login") ||
+        data.startsWith("Failed#"))) ||
+    (typeof data === "object" &&
+      data &&
+      String((data as SmsIndiaHubResponse).ErrorCode) === "007");
+
+  // Some accounts accept APIKey= instead of password=
+  if (isInvalidLogin && apiKey) {
+    debugLog("SMS India HUB retry with APIKey", {});
+    params = buildParams("APIKey");
+    response = await doRequest(params);
+    data = response.data;
   }
 
-  const isTemplateError =
-    typeof data === "object" &&
-    data &&
-    (data as SmsIndiaHubResponse).ErrorCode === "006";
-  if (isTemplateError && params.DLT_TE_ID) {
-    debugLog("SMS retry without DLT_TE_ID", {
-      note: "006 - retrying without template ID",
-    });
-    const paramsNoDlt = { ...params };
-    delete paramsNoDlt.DLT_TE_ID;
-    response = await doRequest(paramsNoDlt);
-    data = response?.data;
-  }
-
-  debugLog("SMS response", {
+  debugLog("SMS India HUB response", {
     status: response.status,
-    ErrorCode:
-      typeof data === "object" && data && "ErrorCode" in data
-        ? (data as SmsIndiaHubResponse).ErrorCode
-        : undefined,
-    ErrorMessage:
-      typeof data === "object" && data && "ErrorMessage" in data
-        ? (data as SmsIndiaHubResponse).ErrorMessage
-        : undefined,
-    JobId:
-      typeof data === "object" && data && "JobId" in data
-        ? (data as SmsIndiaHubResponse).JobId
-        : undefined,
-    MessageDataCount:
-      typeof data === "object" &&
-        data &&
-        Array.isArray((data as SmsIndiaHubResponse).MessageData)
-        ? (data as SmsIndiaHubResponse).MessageData!.length
-        : 0,
     raw: data,
   });
 
   handleSmsResponse(data);
+}
+
+async function deliverOtp(mobile: string, otp: string): Promise<void> {
+  // Project uses SMS India HUB only for OTP delivery
+  const message = buildOtpMessage(otp);
+  debugLog("deliverOtp provider", {
+    provider: "SMS_INDIA_HUB",
+    msgPreview: message.slice(0, 80),
+  });
+  await sendSmsViaApi(mobile, message);
 }
 
 /**
@@ -462,11 +418,8 @@ function isSpecialBypass(mobile: string): boolean {
  * Check if mock mode should be used (credentials read at runtime)
  */
 function isMockMode(): boolean {
-  return (
-    process.env.USE_MOCK_OTP === "true" ||
-    !getSmsPassword() ||
-    !getSmsSenderId()
-  );
+  if (process.env.USE_MOCK_OTP === "true") return true;
+  return !getSmsAuthPassword() || !getSmsSenderId();
 }
 
 /**
@@ -524,12 +477,11 @@ export async function sendSmsOtp(
       };
     }
 
-    // Real mode - Send via SMS India HUB; rollback saved OTP if send fails
+    // Real mode - deliver via configured provider; rollback saved OTP if send fails
     const normalizedMobile10 = normalizeMobileTo10(mobileStr);
     await saveOtpToDb(mobileStr, otp, userType);
     try {
-      const message = buildOtpMessage(otp);
-      await sendSmsViaApi(mobileStr, message);
+      await deliverOtp(mobileStr, otp);
     } catch (sendErr) {
       await Otp.deleteMany({ mobile: normalizedMobile10, userType });
       throw sendErr;
@@ -639,12 +591,11 @@ export async function sendOTP(
       };
     }
 
-    // Real mode - Send via SMS India HUB; rollback saved OTP if send fails
+    // Real mode - deliver via configured provider; rollback saved OTP if send fails
     const normalizedMobile10 = normalizeMobileTo10(mobile);
     await saveOtpToDb(mobile, otp, userType);
     try {
-      const message = buildOtpMessage(otp);
-      await sendSmsViaApi(mobile, message);
+      await deliverOtp(mobile, otp);
     } catch (sendErr) {
       await Otp.deleteMany({ mobile: normalizedMobile10, userType });
       throw sendErr;
