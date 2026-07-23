@@ -14,7 +14,7 @@ const USE_APIKEY = process.env.SMS_INDIA_HUB_USE_APIKEY === 'true';
 
 const TEST_MOBILE = '916268423925'; // 91 + 10 digit number
 const TEST_OTP    = '1234';
-const MSG = `Welcome to the DHAKADSNAZZY powered by Appzeto.Your OTP for registration is ${TEST_OTP}.BGADEC`;
+const MSG = `Welcome to the DHAKADSNAZZY powered by Appzeto. Your OTP for registration is ${TEST_OTP}.`;
 
 console.log('=== SMS India HUB Direct API Test ===');
 console.log('USERNAME      :', USERNAME);

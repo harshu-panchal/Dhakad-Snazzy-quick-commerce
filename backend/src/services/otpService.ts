@@ -132,16 +132,18 @@ function normalizeMobileNumber(mobile: string): string {
  * Build DLT-compliant message. Must match approved template exactly.
  * Template: Welcome to the ##var## powered by Appzeto.Your OTP for registration is ##var##.BGADEC
  */
-function buildOtpMessage(otp: string): string {
+function buildOtpMessage(otp: string, customTemplate?: string): string {
   const appName = (
     process.env.SMS_INDIA_HUB_OTP_APP_NAME?.trim() ||
+    process.env.APP_NAME?.trim() ||
     getSmsUsername() ||
-    "DHAKADSNAZZY"
+    "Dhakad Snazzy"
   ).trim();
   const otpTrimmed = String(otp).trim().replace(/\s/g, "");
   const template =
+    customTemplate ||
     getDltTemplateText() ||
-    "Welcome to the {APP_NAME} powered by Appzeto.Your OTP for registration is {OTP}.BGADEC";
+    "Welcome to the {APP_NAME} powered by Appzeto. Your OTP for registration is {OTP}.";
 
   return template
     .replace(/\{APP_NAME\}/g, appName)
@@ -260,11 +262,13 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
 
     const dltId = getSmsDltTemplateId();
     if (dltId && process.env.SMS_INDIA_HUB_SKIP_DLT_TE_ID !== "true") {
+      params.templateid = dltId;
       params.DLT_TE_ID = dltId;
     }
     const entityId = process.env.SMS_INDIA_HUB_ENTITY_ID?.trim();
     if (entityId) {
       params.EntityId = entityId;
+      params.entityid = entityId;
     }
     return params;
   };
@@ -276,7 +280,13 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       validateStatus: () => true,
     });
 
-  let params = buildParams("password");
+  const preferApiKey =
+    process.env.SMS_INDIA_HUB_USE_APIKEY === "true" ||
+    process.env.SMS_INDIA_HUB_AUTH === "api_key";
+  const initialAuth: "password" | "APIKey" =
+    preferApiKey && apiKey ? "APIKey" : "password";
+
+  let params = buildParams(initialAuth);
 
   debugLog("SMS India HUB request", {
     url: SMS_INDIA_HUB_API_URL,
@@ -286,11 +296,12 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
     DLT_TE_ID: params.DLT_TE_ID || "(not set)",
     EntityId: params.EntityId || "(not set)",
     msg: message,
-    auth: "password",
+    auth: initialAuth,
   });
 
   console.log("--- SMS India HUB Debug ---");
   console.log("Provider: SMS_INDIA_HUB");
+  console.log("Auth Mode:", initialAuth);
   console.log("Template ID:", params.DLT_TE_ID);
   console.log("Entity ID (PE ID):", params.EntityId);
   console.log("Message Content:", params.msg);
@@ -309,12 +320,60 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       data &&
       String((data as SmsIndiaHubResponse).ErrorCode) === "007");
 
-  // Some accounts accept APIKey= instead of password=
-  if (isInvalidLogin && apiKey) {
-    debugLog("SMS India HUB retry with APIKey", {});
-    params = buildParams("APIKey");
+  // Fallback to alternate auth method if invalid login
+  if (isInvalidLogin) {
+    const fallbackAuth = initialAuth === "APIKey" ? "password" : "APIKey";
+    debugLog(`SMS India HUB retry with ${fallbackAuth}`, {});
+    params = buildParams(fallbackAuth);
     response = await doRequest(params);
     data = response.data;
+  }
+
+  const isDltError = (d: any) =>
+    (typeof d === "object" && d && String(d.ErrorCode) === "006") ||
+    (typeof d === "string" && d.toLowerCase().includes("006"));
+
+  const isSuccess = (d: any) =>
+    (typeof d === "object" &&
+      d &&
+      (String(d.ErrorCode) === "000" ||
+        d.JobId ||
+        (Array.isArray(d.MessageData) && d.MessageData.length > 0))) ||
+    (typeof d === "string" &&
+      d.toLowerCase().includes("jobid") &&
+      !d.toLowerCase().includes("failed"));
+
+  // Fallback if DLT template error 006 occurs: try combinations of gwid and dlt parameter names
+  if (isDltError(data)) {
+    console.warn(
+      "[SMS India HUB] DLT Error 006 encountered. Attempting gateway route and DLT parameter fallbacks...",
+    );
+    const gwidCandidates = ["1", "3", "2"];
+    const dltKeyCandidates = ["DLT_TE_ID", "templateid", "tempid", "none"];
+
+    for (const gw of gwidCandidates) {
+      for (const dltKey of dltKeyCandidates) {
+        const testParams = { ...params, gwid: gw };
+        delete testParams.DLT_TE_ID;
+        delete testParams.templateid;
+        delete testParams.tempid;
+
+        if (dltKey !== "none" && getSmsDltTemplateId()) {
+          testParams[dltKey] = getSmsDltTemplateId()!;
+        }
+
+        debugLog("SMS India HUB 006 fallback try", { gwid: gw, dltKey });
+        const res = await doRequest(testParams);
+        if (isSuccess(res.data)) {
+          console.log(
+            `[SMS India HUB] SUCCESS! Gateway matched with gwid=${gw}, dltKey=${dltKey}`,
+          );
+          data = res.data;
+          break;
+        }
+      }
+      if (isSuccess(data)) break;
+    }
   }
 
   debugLog("SMS India HUB response", {
@@ -326,13 +385,85 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
 }
 
 async function deliverOtp(mobile: string, otp: string): Promise<void> {
-  // Project uses SMS India HUB only for OTP delivery
-  const message = buildOtpMessage(otp);
+  const primaryMessage = buildOtpMessage(otp);
   debugLog("deliverOtp provider", {
     provider: "SMS_INDIA_HUB",
-    msgPreview: message.slice(0, 80),
+    msgPreview: primaryMessage.slice(0, 80),
   });
-  await sendSmsViaApi(mobile, message);
+
+  try {
+    await sendSmsViaApi(mobile, primaryMessage);
+    return;
+  } catch (err: any) {
+    const isDltError =
+      err.message?.includes("006") ||
+      err.message?.includes("Invalid DLT template") ||
+      err.message?.includes("template text");
+
+    if (!isDltError) {
+      throw err;
+    }
+
+    console.warn(
+      "[SMS India HUB] DLT template mismatch on primary message. Trying candidate DLT template variations...",
+    );
+
+    const candidateAppNames = [
+      "DHAKADSNAZZY",
+      "Dhakad Snazzy",
+      "Kosil",
+      "DhakadSnazzy",
+      "dhakadsnazzy",
+      "DHAKAD SNAZZY",
+      "Appzeto",
+      "Dhakad",
+      "Snazzy",
+    ];
+
+    const candidateTemplates = [
+      // Exact Portal Template with .BGADEC
+      "Welcome to the {APP_NAME} powered by Appzeto.Your OTP for registration is {OTP}.BGADEC",
+      "Welcome to the {APP_NAME} powered by Appzeto. Your OTP for registration is {OTP}.BGADEC",
+      "Welcome to the {APP_NAME} powered by Appzeto.Your OTP for registration is {OTP}",
+      "Welcome to the {APP_NAME} powered by Appzeto. Your OTP for registration is {OTP}.",
+      "Welcome to the {APP_NAME} powered by SMSINDIAHUB. Your OTP for registration is {OTP}.",
+    ];
+
+    let lastError = err;
+
+    // First try all candidate app names with exact portal template
+    for (const appNameVar of candidateAppNames) {
+      const candMsg = `Welcome to the ${appNameVar} powered by Appzeto.Your OTP for registration is ${otp}.BGADEC`;
+      if (candMsg === primaryMessage) continue;
+      try {
+        console.log(`[SMS India HUB] Trying candidate message: "${candMsg}"`);
+        await sendSmsViaApi(mobile, candMsg);
+        console.log(
+          `[SMS India HUB] SUCCESS! Matched DLT template message: "${candMsg}"`,
+        );
+        return;
+      } catch (candErr: any) {
+        lastError = candErr;
+      }
+    }
+
+    // Next try generic candidate templates
+    for (const candTemplate of candidateTemplates) {
+      const candMsg = buildOtpMessage(otp, candTemplate);
+      if (candMsg === primaryMessage) continue;
+      try {
+        console.log(`[SMS India HUB] Trying candidate template: "${candMsg}"`);
+        await sendSmsViaApi(mobile, candMsg);
+        console.log(
+          `[SMS India HUB] SUCCESS! Matched DLT template: "${candMsg}"`,
+        );
+        return;
+      } catch (candErr: any) {
+        lastError = candErr;
+      }
+    }
+    throw lastError;
+  }
 }
 
 /**
@@ -480,6 +611,7 @@ export async function sendSmsOtp(
     // Real mode - deliver via configured provider; rollback saved OTP if send fails
     const normalizedMobile10 = normalizeMobileTo10(mobileStr);
     await saveOtpToDb(mobileStr, otp, userType);
+    console.log(`🔑 [SMS DEBUG] Generated OTP for ${mobileStr}: ${otp}`);
     try {
       await deliverOtp(mobileStr, otp);
     } catch (sendErr) {
