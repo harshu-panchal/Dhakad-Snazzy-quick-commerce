@@ -4,6 +4,7 @@ import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import mongoose from "mongoose";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
+import AppSettings from "../../../models/AppSettings";
 
 // Get products with filtering options (public)
 export const getProducts = async (req: Request, res: Response) => {
@@ -240,7 +241,7 @@ export const getProductById = async (req: Request, res: Response) => {
       .populate("brand", "name")
       .populate(
         "seller",
-        "storeName city fssaiLicNo address location serviceRadiusKm"
+        "sellerName storeName city fssaiLicNo address location serviceRadiusKm"
       );
 
     if (!product) {
@@ -341,12 +342,16 @@ export const getProductById = async (req: Request, res: Response) => {
         "productName price discPrice compareAtPrice mrp variations mainImage pack discount _id rating reviewsCount"
       );
 
+    const settings = await AppSettings.getSettings();
+    const showSellerDetails = settings?.features?.showSellerDetails !== false;
+
     return res.status(200).json({
       success: true,
       data: {
         ...product.toObject(),
         similarProducts,
         isAvailableAtLocation, // Add availability flag to response
+        showSellerDetails, // Add seller visibility flag
       },
     });
   } catch (error: any) {

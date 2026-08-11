@@ -2,5 +2,6 @@
   "css.lint.unknownAtRules": "ignore",
   "files.associations": {
     "*.css": "tailwindcss"
-  }
+  },
+  "typescript.tsdk": "backend/node_modules/typescript/lib"
 }

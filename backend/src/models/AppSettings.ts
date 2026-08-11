@@ -105,6 +105,7 @@ export interface IAppSettings extends Document {
     orderTracking: boolean;
     wallet: boolean;
     coupons: boolean;
+    showSellerDetails: boolean;
   };
 
   // Maintenance Mode
@@ -378,6 +379,10 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         default: true,
       },
       coupons: {
+        type: Boolean,
+        default: true,
+      },
+      showSellerDetails: {
         type: Boolean,
         default: true,
       },

@@ -100,6 +100,7 @@ export default function ProductDetail() {
               productData.variations?.[0]?.value ||
               productData.smallDescription ||
               "Standard",
+            sellerId: productData.sellerId || (productData.seller && typeof productData.seller === 'object' ? productData.seller._id : productData.seller),
           });
 
           // Reset selected variant and image when product changes
@@ -998,16 +999,31 @@ export default function ProductDetail() {
                           : "This product is non-returnable."}
                       </span>
                     </div>
-                    {product.sellerId && (
-                      <div className="flex items-start">
-                        <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
-                          Seller:
-                        </span>
-                        <span className="text-xs text-neutral-600 leading-relaxed flex-1">
-                          Dhakad Snazzy Partner (
-                          {product.sellerId.slice(-6).toUpperCase()})
-                        </span>
-                      </div>
+                    {product.showSellerDetails !== false && (product.seller || product.sellerId) && (
+                      <>
+                        <div className="flex items-start">
+                          <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
+                            Seller:
+                          </span>
+                          <span className="text-xs text-neutral-600 leading-relaxed flex-1">
+                            {product.seller && typeof product.seller === 'object' ? (
+                              product.seller.sellerName || product.seller.storeName
+                            ) : (
+                              `Dhakad Snazzy Partner (${String(product.sellerId || product.seller || '').slice(-6).toUpperCase()})`
+                            )}
+                          </span>
+                        </div>
+                        {product.seller && typeof product.seller === 'object' && product.seller.city && (
+                          <div className="flex items-start">
+                            <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
+                              Seller Location:
+                            </span>
+                            <span className="text-xs text-neutral-600 leading-relaxed flex-1">
+                              {product.seller.city}
+                            </span>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

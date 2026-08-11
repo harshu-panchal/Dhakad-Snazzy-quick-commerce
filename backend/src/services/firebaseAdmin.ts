@@ -57,7 +57,7 @@ export async function sendPushNotification(
         data?: { [key: string]: string };
         icon?: string;
     }
-) {
+): Promise<any> {
     if (!firebaseInitialized) {
         console.warn('Firebase Admin not initialized. Skipping notification send.');
         return {
