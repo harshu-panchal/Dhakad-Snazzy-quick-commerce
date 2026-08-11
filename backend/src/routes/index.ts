@@ -38,6 +38,7 @@ import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
 import sellerNotificationRoutes from "./sellerNotificationRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
+import migrationRoutes from "./migrationRoutes";
 
 import {
   createOrder,
@@ -143,6 +144,7 @@ router.use("/sellers", sellerRoutes);
 
 // Admin routes (protected, admin only)
 router.use("/admin", adminRoutes);
+router.use("/admin", migrationRoutes);
 
 // Upload routes (protected)
 router.use("/upload", uploadRoutes);

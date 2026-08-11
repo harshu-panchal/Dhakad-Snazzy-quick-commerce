@@ -18,6 +18,12 @@ export default defineConfig({
       strict: false,
     },
     middlewareMode: false,
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
   },
   resolve: {
     alias: {

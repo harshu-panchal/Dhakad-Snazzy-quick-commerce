@@ -9,6 +9,7 @@ const connectDB = async (): Promise<void> => {
       throw new Error('MONGODB_URI is not defined in environment variables');
     }
 
+    mongoose.set('autoIndex', false);
     const conn = await mongoose.connect(process.env.MONGODB_URI);
 
     console.log('\n\x1b[32m✓\x1b[0m \x1b[1mMongoDB Connected Successfully\x1b[0m');

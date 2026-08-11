@@ -70,8 +70,13 @@ app.use(compression());
 // Apply CORS middleware - This handles everything including preflight
 app.use(cors(corsOptions));
 
+import path from "path";
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve local uploaded files statically
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // Initialize Socket.io
 const io = initializeSocket(httpServer);

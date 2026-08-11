@@ -46,3 +46,11 @@ Thumbs.db
 
 # Firebase credentials (development only - do not commit)
 config/firebase-service-account.json
+
+# Local uploads directory
+uploads/*
+!uploads/.gitkeep
+
+# Cloudinary raw downloaded folder
+cloudinary/
+../cloudinary/
