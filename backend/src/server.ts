@@ -117,6 +117,14 @@ async function startServer() {
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();
 
+  // Ensure image URLs use the backend domain (https://api.dhakadsnazzy.com)
+  try {
+    const { updateImageUrlsDomain } = await import("./scripts/fixImageDomain");
+    await updateImageUrlsDomain(process.env.SERVER_URL || "https://api.dhakadsnazzy.com");
+  } catch (domainErr) {
+    console.error("⚠️ Image domain update warning:", domainErr);
+  }
+
   // Handle server errors gracefully (e.g., port already in use)
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
     if (error.code === 'EADDRINUSE') {
