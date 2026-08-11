@@ -171,8 +171,11 @@ export async function getDeliveryPendingOrderAlerts(
   const orderIds = Array.from(orderIdSet).map((id) => new mongoose.Types.ObjectId(id));
   const orders = await Order.find({
     _id: { $in: orderIds },
-    $or: [{ deliveryBoy: { $exists: false } }, { deliveryBoy: null }],
-    deliveryAssignmentStatus: { $in: ["Searching", "Queued"] },
+    $or: [
+      { deliveryBoy: { $exists: false } },
+      { deliveryBoy: null },
+      { deliveryBoy: deliveryObjectId },
+    ],
     status: { $nin: ["Cancelled", "Rejected", "Returned", "Delivered"] },
   }).lean();
 
