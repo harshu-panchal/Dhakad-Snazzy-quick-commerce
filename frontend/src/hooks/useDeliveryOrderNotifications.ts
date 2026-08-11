@@ -15,6 +15,55 @@ interface NotificationState {
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 2000;
+const STORAGE_KEY_PREFIX = 'delivery_order_notifications_';
+
+function getInitialNotificationState(userId?: string): {
+    currentNotification: OrderNotificationData | null;
+    notificationQueue: OrderNotificationData[];
+} {
+    if (!userId || typeof window === 'undefined') {
+        return { currentNotification: null, notificationQueue: [] };
+    }
+    try {
+        const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed && typeof parsed === 'object') {
+                return {
+                    currentNotification: parsed.currentNotification || null,
+                    notificationQueue: Array.isArray(parsed.notificationQueue) ? parsed.notificationQueue : [],
+                };
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to parse persisted delivery notification state:', e);
+    }
+    return { currentNotification: null, notificationQueue: [] };
+}
+
+function persistNotificationState(
+    userId: string | undefined,
+    current: OrderNotificationData | null,
+    queue: OrderNotificationData[],
+) {
+    if (!userId || typeof window === 'undefined') return;
+    try {
+        const key = `${STORAGE_KEY_PREFIX}${userId}`;
+        if (!current && queue.length === 0) {
+            localStorage.removeItem(key);
+        } else {
+            localStorage.setItem(
+                key,
+                JSON.stringify({
+                    currentNotification: current,
+                    notificationQueue: queue,
+                }),
+            );
+        }
+    } catch (e) {
+        console.warn('Failed to persist delivery notification state:', e);
+    }
+}
 
 function mergeUniqueOrderNotifications(
     existing: OrderNotificationData[],
@@ -35,11 +84,14 @@ function mergeUniqueOrderNotifications(
 
 export const useDeliveryOrderNotifications = () => {
     const { isAuthenticated, user } = useAuth();
-    const [state, setState] = useState<NotificationState>({
-        currentNotification: null,
-        notificationQueue: [],
-        isConnected: false,
-        error: null,
+    const [state, setState] = useState<NotificationState>(() => {
+        const initial = getInitialNotificationState(user?.id);
+        return {
+            currentNotification: initial.currentNotification,
+            notificationQueue: initial.notificationQueue,
+            isConnected: false,
+            error: null,
+        };
     });
 
     const socketRef = useRef<Socket | null>(null);
@@ -47,38 +99,74 @@ export const useDeliveryOrderNotifications = () => {
     const reconnectAttemptsRef = useRef(0);
     const hasRehydratedRef = useRef(false);
 
-    const applyIncomingNotifications = useCallback((incoming: OrderNotificationData[]) => {
-        if (incoming.length === 0) {
-            return;
+    // Sync state with localStorage whenever notification state or user changes
+    useEffect(() => {
+        if (isAuthenticated && user?.userType === 'Delivery' && user?.id) {
+            persistNotificationState(user.id, state.currentNotification, state.notificationQueue);
         }
+    }, [isAuthenticated, user?.id, user?.userType, state.currentNotification, state.notificationQueue]);
 
-        setState((prev) => {
-            if (prev.currentNotification) {
-                return {
+    // Restore from localStorage when user ID becomes available
+    useEffect(() => {
+        if (user?.id && user?.userType === 'Delivery' && !state.currentNotification && state.notificationQueue.length === 0) {
+            const restored = getInitialNotificationState(user.id);
+            if (restored.currentNotification || restored.notificationQueue.length > 0) {
+                setState((prev) => ({
                     ...prev,
-                    notificationQueue: mergeUniqueOrderNotifications(prev.notificationQueue, incoming),
-                };
+                    currentNotification: restored.currentNotification,
+                    notificationQueue: restored.notificationQueue,
+                }));
             }
-
-            const [first, ...rest] = incoming;
-            return {
-                ...prev,
-                currentNotification: first,
-                notificationQueue: mergeUniqueOrderNotifications(prev.notificationQueue, rest),
-            };
-        });
-    }, []);
+        }
+    }, [user?.id, user?.userType]);
 
     const rehydratePendingAlerts = useCallback(async () => {
         try {
             const alerts = await getPendingOrderAlerts();
-            if (Array.isArray(alerts) && alerts.length > 0) {
-                applyIncomingNotifications(alerts);
-            }
+            if (!Array.isArray(alerts)) return;
+
+            setState((prev) => {
+                const serverMap = new Map<string, OrderNotificationData>(
+                    alerts.map((a: OrderNotificationData) => [a.orderId, a]),
+                );
+                let newCurrent = prev.currentNotification;
+                let newQueue = [...prev.notificationQueue];
+
+                // If current notification is no longer in server pending alerts, clear it
+                if (newCurrent && !serverMap.has(newCurrent.orderId)) {
+                    newCurrent = null;
+                }
+
+                // Filter out queue items that are no longer pending on server
+                newQueue = newQueue.filter((item) => serverMap.has(item.orderId));
+
+                // Merge server alerts into current/queue if not already present
+                const existingIds = new Set<string>();
+                if (newCurrent) existingIds.add(newCurrent.orderId);
+                newQueue.forEach((item) => existingIds.add(item.orderId));
+
+                for (const alert of alerts) {
+                    if (!existingIds.has(alert.orderId)) {
+                        if (!newCurrent) {
+                            newCurrent = alert;
+                            existingIds.add(alert.orderId);
+                        } else {
+                            newQueue.push(alert);
+                            existingIds.add(alert.orderId);
+                        }
+                    }
+                }
+
+                return {
+                    ...prev,
+                    currentNotification: newCurrent,
+                    notificationQueue: newQueue,
+                };
+            });
         } catch (error) {
             console.error('Failed to rehydrate delivery order alerts:', error);
         }
-    }, [applyIncomingNotifications]);
+    }, []);
 
     const connectSocket = useCallback(() => {
         if (!isAuthenticated || user?.userType !== 'Delivery' || !user?.id) {
@@ -116,7 +204,6 @@ export const useDeliveryOrderNotifications = () => {
             }));
 
             // Join delivery notification room
-            // CRITICAL FIX: Ensure ID is a string. Mongoose ObjectIds can sometimes be objects in JS.
             const userId = String(user.id);
             console.log(`📡 [SOCKET] Connected. Joining delivery-notifications for UserID: ${userId}`);
             socket.emit('join-delivery-notifications', userId);
@@ -158,6 +245,10 @@ export const useDeliveryOrderNotifications = () => {
             setState(prev => {
                 // If there's already a current notification, queue this one
                 if (prev.currentNotification) {
+                    // Prevent duplicate queueing
+                    if (prev.currentNotification.orderId === orderData.orderId || prev.notificationQueue.some(item => item.orderId === orderData.orderId)) {
+                        return prev;
+                    }
                     return {
                         ...prev,
                         notificationQueue: [...prev.notificationQueue, orderData],
@@ -177,7 +268,6 @@ export const useDeliveryOrderNotifications = () => {
             setState(prev => {
                 // If this is the current notification, clear it
                 if (prev.currentNotification?.orderId === data.orderId) {
-                    // Show next notification from queue if available
                     const nextNotification = prev.notificationQueue[0] || null;
                     return {
                         ...prev,
@@ -199,9 +289,7 @@ export const useDeliveryOrderNotifications = () => {
             console.log('❌ All delivery boys rejected order:', data);
 
             setState(prev => {
-                // If this is the current notification, clear it
                 if (prev.currentNotification?.orderId === data.orderId) {
-                    // Show next notification from queue if available
                     const nextNotification = prev.notificationQueue[0] || null;
                     return {
                         ...prev,
@@ -209,7 +297,6 @@ export const useDeliveryOrderNotifications = () => {
                         notificationQueue: prev.notificationQueue.slice(1),
                     };
                 }
-                // Remove from queue if it's there
                 return {
                     ...prev,
                     notificationQueue: prev.notificationQueue.filter(
@@ -223,9 +310,8 @@ export const useDeliveryOrderNotifications = () => {
             console.log('❌ Delivery notification socket disconnected:', reason);
             setState(prev => ({ ...prev, isConnected: false }));
 
-            // Attempt reconnection
             if (reason === 'io server disconnect' || reason === 'io client disconnect') {
-                return; // Don't auto-reconnect if intentionally disconnected
+                return;
             }
 
             attemptReconnect();
@@ -295,7 +381,6 @@ export const useDeliveryOrderNotifications = () => {
             const result = await acceptOrder(socketRef.current, orderId, user.id);
 
             if (result.success) {
-                // Clear current notification and show next from queue
                 setState(prev => {
                     const nextNotification = prev.notificationQueue[0] || null;
                     return {
@@ -305,12 +390,10 @@ export const useDeliveryOrderNotifications = () => {
                     };
                 });
 
-                // Navigate to order detail page
                 if (navigate) {
                     navigate(`/delivery/orders/${orderId}`);
                 }
             } else if (result.message === 'Order notification not found') {
-                // If notification is not found on server (stale), clear it from UI too
                 console.warn('⚠️ clearing stale notification:', orderId);
                 setState(prev => {
                     const nextNotification = prev.notificationQueue[0] || null;
@@ -333,7 +416,6 @@ export const useDeliveryOrderNotifications = () => {
             return { success: false, message: 'Not connected or user not found', allRejected: false };
         }
 
-        // Immediately clear the notification from UI
         setState(prev => {
             const nextNotification = prev.notificationQueue[0] || null;
             return {
@@ -344,7 +426,6 @@ export const useDeliveryOrderNotifications = () => {
         });
 
         try {
-            // Perform the actual rejection in the background
             const result = await rejectOrder(socketRef.current, orderId, user.id);
             return result;
         } catch (error: any) {
@@ -396,4 +477,5 @@ export const useDeliveryOrderNotifications = () => {
         socket: socketRef.current,
     };
 };
+
 

@@ -19,282 +19,292 @@ import LoadingSpinner from "./components/LoadingSpinner";
 import ErrorBoundary from "./components/ErrorBoundary";
 import RouteTransition from "./components/RouteTransition";
 import { useEffect } from "react";
+import lazyWithRetry from "./utils/lazyWithRetry";
 
 // Critical routes - load immediately (Home, Cart)
 import Home from "./modules/user/Home";
 import Cart from "./modules/user/Cart";
 
 // Lazy load large frontend sections
-const Checkout = lazy(() => import("./modules/user/Checkout"));
-const CheckoutAddress = lazy(() => import("./modules/user/CheckoutAddress"));
-const ProductDetail = lazy(() => import("./modules/user/ProductDetail"));
+const Checkout = lazyWithRetry(() => import("./modules/user/Checkout"), "Checkout");
+const CheckoutAddress = lazyWithRetry(() => import("./modules/user/CheckoutAddress"), "CheckoutAddress");
+const ProductDetail = lazyWithRetry(() => import("./modules/user/ProductDetail"), "ProductDetail");
 
 // Lazy load less critical routes for code splitting
-const Search = lazy(() => import("./modules/user/Search"));
-const Orders = lazy(() => import("./modules/user/Orders"));
-const OrderDetail = lazy(() => import("./modules/user/OrderDetail"));
-const OrderAgain = lazy(() => import("./modules/user/OrderAgain"));
-const Account = lazy(() => import("./modules/user/Account"));
-const Categories = lazy(() => import("./modules/user/Categories"));
-const Category = lazy(() => import("./modules/user/Category"));
-const Invoice = lazy(() => import("./modules/user/Invoice"));
-const Login = lazy(() => import("./modules/user/Login"));
+const Search = lazyWithRetry(() => import("./modules/user/Search"), "Search");
+const Orders = lazyWithRetry(() => import("./modules/user/Orders"), "Orders");
+const OrderDetail = lazyWithRetry(() => import("./modules/user/OrderDetail"), "OrderDetail");
+const OrderAgain = lazyWithRetry(() => import("./modules/user/OrderAgain"), "OrderAgain");
+const Account = lazyWithRetry(() => import("./modules/user/Account"), "Account");
+const Categories = lazyWithRetry(() => import("./modules/user/Categories"), "Categories");
+const Category = lazyWithRetry(() => import("./modules/user/Category"), "Category");
+const Invoice = lazyWithRetry(() => import("./modules/user/Invoice"), "Invoice");
+const Login = lazyWithRetry(() => import("./modules/user/Login"), "Login");
 
-const AboutUs = lazy(() => import("./modules/user/AboutUs"));
-const FAQ = lazy(() => import("./modules/user/FAQ"));
-const Wishlist = lazy(() => import("./modules/user/Wishlist"));
-const Addresses = lazy(() => import("./modules/user/Addresses"));
-const AddressBook = lazy(() => import("./modules/user/AddressBook"));
-const UserNotifications = lazy(() => import("./modules/user/Notifications"));
-const SpiritualStore = lazy(() => import("./modules/user/SpiritualStore"));
-const PharmaStore = lazy(() => import("./modules/user/PharmaStore"));
-const EGiftStore = lazy(() => import("./modules/user/EGiftStore"));
-const PetStore = lazy(() => import("./modules/user/PetStore"));
-const SportsStore = lazy(() => import("./modules/user/SportsStore"));
-const FashionStore = lazy(() => import("./modules/user/FashionStore"));
-const ToyStore = lazy(() => import("./modules/user/ToyStore"));
-const HobbyStore = lazy(() => import("./modules/user/HobbyStore"));
-const StorePage = lazy(() => import("./modules/user/StorePage"));
+const AboutUs = lazyWithRetry(() => import("./modules/user/AboutUs"), "AboutUs");
+const FAQ = lazyWithRetry(() => import("./modules/user/FAQ"), "FAQ");
+const Wishlist = lazyWithRetry(() => import("./modules/user/Wishlist"), "Wishlist");
+const Addresses = lazyWithRetry(() => import("./modules/user/Addresses"), "Addresses");
+const AddressBook = lazyWithRetry(() => import("./modules/user/AddressBook"), "AddressBook");
+const UserNotifications = lazyWithRetry(() => import("./modules/user/Notifications"), "UserNotifications");
+const SpiritualStore = lazyWithRetry(() => import("./modules/user/SpiritualStore"), "SpiritualStore");
+const PharmaStore = lazyWithRetry(() => import("./modules/user/PharmaStore"), "PharmaStore");
+const EGiftStore = lazyWithRetry(() => import("./modules/user/EGiftStore"), "EGiftStore");
+const PetStore = lazyWithRetry(() => import("./modules/user/PetStore"), "PetStore");
+const SportsStore = lazyWithRetry(() => import("./modules/user/SportsStore"), "SportsStore");
+const FashionStore = lazyWithRetry(() => import("./modules/user/FashionStore"), "FashionStore");
+const ToyStore = lazyWithRetry(() => import("./modules/user/ToyStore"), "ToyStore");
+const HobbyStore = lazyWithRetry(() => import("./modules/user/HobbyStore"), "HobbyStore");
+const StorePage = lazyWithRetry(() => import("./modules/user/StorePage"), "StorePage");
+
 // Lazy load delivery routes
-const DeliveryLayout = lazy(
-  () => import("./modules/delivery/components/DeliveryLayout"),
+const DeliveryLayout = lazyWithRetry(
+  () => import("./modules/delivery/components/DeliveryLayout"), "DeliveryLayout"
 );
-const DeliveryDashboard = lazy(
-  () => import("./modules/delivery/pages/DeliveryDashboard"),
+const DeliveryDashboard = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryDashboard"), "DeliveryDashboard"
 );
-const DeliveryOrders = lazy(
-  () => import("./modules/delivery/pages/DeliveryOrders"),
+const DeliveryOrders = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryOrders"), "DeliveryOrders"
 );
-const DeliveryOrderDetail = lazy(
-  () => import("./modules/delivery/pages/DeliveryOrderDetail"),
+const DeliveryOrderDetail = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryOrderDetail"), "DeliveryOrderDetail"
 );
-const DeliveryNotifications = lazy(
-  () => import("./modules/delivery/pages/DeliveryNotifications"),
+const DeliveryNotifications = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryNotifications"), "DeliveryNotifications"
 );
-const DeliveryMenu = lazy(
-  () => import("./modules/delivery/pages/DeliveryMenu"),
+const DeliveryMenu = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryMenu"), "DeliveryMenu"
 );
-const DeliveryPendingOrders = lazy(
-  () => import("./modules/delivery/pages/DeliveryPendingOrders"),
+const DeliveryPendingOrders = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryPendingOrders"), "DeliveryPendingOrders"
 );
-const DeliveryAllOrders = lazy(
-  () => import("./modules/delivery/pages/DeliveryAllOrders"),
+const DeliveryAllOrders = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryAllOrders"), "DeliveryAllOrders"
 );
-const DeliveryReturnOrders = lazy(
-  () => import("./modules/delivery/pages/DeliveryReturnOrders"),
+const DeliveryReturnOrders = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryReturnOrders"), "DeliveryReturnOrders"
 );
-const DeliveryProfile = lazy(
-  () => import("./modules/delivery/pages/DeliveryProfile"),
+const DeliveryProfile = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryProfile"), "DeliveryProfile"
 );
-const DeliveryEarnings = lazy(
-  () => import("./modules/delivery/pages/DeliveryEarnings"),
+const DeliveryEarnings = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryEarnings"), "DeliveryEarnings"
 );
-const DeliveryWallet = lazy(
-  () => import("./modules/delivery/pages/DeliveryWallet"),
+const DeliveryWallet = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryWallet"), "DeliveryWallet"
 );
-const DeliverySettings = lazy(
-  () => import("./modules/delivery/pages/DeliverySettings"),
+const DeliverySettings = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliverySettings"), "DeliverySettings"
 );
-const DeliveryHelp = lazy(
-  () => import("./modules/delivery/pages/DeliveryHelp"),
+const DeliveryHelp = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryHelp"), "DeliveryHelp"
 );
-const DeliveryAbout = lazy(
-  () => import("./modules/delivery/pages/DeliveryAbout"),
+const DeliveryAbout = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryAbout"), "DeliveryAbout"
 );
-const DeliverySellersInRange = lazy(
-  () => import("./modules/delivery/pages/DeliverySellersInRange"),
+const DeliverySellersInRange = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliverySellersInRange"), "DeliverySellersInRange"
 );
-const DeliveryLogin = lazy(
-  () => import("./modules/delivery/pages/DeliveryLogin"),
+const DeliveryLogin = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryLogin"), "DeliveryLogin"
 );
-const DeliverySignUp = lazy(
-  () => import("./modules/delivery/pages/DeliverySignUp"),
+const DeliverySignUp = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliverySignUp"), "DeliverySignUp"
 );
 
 // Lazy load seller routes
-const SellerLayout = lazy(
-  () => import("./modules/seller/components/SellerLayout"),
+const SellerLayout = lazyWithRetry(
+  () => import("./modules/seller/components/SellerLayout"), "SellerLayout"
 );
-const SellerDashboard = lazy(
-  () => import("./modules/seller/pages/SellerDashboard"),
+const SellerDashboard = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerDashboard"), "SellerDashboard"
 );
-const SellerOrders = lazy(() => import("./modules/seller/pages/SellerOrders"));
-const SellerNotifications = lazy(() => import("./modules/seller/pages/SellerNotifications"));
-const SellerOrderDetail = lazy(
-  () => import("./modules/seller/pages/SellerOrderDetail"),
+const SellerOrders = lazyWithRetry(() => import("./modules/seller/pages/SellerOrders"), "SellerOrders");
+const SellerNotifications = lazyWithRetry(() => import("./modules/seller/pages/SellerNotifications"), "SellerNotifications");
+const SellerOrderDetail = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerOrderDetail"), "SellerOrderDetail"
 );
-const SellerSettlement = lazy(
-  () => import("./modules/seller/pages/SellerSettlement"),
+const SellerSettlement = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerSettlement"), "SellerSettlement"
 );
-const SellerCategory = lazy(
-  () => import("./modules/seller/pages/SellerCategory"),
+const SellerCategory = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerCategory"), "SellerCategory"
 );
-const SellerSubCategory = lazy(
-  () => import("./modules/seller/pages/SellerSubCategory"),
+const SellerSubCategory = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerSubCategory"), "SellerSubCategory"
 );
-const SellerAddProduct = lazy(
-  () => import("./modules/seller/pages/SellerAddProduct"),
+const SellerAddProduct = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerAddProduct"), "SellerAddProduct"
 );
-const SellerTaxes = lazy(() => import("./modules/seller/pages/SellerTaxes"));
-const SellerProductList = lazy(
-  () => import("./modules/seller/pages/SellerProductList"),
+const SellerTaxes = lazyWithRetry(() => import("./modules/seller/pages/SellerTaxes"), "SellerTaxes");
+const SellerProductList = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerProductList"), "SellerProductList"
 );
-const SellerStockManagement = lazy(
-  () => import("./modules/seller/pages/SellerStockManagement"),
+const SellerStockManagement = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerStockManagement"), "SellerStockManagement"
 );
-const SellerWallet = lazy(() => import("./modules/seller/pages/SellerWallet"));
-const SellerSalesReport = lazy(
-  () => import("./modules/seller/pages/SellerSalesReport"),
+const SellerWallet = lazyWithRetry(() => import("./modules/seller/pages/SellerWallet"), "SellerWallet");
+const SellerSalesReport = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerSalesReport"), "SellerSalesReport"
 );
-const SellerReturnRequest = lazy(
-  () => import("./modules/seller/pages/SellerReturnRequest"),
+const SellerReturnRequest = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerReturnRequest"), "SellerReturnRequest"
 );
-const SellerAccountSettings = lazy(
-  () => import("./modules/seller/pages/SellerAccountSettings"),
+const SellerAccountSettings = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerAccountSettings"), "SellerAccountSettings"
 );
-const SellerDeliveryTracking = lazy(
-  () => import("./modules/seller/pages/SellerDeliveryTracking"),
+const SellerDeliveryTracking = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerDeliveryTracking"), "SellerDeliveryTracking"
 );
-const SellerReviews = lazy(
-  () => import("./modules/seller/pages/SellerReviews"),
+const SellerReviews = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerReviews"), "SellerReviews"
 );
-const SellerLogin = lazy(() => import("./modules/seller/pages/SellerLogin"));
-const SellerSignUp = lazy(() => import("./modules/seller/pages/SellerSignUp"));
+const SellerLogin = lazyWithRetry(() => import("./modules/seller/pages/SellerLogin"), "SellerLogin");
+const SellerSignUp = lazyWithRetry(() => import("./modules/seller/pages/SellerSignUp"), "SellerSignUp");
 
 // Lazy load admin routes
-const AdminLayout = lazy(
-  () => import("./modules/admin/components/AdminLayout"),
+const AdminLayout = lazyWithRetry(
+  () => import("./modules/admin/components/AdminLayout"), "AdminLayout"
 );
-const AdminDashboard = lazy(
-  () => import("./modules/admin/pages/AdminDashboard"),
+const AdminDashboard = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDashboard"), "AdminDashboard"
 );
-const AdminLogin = lazy(() => import("./modules/admin/pages/AdminLogin"));
-const AdminCategory = lazy(() => import("./modules/admin/pages/AdminCategory"));
-const AdminHeaderCategory = lazy(
-  () => import("./modules/admin/pages/AdminHeaderCategory"),
+const AdminLogin = lazyWithRetry(() => import("./modules/admin/pages/AdminLogin"), "AdminLogin");
+const AdminCategory = lazyWithRetry(() => import("./modules/admin/pages/AdminCategory"), "AdminCategory");
+const AdminHeaderCategory = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminHeaderCategory"), "AdminHeaderCategory"
 );
-const AdminSubCategory = lazy(
-  () => import("./modules/admin/pages/AdminSubCategory"),
+const AdminSubCategory = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSubCategory"), "AdminSubCategory"
 );
-const AdminBrand = lazy(() => import("./modules/admin/pages/AdminBrand"));
-const AdminTaxes = lazy(() => import("./modules/admin/pages/AdminTaxes"));
-const AdminSellerTransaction = lazy(
-  () => import("./modules/admin/pages/AdminSellerTransaction"),
+const AdminBrand = lazyWithRetry(() => import("./modules/admin/pages/AdminBrand"), "AdminBrand");
+const AdminTaxes = lazyWithRetry(() => import("./modules/admin/pages/AdminTaxes"), "AdminTaxes");
+const AdminSellerTransaction = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSellerTransaction"), "AdminSellerTransaction"
 );
-const AdminStockManagement = lazy(
-  () => import("./modules/admin/pages/AdminStockManagement"),
+const AdminStockManagement = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminStockManagement"), "AdminStockManagement"
 );
-const AdminSubcategoryOrder = lazy(
-  () => import("./modules/admin/pages/AdminSubcategoryOrder"),
+const AdminSubcategoryOrder = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSubcategoryOrder"), "AdminSubcategoryOrder"
 );
-const AdminManageSellerList = lazy(
-  () => import("./modules/admin/pages/AdminManageSellerList"),
+const AdminManageSellerList = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminManageSellerList"), "AdminManageSellerList"
 );
-const AdminCoupon = lazy(() => import("./modules/admin/pages/AdminCoupon"));
-const AdminNotification = lazy(
-  () => import("./modules/admin/pages/AdminNotification"),
+const AdminCoupon = lazyWithRetry(() => import("./modules/admin/pages/AdminCoupon"), "AdminCoupon");
+const AdminNotification = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminNotification"), "AdminNotification"
 );
-const AdminSellerLocation = lazy(
-  () => import("./modules/admin/pages/AdminSellerLocation"),
+const AdminSellerLocation = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSellerLocation"), "AdminSellerLocation"
 );
 
-const AdminManageDeliveryBoy = lazy(
-  () => import("./modules/admin/pages/AdminManageDeliveryBoy"),
+const AdminManageDeliveryBoy = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminManageDeliveryBoy"), "AdminManageDeliveryBoy"
 );
-const AdminAssignDeliveryBoy = lazy(
-  () => import("./modules/admin/pages/AdminAssignDeliveryBoy"),
+const AdminAssignDeliveryBoy = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminAssignDeliveryBoy"), "AdminAssignDeliveryBoy"
 );
-const AdminDeliveryTracking = lazy(
-  () => import("./modules/admin/pages/AdminDeliveryTracking"),
+const AdminDeliveryTracking = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDeliveryTracking"), "AdminDeliveryTracking"
 );
-const AdminFundTransfer = lazy(
-  () => import("./modules/admin/pages/AdminFundTransfer"),
+const AdminFundTransfer = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminFundTransfer"), "AdminFundTransfer"
 );
-const AdminCashCollection = lazy(
-  () => import("./modules/admin/pages/AdminCashCollection"),
+const AdminCashCollection = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminCashCollection"), "AdminCashCollection"
 );
-const AdminReturnRequest = lazy(
-  () => import("./modules/admin/pages/AdminReturnRequest"),
+const AdminReturnRequest = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminReturnRequest"), "AdminReturnRequest"
 );
-const AdminPaymentList = lazy(
-  () => import("./modules/admin/pages/AdminPaymentList"),
+const AdminPaymentList = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminPaymentList"), "AdminPaymentList"
 );
-const AdminSmsGateway = lazy(
-  () => import("./modules/admin/pages/AdminSmsGateway"),
+const AdminSmsGateway = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSmsGateway"), "AdminSmsGateway"
 );
-const AdminSystemUser = lazy(
-  () => import("./modules/admin/pages/AdminSystemUser"),
+const AdminSystemUser = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSystemUser"), "AdminSystemUser"
 );
-const AdminUsers = lazy(() => import("./modules/admin/pages/AdminUsers"));
-const AdminFAQ = lazy(() => import("./modules/admin/pages/AdminFAQ"));
-const AdminHomeSection = lazy(
-  () => import("./modules/admin/pages/AdminHomeSection"),
+const AdminUsers = lazyWithRetry(() => import("./modules/admin/pages/AdminUsers"), "AdminUsers");
+const AdminFAQ = lazyWithRetry(() => import("./modules/admin/pages/AdminFAQ"), "AdminFAQ");
+const AdminHomeSection = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminHomeSection"), "AdminHomeSection"
 );
-const AdminBestsellerCards = lazy(
-  () => import("./modules/admin/pages/AdminBestsellerCards"),
+const AdminBestsellerCards = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminBestsellerCards"), "AdminBestsellerCards"
 );
-const AdminPromoStrip = lazy(
-  () => import("./modules/admin/pages/AdminPromoStrip"),
+const AdminPromoStrip = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminPromoStrip"), "AdminPromoStrip"
 );
-const AdminLowestPrices = lazy(
-  () => import("./modules/admin/pages/AdminLowestPrices"),
+const AdminLowestPrices = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminLowestPrices"), "AdminLowestPrices"
 );
-const AdminShopByStore = lazy(
-  () => import("./modules/admin/pages/AdminShopByStore"),
+const AdminShopByStore = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminShopByStore"), "AdminShopByStore"
 );
-const AdminAllOrders = lazy(
-  () => import("./modules/admin/pages/AdminAllOrders"),
+const AdminAllOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminAllOrders"), "AdminAllOrders"
 );
-const AdminPendingOrders = lazy(
-  () => import("./modules/admin/pages/AdminPendingOrders"),
+const AdminPendingOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminPendingOrders"), "AdminPendingOrders"
 );
-const AdminReceivedOrders = lazy(
-  () => import("./modules/admin/pages/AdminReceivedOrders"),
+const AdminReceivedOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminReceivedOrders"), "AdminReceivedOrders"
 );
-const AdminProcessedOrders = lazy(
-  () => import("./modules/admin/pages/AdminProcessedOrders"),
+const AdminProcessedOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminProcessedOrders"), "AdminProcessedOrders"
 );
-const AdminShippedOrders = lazy(
-  () => import("./modules/admin/pages/AdminShippedOrders"),
+const AdminShippedOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminShippedOrders"), "AdminShippedOrders"
 );
-const AdminOutForDeliveryOrders = lazy(
-  () => import("./modules/admin/pages/AdminOutForDeliveryOrders"),
+const AdminOutForDeliveryOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminOutForDeliveryOrders"), "AdminOutForDeliveryOrders"
 );
-const AdminDeliveredOrders = lazy(
-  () => import("./modules/admin/pages/AdminDeliveredOrders"),
+const AdminDeliveredOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDeliveredOrders"), "AdminDeliveredOrders"
 );
-const AdminCancelledOrders = lazy(
-  () => import("./modules/admin/pages/AdminCancelledOrders"),
+const AdminCancelledOrders = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminCancelledOrders"), "AdminCancelledOrders"
 );
-const AdminCustomerAppPolicy = lazy(
-  () => import("./modules/admin/pages/AdminCustomerAppPolicy"),
+const AdminCustomerAppPolicy = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminCustomerAppPolicy"), "AdminCustomerAppPolicy"
 );
-const AdminDeliveryAppPolicy = lazy(
-  () => import("./modules/admin/pages/AdminDeliveryAppPolicy"),
+const AdminDeliveryAppPolicy = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDeliveryAppPolicy"), "AdminDeliveryAppPolicy"
 );
-const AdminOrders = lazy(() => import("./modules/admin/pages/AdminOrders"));
-const AdminOrderDetail = lazy(
-  () => import("./modules/admin/pages/AdminOrderDetail"),
+const AdminOrders = lazyWithRetry(() => import("./modules/admin/pages/AdminOrders"), "AdminOrders");
+const AdminOrderDetail = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminOrderDetail"), "AdminOrderDetail"
 );
-const AdminSettlement = lazy(
-  () => import("./modules/admin/pages/AdminSettlement"),
+const AdminSettlement = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSettlement"), "AdminSettlement"
 );
-const AdminManageCustomer = lazy(
-  () => import("./modules/admin/pages/AdminManageCustomer"),
+const AdminManageCustomer = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminManageCustomer"), "AdminManageCustomer"
 );
-const AdminProfile = lazy(() => import("./modules/admin/pages/AdminProfile"));
+const AdminProfile = lazyWithRetry(() => import("./modules/admin/pages/AdminProfile"), "AdminProfile");
 
-const AdminWithdrawals = lazy(
-  () => import("./modules/admin/pages/AdminWithdrawals"),
+const AdminWithdrawals = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminWithdrawals"), "AdminWithdrawals"
 );
-const AdminPayments = lazy(() => import("./modules/admin/pages/AdminPayments"));
-const AdminWallet = lazy(() => import("./modules/admin/pages/AdminWallet"));
-const AdminBillingSettings = lazy(
-  () => import("./modules/admin/pages/AdminBillingSettings"),
+const AdminPayments = lazyWithRetry(() => import("./modules/admin/pages/AdminPayments"), "AdminPayments");
+const AdminWallet = lazyWithRetry(() => import("./modules/admin/pages/AdminWallet"), "AdminWallet");
+const AdminBillingSettings = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminBillingSettings"), "AdminBillingSettings"
 );
 
 function App() {
   useEffect(() => {
+    // Clear global chunk reload attempt flags when app successfully mounts
+    try {
+      sessionStorage.removeItem('global_chunk_reload_attempted');
+      sessionStorage.removeItem('vite_preload_reloaded');
+    } catch {
+      // Ignore
+    }
+
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let idleCallbackId: number | null = null;
