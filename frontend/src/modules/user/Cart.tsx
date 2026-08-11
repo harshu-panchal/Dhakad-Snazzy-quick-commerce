@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import Button from '../../components/ui/button';
@@ -7,6 +8,12 @@ import { calculateProductPrice } from '../../utils/priceUtils';
 export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (cart.items.length > 0) {
+      navigate('/checkout', { replace: true });
+    }
+  }, [cart.items.length, navigate]);
 
   const freeDeliveryThreshold = cart.freeDeliveryThreshold ?? appConfig.freeDeliveryThreshold;
   const platformFee = cart.platformFee ?? appConfig.platformFee;

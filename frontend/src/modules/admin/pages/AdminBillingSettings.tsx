@@ -23,6 +23,9 @@ export default function AdminBillingSettings() {
     const [deliveryBoyKmRate, setDeliveryBoyKmRate] = useState<number>(0);
     const [googleMapsKey, setGoogleMapsKey] = useState<string>('');
 
+    // Feature Flags
+    const [showSellerDetails, setShowSellerDetails] = useState<boolean>(true);
+
     useEffect(() => {
         fetchSettings();
     }, []);
@@ -52,6 +55,10 @@ export default function AdminBillingSettings() {
                     // If no config exists, try to pre-fill from env
                     setGoogleMapsKey(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
                 }
+
+                if (data.features) {
+                    setShowSellerDetails(data.features.showSellerDetails ?? true);
+                }
             }
         } catch (error: any) {
             console.error(error);
@@ -77,6 +84,16 @@ export default function AdminBillingSettings() {
                     kmRate,
                     deliveryBoyKmRate,
                     googleMapsKey
+                },
+                features: {
+                    ...(settings?.features || {
+                        sellerRegistration: true,
+                        productApproval: true,
+                        orderTracking: true,
+                        wallet: true,
+                        coupons: true,
+                    }),
+                    showSellerDetails: showSellerDetails
                 }
             };
 
@@ -339,6 +356,29 @@ export default function AdminBillingSettings() {
                             </div>
                         </motion.div>
                     )}
+                </div>
+
+                {/* Display & Visibility Settings Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Display & Visibility Settings</h2>
+                    <p className="text-sm text-gray-500 mb-6">Control what information is visible to the customers on the mobile and web application.</p>
+                    
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
+                        <div className="flex-1 pr-4">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Show Seller Details</h3>
+                            <p className="text-xs text-gray-500">When enabled, customer can see store/seller info under the product description. Turn off to hide seller info.</p>
+                        </div>
+                        
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input 
+                                type="checkbox" 
+                                checked={showSellerDetails}
+                                onChange={(e) => setShowSellerDetails(e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
                 </div>
             </div>
         </motion.div>

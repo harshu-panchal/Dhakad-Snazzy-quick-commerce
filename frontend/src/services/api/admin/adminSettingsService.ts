@@ -104,6 +104,7 @@ export interface AppSettings {
     orderTracking: boolean;
     wallet: boolean;
     coupons: boolean;
+    showSellerDetails: boolean;
   };
   maintenanceMode: boolean;
   maintenanceMessage?: string;
