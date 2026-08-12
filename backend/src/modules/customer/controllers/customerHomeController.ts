@@ -181,16 +181,24 @@ async function fetchSectionData(
       const products = await Product.find(query)
         .sort({ createdAt: -1 }) // Show newest items first
         .limit(limit || 8)
-        .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations")
+        .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations shopId")
+        .populate("seller", "storeName sellerName")
+        .populate("shopId", "name")
         .lean();
 
       return products.map((p: any) => {
         // If we filtered by radius above, this should always be true when hasUserLocation is set.
+        const sellerIdStr = p.seller ? (typeof p.seller === 'object' ? p.seller._id?.toString() : p.seller.toString()) : null;
         const isAvailable = hasUserLocation
           ? true
-          : nearbySellerIds && nearbySellerIds.length > 0 && p.seller
-            ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
+          : nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+            ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
             : false;
+
+        const sellerObj = typeof p.seller === 'object' && p.seller !== null ? p.seller : null;
+        const shopObj = typeof p.shopId === 'object' && p.shopId !== null ? p.shopId : null;
+        const storeName = sellerObj?.storeName || sellerObj?.sellerName || null;
+        const shopName = shopObj?.name || storeName || null;
 
         return {
           id: p._id.toString(),
@@ -217,8 +225,11 @@ async function fetchSectionData(
           type: "product",
           isAvailable,
           seller: p.seller,
+          storeName,
+          shopName,
         };
       });
+
     }
 
     // If displayType is "categories", fetch the selected categories themselves
@@ -366,7 +377,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
       .populate({
         path: "product",
         select:
-          "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations",
+          "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations shopId",
+        populate: [
+          { path: "seller", select: "storeName sellerName" },
+          { path: "shopId", select: "name" },
+        ],
         match: {
           status: "Active",
           publish: true,
@@ -381,10 +396,16 @@ export const getHomeContent = async (req: Request, res: Response) => {
       .filter((item: any) => item.product !== null)
       .map((item: any) => {
         const product = item.product;
+        const sellerIdStr = product.seller ? (typeof product.seller === 'object' ? product.seller._id?.toString() : product.seller.toString()) : null;
         // Check if the product's seller is within range
-        const isAvailable = nearbySellerIds && nearbySellerIds.length > 0 && product.seller
-          ? nearbySellerIds.some(id => id.toString() === product.seller.toString())
+        const isAvailable = nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+          ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
           : false;
+
+        const sellerObj = typeof product.seller === 'object' && product.seller !== null ? product.seller : null;
+        const shopObj = typeof product.shopId === 'object' && product.shopId !== null ? product.shopId : null;
+        const storeName = sellerObj?.storeName || sellerObj?.sellerName || null;
+        const shopName = shopObj?.name || storeName || null;
 
         return {
           id: product._id.toString(),
@@ -405,8 +426,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
           publish: product.publish,
           isAvailable,
           seller: product.seller,
+          storeName,
+          shopName,
         };
       })
+
       // Strictly hide products from sellers not in range (when location is available).
       .filter((p: any) => !hasUserLocation || p.isAvailable === true);
 

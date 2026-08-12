@@ -49,6 +49,32 @@ const ProductCard = memo(({
   productName = productName.replace(/\s*-\s*(Fresh|Quality|Assured|Premium|Best|Top|Hygienic|Carefully|Selected).*$/i, '').trim();
   const displayName = truncateText(productName, 60);
 
+  // Resolve shop/store name
+  const shopName = useMemo(() => {
+    if (product.seller && typeof product.seller === 'object') {
+      if (product.seller.storeName) return product.seller.storeName;
+      if (product.seller.sellerName) return product.seller.sellerName;
+    }
+    if (product.storeName) return product.storeName;
+    if (product.shopName) return product.shopName;
+    if (product.shop && typeof product.shop === 'object' && product.shop.name) {
+      return product.shop.name;
+    }
+    if (typeof product.seller === 'string' && product.seller && !product.seller.match(/^[0-9a-fA-F]{24}$/)) {
+      return product.seller;
+    }
+    return 'Dhakad Store';
+  }, [product]);
+
+  const isPackRedundant = useMemo(() => {
+    const pack = product.pack || '';
+    if (!pack || !productName) return false;
+    const cleanPack = pack.trim().toLowerCase();
+    const cleanName = productName.trim().toLowerCase();
+    return cleanPack === cleanName || cleanName.startsWith(cleanPack);
+  }, [product.pack, productName]);
+
+
   return (
     <div
       className="flex-shrink-0 w-[140px]"
@@ -190,17 +216,28 @@ const ProductCard = memo(({
 
         {/* Product Details */}
         <div className="p-1.5 flex-1 flex flex-col min-h-0" style={{ background: '#fef9e7' }}>
-          {/* Light Grey Tags */}
-          <div className="flex gap-0.5 mb-0.5">
-            <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-              {product.pack || '1 unit'}
+          {/* Highlighted Shop Badge */}
+          {shopName && (
+            <div className="mb-0.5">
+              <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200/70 px-1 py-0.5 rounded text-[8px] font-bold tracking-tight leading-none max-w-full truncate">
+                <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 flex-shrink-0">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+                <span className="truncate max-w-[85px] uppercase font-bold">{shopName}</span>
+              </span>
             </div>
-            {product.pack && (product.pack.includes('g') || product.pack.includes('kg')) && (
-              <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-                {product.pack.replace(/[gk]/gi, '').trim()} GSM
+          )}
+
+          {/* Light Grey Tags (only if not redundant) */}
+          {product.pack && !isPackRedundant && (
+            <div className="flex gap-0.5 mb-0.5">
+              <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded truncate">
+                {product.pack}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
 
           {/* Product Name */}
           <div className="mb-0.5">

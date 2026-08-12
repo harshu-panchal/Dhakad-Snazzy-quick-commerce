@@ -7,7 +7,30 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  error: Error | null;
+  error: any;
+}
+
+export function extractErrorMessage(error: any): string {
+  if (!error) return '';
+  if (typeof error === 'string') return error;
+  if (error.message && typeof error.message === 'string') return error.message;
+  if (error.reason?.message && typeof error.reason.message === 'string') return error.reason.message;
+  if (error.reason) return String(error.reason);
+  if (error.stack) return String(error.stack);
+  return String(error);
+}
+
+export function checkIsChunkError(error: any): boolean {
+  const msg = extractErrorMessage(error).toLowerCase();
+  return (
+    msg.includes('dynamically imported module') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('importing a module script failed') ||
+    msg.includes('loading chunk') ||
+    msg.includes('chunkloaderror') ||
+    msg.includes('failed to load module script') ||
+    msg.includes('error loading module')
+  );
 }
 
 /**
@@ -19,35 +42,27 @@ export default class ErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: any): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: any, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
 
-    const errorMessage = error?.message || '';
-    const isChunkError =
-      errorMessage.includes('dynamically imported module') ||
-      errorMessage.includes('Failed to fetch') ||
-      errorMessage.includes('Importing a module script failed') ||
-      errorMessage.includes('Loading chunk') ||
-      error?.name === 'ChunkLoadError';
-
-    if (isChunkError) {
-      const reloadKey = 'global_chunk_reload_attempted';
-      if (!sessionStorage.getItem(reloadKey)) {
-        sessionStorage.setItem(reloadKey, 'true');
+    if (checkIsChunkError(error)) {
+      const lastReload = Number(sessionStorage.getItem('chunk_reload_ts') || '0');
+      if (Date.now() - lastReload > 10000) {
+        sessionStorage.setItem('chunk_reload_ts', String(Date.now()));
         window.location.reload();
       }
     }
   }
 
   handleReload = () => {
-    // Clear all retry markers on explicit user reload click
     try {
+      // Clear all reload markers on explicit user click
       Object.keys(sessionStorage).forEach((key) => {
-        if (key.startsWith('lazy_retry_') || key.includes('chunk') || key.includes('preload')) {
+        if (key.includes('retry') || key.includes('chunk') || key.includes('preload') || key.includes('reload')) {
           sessionStorage.removeItem(key);
         }
       });
@@ -59,18 +74,14 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      const errorMessage = this.state.error?.message || '';
-      const isChunkError =
-        errorMessage.includes('dynamically imported module') ||
-        errorMessage.includes('Failed to fetch') ||
-        errorMessage.includes('Importing a module script failed') ||
-        errorMessage.includes('Loading chunk') ||
-        this.state.error?.name === 'ChunkLoadError';
+      const rawError = this.state.error;
+      const isChunkError = checkIsChunkError(rawError);
+      const displayMessage = extractErrorMessage(rawError);
 
       return (
         this.props.fallback || (
-          <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-            <div className="text-center p-8 max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100">
+          <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+            <div className="text-center p-6 sm:p-8 max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100">
               <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -79,14 +90,14 @@ export default class ErrorBoundary extends Component<Props, State> {
               <h2 className="text-xl font-bold text-gray-900 mb-2">
                 {isChunkError ? 'App Update Available' : 'Something went wrong'}
               </h2>
-              <p className="text-sm text-gray-600 mb-6">
+              <p className="text-sm text-gray-600 mb-6 leading-relaxed">
                 {isChunkError
-                  ? 'A new version of the app is available or your connection was briefly interrupted. Reloading will get you back on track.'
-                  : errorMessage || 'An unexpected error occurred.'}
+                  ? 'A new version of the app was deployed or your connection was briefly interrupted. Reloading will get you back on track.'
+                  : displayMessage || 'An unexpected error occurred.'}
               </p>
               <button
                 onClick={this.handleReload}
-                className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                className="w-full py-2.5 px-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 cursor-pointer"
               >
                 Reload Page
               </button>
@@ -99,3 +110,4 @@ export default class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+

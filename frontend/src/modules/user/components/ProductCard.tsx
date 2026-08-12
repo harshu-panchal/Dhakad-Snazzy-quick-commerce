@@ -64,6 +64,38 @@ export default function ProductCard({
   const priceDetails = useMemo(() => calculateProductPrice(product), [product]);
   const { displayPrice, mrp, discount } = priceDetails;
 
+  // Resolve shop/store name cleanly
+  const shopName = useMemo(() => {
+    if (product.seller && typeof product.seller === 'object') {
+      if (product.seller.storeName) return product.seller.storeName;
+      if (product.seller.sellerName) return product.seller.sellerName;
+    }
+    if (product.storeName) return product.storeName;
+    if (product.shopName) return product.shopName;
+    if (product.shop && typeof product.shop === 'object' && product.shop.name) {
+      return product.shop.name;
+    }
+    if (typeof product.seller === 'string' && product.seller && !product.seller.match(/^[0-9a-fA-F]{24}$/)) {
+      return product.seller;
+    }
+    return 'Dhakad Store';
+  }, [product]);
+
+  const packText = useMemo(() => {
+    return product.variations?.[0]?.value || product.pack || '';
+  }, [product]);
+
+  const productName = useMemo(() => {
+    return product.name || product.productName || '';
+  }, [product]);
+
+  const isPackRedundant = useMemo(() => {
+    if (!packText || !productName) return false;
+    const cleanPack = packText.trim().toLowerCase();
+    const cleanName = productName.trim().toLowerCase();
+    return cleanPack === cleanName || cleanName.startsWith(cleanPack);
+  }, [packText, productName]);
+
   const handleCardClick = useCallback(() => {
     navigate(`/product/${productId}`);
   }, [navigate, productId]);
@@ -316,18 +348,31 @@ export default function ProductCard({
 
         <div className={infoContainerClassName}>
           {categoryStyle ? (
-            // Category Style Layout: Quantity, Name, Time, % off, Price
+            // Category Style Layout: Shop Name, Pack, Name, Time, % off, Price
             <>
-              {/* 1. Quantity */}
-              {!showPackBadge && (product.pack || product.variations?.[0]?.value) && (
-                <p className="text-[9px] text-neutral-600 mb-0.5 leading-tight">
-                  {product.variations?.[0]?.value || product.pack}
+              {/* 1. Highlighted Shop Name Badge */}
+              {shopName && (
+                <div className="mb-0.5">
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200/70 px-1.5 py-0.5 rounded text-[9px] font-bold tracking-tight leading-none max-w-full truncate shadow-2xs">
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 flex-shrink-0">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    <span className="truncate max-w-[95px] uppercase font-bold">{shopName}</span>
+                  </span>
+                </div>
+              )}
+
+              {/* 2. Quantity / Pack (only if not redundant with name) */}
+              {!showPackBadge && packText && !isPackRedundant && (
+                <p className="text-[9px] text-neutral-500 mb-0.5 leading-tight truncate">
+                  {packText}
                 </p>
               )}
 
-              {/* 2. Name */}
-              <h3 className="text-[10px] font-bold text-neutral-900 mb-0.5 line-clamp-2 leading-tight min-h-[1.75rem] max-h-[1.75rem] overflow-hidden">
-                {product.name || product.productName || ''}
+              {/* 3. Name */}
+              <h3 className="text-[10px] font-bold text-neutral-900 mb-0.5 line-clamp-2 leading-tight min-h-[1.75rem] max-h-[1.75rem] overflow-hidden" title={productName}>
+                {productName}
               </h3>
 
               {showRating && ((product.rating ?? 0) > 0 || (product.reviewsCount ?? product.reviews ?? 0) > 0) && (
@@ -340,7 +385,7 @@ export default function ProductCard({
                 </div>
               )}
 
-              {/* 3. Time */}
+              {/* 4. Time */}
               <p className="text-[9px] text-neutral-600 mb-0.5 flex items-center gap-0.5 leading-tight">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
@@ -349,14 +394,14 @@ export default function ProductCard({
                 <span>14 MINS</span>
               </p>
 
-              {/* 4. % OFF */}
+              {/* 5. % OFF */}
               {discount > 0 && (
                 <p className="text-[10px] font-semibold text-green-600 mb-0.5 leading-tight">
                   {discount}% OFF
                 </p>
               )}
 
-              {/* 5. Price with discount */}
+              {/* 6. Price with discount */}
               <div className="mt-auto">
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-baseline gap-1.5 flex-wrap">
@@ -380,14 +425,29 @@ export default function ProductCard({
           ) : (
             // Non-category style layout (original)
             <>
-              {!showPackBadge && (
-                <p className={`${compact ? 'text-[10px] md:text-xs' : 'text-xs md:text-sm'} text-neutral-500 mb-1`}>
-                   {product.variations?.[0]?.value || product.pack}
+              {/* 1. Highlighted Shop Name Badge */}
+              {shopName && (
+                <div className="mb-1">
+                  <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200/70 px-2 py-0.5 rounded-md text-[10px] md:text-xs font-semibold tracking-wide leading-none max-w-full truncate shadow-2xs">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600 flex-shrink-0">
+                      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                      <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    <span className="truncate">{shopName}</span>
+                  </span>
+                </div>
+              )}
+
+              {/* 2. Pack Size (if distinct from product name) */}
+              {!showPackBadge && packText && !isPackRedundant && (
+                <p className={`${compact ? 'text-[10px] md:text-xs' : 'text-xs md:text-sm'} text-neutral-500 mb-1 truncate`}>
+                  {packText}
                 </p>
               )}
 
-              <h3 className={`${compact ? 'text-xs md:text-sm' : 'text-sm md:text-base'} font-semibold text-neutral-900 ${compact ? 'mb-1' : 'mb-2'} line-clamp-2 ${compact ? 'min-h-[2rem]' : 'min-h-[2.5rem]'}`}>
-                {product.name || product.productName || ''}
+              {/* 3. Product Name */}
+              <h3 className={`${compact ? 'text-xs md:text-sm' : 'text-sm md:text-base'} font-semibold text-neutral-900 ${compact ? 'mb-1' : 'mb-2'} line-clamp-2 ${compact ? 'min-h-[2rem]' : 'min-h-[2.5rem]'}`} title={productName}>
+                {productName}
               </h3>
 
               {showRating && ((product.rating ?? 0) > 0 || (product.reviewsCount ?? product.reviews ?? 0) > 0) && (
