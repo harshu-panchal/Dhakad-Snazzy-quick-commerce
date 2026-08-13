@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerCategoryCommissions } from '../../../services/api/sellerService';
 import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/headerCategoryService';
 import SellerServiceMap from '../components/SellerServiceMap';
@@ -112,6 +112,9 @@ export default function AdminManageSellerList() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editForm, setEditForm] = useState<Partial<Seller>>({});
+    const [isSavingSeller, setIsSavingSeller] = useState(false);
+    const [editError, setEditError] = useState<string>('');
     const [isUpdatingRadius, setIsUpdatingRadius] = useState(false);
     const [newRadius, setNewRadius] = useState<number>(10);
 
@@ -254,8 +257,92 @@ export default function AdminManageSellerList() {
         const seller = sellers.find(s => s._id === sellerId);
         if (seller) {
             setEditingSeller(seller);
+            setEditForm({
+                name: seller.name || seller.sellerName || '',
+                sellerName: seller.sellerName || seller.name || '',
+                storeName: seller.storeName || '',
+                email: seller.email || '',
+                phone: seller.phone || seller.mobile || '',
+                mobile: seller.mobile || seller.phone || '',
+                category: seller.category || '',
+                commission: seller.commission || 0,
+                status: seller.status || 'Pending',
+                address: seller.address || '',
+                city: seller.city || '',
+                serviceableArea: seller.serviceableArea || '',
+                searchLocation: seller.searchLocation || '',
+                latitude: seller.latitude || '',
+                longitude: seller.longitude || '',
+                serviceRadiusKm: seller.serviceRadiusKm || 10,
+                panCard: seller.panCard || '',
+                taxName: seller.taxName || '',
+                taxNumber: seller.taxNumber || '',
+                accountName: seller.accountName || '',
+                bankName: seller.bankName || '',
+                branch: seller.branch || '',
+                accountNumber: seller.accountNumber || '',
+                ifsc: seller.ifsc || '',
+                requireProductApproval: seller.requireProductApproval ?? false,
+                viewCustomerDetails: seller.viewCustomerDetails ?? true,
+                balance: seller.balance || 0,
+            });
             setNewRadius(seller.serviceRadiusKm || 10);
+            setEditError('');
             setIsEditModalOpen(true);
+        }
+    };
+
+    const handleSaveSellerDetails = async () => {
+        if (!editingSeller) return;
+
+        try {
+            setIsSavingSeller(true);
+            setEditError('');
+
+            const payload: Partial<Seller> = {
+                sellerName: editForm.sellerName || editForm.name,
+                storeName: editForm.storeName,
+                email: editForm.email,
+                mobile: editForm.mobile || editForm.phone,
+                category: editForm.category,
+                commission: Number(editForm.commission) || 0,
+                status: editForm.status as 'Approved' | 'Pending' | 'Rejected',
+                address: editForm.address,
+                city: editForm.city,
+                serviceableArea: editForm.serviceableArea,
+                searchLocation: editForm.searchLocation,
+                latitude: editForm.latitude,
+                longitude: editForm.longitude,
+                serviceRadiusKm: newRadius,
+                panCard: editForm.panCard,
+                taxName: editForm.taxName,
+                taxNumber: editForm.taxNumber,
+                accountName: editForm.accountName,
+                bankName: editForm.bankName,
+                branch: editForm.branch,
+                accountNumber: editForm.accountNumber,
+                ifsc: editForm.ifsc,
+                requireProductApproval: editForm.requireProductApproval,
+                viewCustomerDetails: editForm.viewCustomerDetails,
+                balance: Number(editForm.balance) || 0,
+            };
+
+            const response = await updateSeller(editingSeller._id, payload);
+            if (response.success && response.data) {
+                const updatedSeller = mapSellerToFrontend(response.data);
+                setSellers(prev => prev.map(s => s._id === editingSeller._id ? updatedSeller : s));
+                setEditingSeller(updatedSeller);
+                setSuccessMessage('Seller details updated successfully');
+                setTimeout(() => setSuccessMessage(''), 3000);
+                setIsEditModalOpen(false);
+            } else {
+                setEditError(response.message || 'Failed to update seller details');
+            }
+        } catch (err: any) {
+            console.error('Error saving seller details:', err);
+            setEditError(err.response?.data?.message || 'Failed to update seller details. Please try again.');
+        } finally {
+            setIsSavingSeller(false);
         }
     };
 
@@ -407,6 +494,8 @@ export default function AdminManageSellerList() {
     const handleCloseEditModal = () => {
         setIsEditModalOpen(false);
         setEditingSeller(null);
+        setEditForm({});
+        setEditError('');
     };
 
     const handleDelete = async (id: number | string) => {
@@ -846,7 +935,7 @@ export default function AdminManageSellerList() {
                         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
                             <div>
                                 <h3 className="text-lg font-semibold">Edit Seller - {editingSeller.name}</h3>
-                                <p className="text-sm text-teal-100 mt-1">View and manage seller details</p>
+                                <p className="text-sm text-teal-100 mt-1">Manage seller details, location, bank & account settings</p>
                             </div>
                             <button
                                 onClick={handleCloseEditModal}
@@ -861,286 +950,451 @@ export default function AdminManageSellerList() {
                         </div>
 
                         {/* Modal Body */}
-                        <div className="p-6 overflow-y-auto flex-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                        <div className="p-6 overflow-y-auto flex-1 space-y-6" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                             <style>{`
                                 .edit-seller-modal::-webkit-scrollbar {
                                     display: none;
                                 }
                             `}</style>
 
-                            <div className="space-y-6">
-                                {/* Status Badge */}
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${editingSeller.status === 'Approved'
-                                            ? 'bg-green-100 text-green-800'
-                                            : editingSeller.status === 'Pending'
-                                                ? 'bg-yellow-100 text-yellow-800'
-                                                : 'bg-red-100 text-red-800'
-                                            }`}>
-                                            Status: {editingSeller.status}
-                                        </span>
-                                    </div>
-                                    {editingSeller.status === 'Pending' && (
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleApprove(editingSeller._id)}
-                                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors flex items-center gap-2"
-                                            >
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                                </svg>
-                                                Approve
-                                            </button>
-                                            <button
-                                                onClick={() => handleReject(editingSeller._id)}
-                                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm font-medium transition-colors flex items-center gap-2"
-                                            >
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                </svg>
-                                                Reject
-                                            </button>
-                                        </div>
-                                    )}
+                            {/* Error Banner */}
+                            {editError && (
+                                <div className="p-3 bg-red-100 border border-red-300 text-red-700 text-sm rounded-lg flex items-center justify-between">
+                                    <span>{editError}</span>
+                                    <button onClick={() => setEditError('')} className="text-red-700 hover:text-red-900 font-bold ml-2">×</button>
                                 </div>
+                            )}
 
-                                {/* Basic Information */}
-                                <div className="bg-neutral-50 rounded-lg p-4">
-                                    <h4 className="text-sm font-semibold text-neutral-700 mb-3">Basic Information</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Seller Name</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.name}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Store Name</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.storeName}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Email</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.email}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Phone</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.phone}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Category</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.category || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Commission</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.commission.toFixed(2)}%</p>
-                                        </div>
-                                    </div>
+                            {/* Status Section */}
+                            <div className="flex flex-wrap items-center justify-between gap-4 bg-neutral-50 p-4 rounded-lg border border-neutral-200">
+                                <div className="flex items-center gap-3">
+                                    <label className="text-xs font-semibold text-neutral-700 uppercase tracking-wider">Account Status:</label>
+                                    <select
+                                        value={editForm.status || 'Pending'}
+                                        onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value as any }))}
+                                        className={`px-3 py-1.5 rounded-full text-sm font-semibold border focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer ${
+                                            editForm.status === 'Approved'
+                                                ? 'bg-green-100 text-green-800 border-green-300'
+                                                : editForm.status === 'Pending'
+                                                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                                : 'bg-red-100 text-red-800 border-red-300'
+                                        }`}
+                                    >
+                                        <option value="Approved">Approved</option>
+                                        <option value="Pending">Pending</option>
+                                        <option value="Rejected">Rejected</option>
+                                    </select>
                                 </div>
-
-                                {/* Address Information */}
-                                <div className="bg-neutral-50 rounded-lg p-4">
-                                    <h4 className="text-sm font-semibold text-neutral-700 mb-3">Address Information</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="md:col-span-2">
-                                            <label className="text-xs text-neutral-500">Address</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.address || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">City</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.city || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Serviceable Area</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.serviceableArea || 'N/A'}</p>
-                                        </div>
-                                        {editingSeller.searchLocation && (
-                                            <div className="md:col-span-2">
-                                                <label className="text-xs text-neutral-500">Location</label>
-                                                <p className="text-sm font-medium text-neutral-900">{editingSeller.searchLocation}</p>
-                                            </div>
-                                        )}
-                                        {(editingSeller.latitude || editingSeller.longitude) && (
-                                            <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Latitude</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.latitude || 'N/A'}</p>
-                                                </div>
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Longitude</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.longitude || 'N/A'}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Service Area Map */}
-                                <div className="bg-neutral-50 rounded-lg p-4">
-                                    <h4 className="text-sm font-semibold text-neutral-700 mb-3">Service Area Visualization</h4>
-                                    {editingSeller.latitude && editingSeller.longitude ? (
-                                        <div className="space-y-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                                                <div>
-                                                    <label className="text-xs text-neutral-500 mb-1 block">Service Radius (km)</label>
-                                                    <div className="flex gap-2">
-                                                        <input
-                                                            type="number"
-                                                            min="0.1"
-                                                            max="100"
-                                                            step="0.1"
-                                                            value={newRadius}
-                                                            onChange={(e) => setNewRadius(parseFloat(e.target.value))}
-                                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-teal-500 focus:border-teal-500"
-                                                        />
-                                                        <button
-                                                            onClick={handleUpdateRadius}
-                                                            disabled={isUpdatingRadius || newRadius === editingSeller.serviceRadiusKm}
-                                                            className="px-4 py-2 bg-teal-600 text-white rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                                                        >
-                                                            {isUpdatingRadius ? 'Updating...' : 'Update Radius'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="h-[300px] w-full">
-                                                <SellerServiceMap
-                                                    latitude={parseFloat(editingSeller.latitude)}
-                                                    longitude={parseFloat(editingSeller.longitude)}
-                                                    radiusKm={newRadius}
-                                                    storeName={editingSeller.storeName}
-                                                />
-                                            </div>
-                                            <p className="text-xs text-neutral-500 italic">
-                                                * Adjust the radius above to see the service area change dynamically.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="p-8 text-center border-2 border-dashed border-neutral-200 rounded-lg">
-                                            <p className="text-sm text-neutral-500">No coordinates available for this seller.</p>
-                                            <p className="text-xs text-neutral-400 mt-1">Please update the seller's latitude and longitude to see the service map.</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Tax Information */}
-                                {(editingSeller.panCard || editingSeller.taxName || editingSeller.taxNumber) && (
-                                    <div className="bg-neutral-50 rounded-lg p-4">
-                                        <h4 className="text-sm font-semibold text-neutral-700 mb-3">Tax Information</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {editingSeller.panCard && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">PAN Card</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.panCard}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.taxName && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Tax Name</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.taxName}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.taxNumber && (
-                                                <div className="md:col-span-2">
-                                                    <label className="text-xs text-neutral-500">Tax Number</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.taxNumber}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Bank Information */}
-                                {(editingSeller.accountName || editingSeller.bankName || editingSeller.accountNumber) && (
-                                    <div className="bg-neutral-50 rounded-lg p-4">
-                                        <h4 className="text-sm font-semibold text-neutral-700 mb-3">Bank Information</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            {editingSeller.accountName && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Account Name</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.accountName}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.bankName && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Bank Name</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.bankName}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.branch && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Branch</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.branch}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.accountNumber && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">Account Number</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.accountNumber}</p>
-                                                </div>
-                                            )}
-                                            {editingSeller.ifsc && (
-                                                <div>
-                                                    <label className="text-xs text-neutral-500">IFSC Code</label>
-                                                    <p className="text-sm font-medium text-neutral-900">{editingSeller.ifsc}</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Settings */}
-                                <div className="bg-neutral-50 rounded-lg p-4">
-                                    <h4 className="text-sm font-semibold text-neutral-700 mb-3">Settings</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Require Product Approval</label>
-                                            <p className="text-sm font-medium text-neutral-900">
-                                                {editingSeller.requireProductApproval ? 'Yes' : 'No'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">View Customer Details</label>
-                                            <p className="text-sm font-medium text-neutral-900">
-                                                {editingSeller.viewCustomerDetails ? 'Yes' : 'No'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Balance</label>
-                                            <p className="text-sm font-medium text-neutral-900">₹{editingSeller.balance.toFixed(2)}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-neutral-500">Categories Count</label>
-                                            <p className="text-sm font-medium text-neutral-900">{editingSeller.categories.length} categories</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Categories */}
-                                {editingSeller.categories.length > 0 && (
-                                    <div className="bg-neutral-50 rounded-lg p-4">
-                                        <h4 className="text-sm font-semibold text-neutral-700 mb-3">Categories</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {editingSeller.categories.map((category, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800"
-                                                >
-                                                    {category}
-                                                </span>
-                                            ))}
-                                        </div>
+                                {editingSeller.status === 'Pending' && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleApprove(editingSeller._id)}
+                                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                            Approve
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleReject(editingSeller._id)}
+                                            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                            Reject
+                                        </button>
                                     </div>
                                 )}
                             </div>
+
+                            {/* Basic Information */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                    Basic Information
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Seller Name</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.sellerName || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, sellerName: e.target.value, name: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter seller name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Store Name</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.storeName || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, storeName: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter store name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Email Address</label>
+                                        <input
+                                            type="email"
+                                            value={editForm.email || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter email"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Phone / Mobile Number</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.mobile || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, mobile: e.target.value, phone: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter mobile number"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Category</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.category || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, category: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="e.g. Veg food, Electronics"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Commission Rate (%)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="100"
+                                            value={editForm.commission ?? 0}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, commission: parseFloat(e.target.value) || 0 }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Address Information */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    Address Information
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Full Address</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.address || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter full store address"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">City</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.city || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, city: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter city"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Serviceable Area</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.serviceableArea || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, serviceableArea: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter serviceable area"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Search Location / Landmark</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.searchLocation || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, searchLocation: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="e.g. Near City Center, Main Market"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Latitude</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.latitude || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, latitude: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="e.g. 23.926324"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Longitude</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.longitude || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, longitude: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="e.g. 76.899307"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Service Area Map */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+                                    Service Area Visualization
+                                </h4>
+                                {editForm.latitude && editForm.longitude ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                            <div>
+                                                <label className="text-xs font-medium text-neutral-600 mb-1 block">Service Radius (km)</label>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="number"
+                                                        min="0.1"
+                                                        max="100"
+                                                        step="0.1"
+                                                        value={newRadius}
+                                                        onChange={(e) => setNewRadius(parseFloat(e.target.value))}
+                                                        className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleUpdateRadius}
+                                                        disabled={isUpdatingRadius || newRadius === editingSeller.serviceRadiusKm}
+                                                        className="px-4 py-2 bg-teal-600 text-white rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                                                    >
+                                                        {isUpdatingRadius ? 'Updating...' : 'Update Radius'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="h-[300px] w-full">
+                                            <SellerServiceMap
+                                                latitude={parseFloat(editForm.latitude)}
+                                                longitude={parseFloat(editForm.longitude)}
+                                                radiusKm={newRadius}
+                                                storeName={editForm.storeName || editingSeller.storeName}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-neutral-500 italic">
+                                            * Adjust the radius above to see the service area change dynamically.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="p-8 text-center border-2 border-dashed border-neutral-200 rounded-lg">
+                                        <p className="text-sm text-neutral-500">No valid coordinates available for this seller.</p>
+                                        <p className="text-xs text-neutral-400 mt-1">Please enter latitude and longitude above to view the service map.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Tax Information */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    Tax Information
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">PAN Card Number</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.panCard || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, panCard: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter PAN number"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Tax Name / Type</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.taxName || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, taxName: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="e.g. GSTIN"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Tax Number / GSTIN</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.taxNumber || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, taxNumber: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Enter GST/Tax number"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Bank Information */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    Bank Information
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Account Holder Name</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.accountName || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, accountName: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Account holder name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Bank Name</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.bankName || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, bankName: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Bank name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Branch Name</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.branch || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, branch: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Branch name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Account Number</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.accountNumber || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, accountNumber: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="Bank account number"
+                                        />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">IFSC Code</label>
+                                        <input
+                                            type="text"
+                                            value={editForm.ifsc || ''}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, ifsc: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="IFSC code"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Settings */}
+                            <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                <h4 className="text-sm font-semibold text-neutral-700 mb-3 flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>
+                                    Seller Settings & Balance
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Require Product Approval</label>
+                                        <select
+                                            value={editForm.requireProductApproval ? 'true' : 'false'}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, requireProductApproval: e.target.value === 'true' }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                        >
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Show Seller Details in Customer App</label>
+                                        <select
+                                            value={editForm.viewCustomerDetails ? 'true' : 'false'}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, viewCustomerDetails: e.target.value === 'true' }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                        >
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Wallet Balance (₹)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editForm.balance ?? 0}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, balance: parseFloat(e.target.value) || 0 }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                            placeholder="0.00"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Categories */}
+                            {editingSeller.categories && editingSeller.categories.length > 0 && (
+                                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                    <h4 className="text-sm font-semibold text-neutral-700 mb-3">Associated Categories</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {editingSeller.categories.map((cat, index) => (
+                                            <span
+                                                key={index}
+                                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800"
+                                            >
+                                                {cat}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-2">
+                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end items-center gap-3 bg-gray-50 rounded-b-lg">
                             <button
+                                type="button"
                                 onClick={handleCloseEditModal}
-                                className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded text-sm font-medium transition-colors"
+                                className="px-4 py-2 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded-lg text-sm font-medium transition-colors"
+                                disabled={isSavingSeller}
                             >
-                                Close
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveSellerDetails}
+                                disabled={isSavingSeller}
+                                className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isSavingSeller ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Saving Changes...
+                                    </>
+                                ) : (
+                                    'Save Changes'
+                                )}
                             </button>
                         </div>
                     </div>

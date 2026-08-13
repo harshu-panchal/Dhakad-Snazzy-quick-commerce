@@ -182,7 +182,7 @@ async function fetchSectionData(
         .sort({ createdAt: -1 }) // Show newest items first
         .limit(limit || 8)
         .select("productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller variations shopId")
-        .populate("seller", "storeName sellerName")
+        .populate("seller", "storeName sellerName viewCustomerDetails")
         .populate("shopId", "name")
         .lean();
 
@@ -197,7 +197,8 @@ async function fetchSectionData(
 
         const sellerObj = typeof p.seller === 'object' && p.seller !== null ? p.seller : null;
         const shopObj = typeof p.shopId === 'object' && p.shopId !== null ? p.shopId : null;
-        const storeName = sellerObj?.storeName || sellerObj?.sellerName || null;
+        const isSellerVisible = sellerObj ? sellerObj.viewCustomerDetails !== false : true;
+        const storeName = isSellerVisible ? (sellerObj?.storeName || sellerObj?.sellerName || null) : null;
         const shopName = shopObj?.name || storeName || null;
 
         return {

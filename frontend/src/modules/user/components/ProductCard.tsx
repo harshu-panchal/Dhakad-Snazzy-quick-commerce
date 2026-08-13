@@ -66,10 +66,13 @@ export default function ProductCard({
 
   // Resolve shop/store name cleanly
   const shopName = useMemo(() => {
+    if ((product as any).showSellerDetails === false) return null;
     if (product.seller && typeof product.seller === 'object') {
+      if (product.seller.viewCustomerDetails === false) return null;
       if (product.seller.storeName) return product.seller.storeName;
       if (product.seller.sellerName) return product.seller.sellerName;
     }
+    if ((product as any).viewCustomerDetails === false) return null;
     if (product.storeName) return product.storeName;
     if (product.shopName) return product.shopName;
     if (product.shop && typeof product.shop === 'object' && product.shop.name) {
@@ -78,7 +81,7 @@ export default function ProductCard({
     if (typeof product.seller === 'string' && product.seller && !product.seller.match(/^[0-9a-fA-F]{24}$/)) {
       return product.seller;
     }
-    return 'Dhakad Store';
+    return null;
   }, [product]);
 
   const packText = useMemo(() => {

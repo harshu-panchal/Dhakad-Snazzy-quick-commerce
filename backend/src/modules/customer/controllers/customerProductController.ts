@@ -192,16 +192,25 @@ export const getProducts = async (req: Request, res: Response) => {
       .populate("category", "name icon image")
       .populate("subcategory", "name")
       .populate("brand", "name")
-      .populate("seller", "storeName")
+      .populate("seller", "storeName sellerName viewCustomerDetails")
       .sort(sortOptions)
       .skip(skip)
       .limit(Number(limit));
 
     const total = await Product.countDocuments(query);
 
+    const formattedProducts = products.map((p: any) => {
+      const prodObj = p.toObject ? p.toObject() : { ...p };
+      if (prodObj.seller && typeof prodObj.seller === "object" && prodObj.seller.viewCustomerDetails === false) {
+        delete prodObj.seller.storeName;
+        delete prodObj.seller.sellerName;
+      }
+      return prodObj;
+    });
+
     return res.status(200).json({
       success: true,
-      data: products,
+      data: formattedProducts,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -241,7 +250,7 @@ export const getProductById = async (req: Request, res: Response) => {
       .populate("brand", "name")
       .populate(
         "seller",
-        "sellerName storeName city fssaiLicNo address location serviceRadiusKm"
+        "sellerName storeName city fssaiLicNo address location serviceRadiusKm viewCustomerDetails"
       );
 
     if (!product) {
@@ -343,12 +352,21 @@ export const getProductById = async (req: Request, res: Response) => {
       );
 
     const settings = await AppSettings.getSettings();
-    const showSellerDetails = settings?.features?.showSellerDetails !== false;
+    let showSellerDetails = settings?.features?.showSellerDetails !== false;
+
+    const prodObj = product.toObject();
+    if (prodObj.seller && typeof prodObj.seller === "object" && (prodObj.seller as any).viewCustomerDetails === false) {
+      showSellerDetails = false;
+      delete (prodObj.seller as any).storeName;
+      delete (prodObj.seller as any).sellerName;
+      delete (prodObj.seller as any).city;
+      delete (prodObj.seller as any).address;
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        ...product.toObject(),
+        ...prodObj,
         similarProducts,
         isAvailableAtLocation, // Add availability flag to response
         showSellerDetails, // Add seller visibility flag

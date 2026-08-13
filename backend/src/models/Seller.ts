@@ -257,7 +257,7 @@ const SellerSchema = new Schema<ISeller>(
     },
     viewCustomerDetails: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     commission: {
       type: Number,
