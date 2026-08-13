@@ -51,6 +51,8 @@ export interface Product {
     id?: string;
     sellerName?: string;
     storeName?: string;
+    viewCustomerDetails?: boolean;
+    city?: string;
   } | string;
   storeName?: string;
   shopName?: string;

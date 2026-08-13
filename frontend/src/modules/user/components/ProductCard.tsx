@@ -68,7 +68,7 @@ export default function ProductCard({
   const shopName = useMemo(() => {
     if ((product as any).showSellerDetails === false) return null;
     if (product.seller && typeof product.seller === 'object') {
-      if (product.seller.viewCustomerDetails === false) return null;
+      if ((product.seller as any).viewCustomerDetails === false) return null;
       if (product.seller.storeName) return product.seller.storeName;
       if (product.seller.sellerName) return product.seller.sellerName;
     }
