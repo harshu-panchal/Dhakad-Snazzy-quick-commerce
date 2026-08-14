@@ -48,7 +48,7 @@ export default function Search() {
 
       setLoading(true);
       try {
-        const params: any = { search: q };
+        const params: any = { search: q, limit: 1000 };
         // Include user location for seller service radius filtering
         if (location?.latitude && location?.longitude) {
           params.latitude = location.latitude;

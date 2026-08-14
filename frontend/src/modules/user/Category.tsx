@@ -155,7 +155,7 @@ export default function CategoryPage() {
         // However, for fetching products, the backend getProducts handles 'category' (parent)
         // and 'subcategory' separately.
 
-        const params: any = { category: category?._id || id };
+        const params: any = { category: category?._id || id, limit: 1000 };
         if (selectedSubcategory !== "all") {
           params.subcategory = selectedSubcategory;
         }

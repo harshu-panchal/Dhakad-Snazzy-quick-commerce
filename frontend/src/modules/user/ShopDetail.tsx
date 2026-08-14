@@ -61,6 +61,7 @@ export default function ShopDetail() {
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         search: searchQuery.trim() ? searchQuery.trim() : undefined,
         sort: sortBy !== 'default' ? sortBy : undefined,
+        limit: 1000,
       });
 
       if (res.success && res.data) {
