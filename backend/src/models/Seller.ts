@@ -73,6 +73,7 @@ export interface ISeller extends Document {
   categories: string[];
   logo?: string;
   isShopOpen: boolean;
+  showInDiscovery?: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -304,6 +305,10 @@ const SellerSchema = new Schema<ISeller>(
       trim: true,
     },
     isShopOpen: {
+      type: Boolean,
+      default: true,
+    },
+    showInDiscovery: {
       type: Boolean,
       default: true,
     },

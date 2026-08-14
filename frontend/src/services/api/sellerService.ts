@@ -42,6 +42,7 @@ export interface Seller {
   addressProof?: string;
   requireProductApproval?: boolean;
   viewCustomerDetails?: boolean;
+  showInDiscovery?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -232,6 +232,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <span className="font-medium text-sm">Order Again</span>
               </Link>
 
+              {/* Shops */}
+              <Link
+                to="/shops"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${(isActive('/shops') || location.pathname.startsWith('/shop/'))
+                  ? 'bg-white shadow-md font-semibold'
+                  : 'hover:bg-white/20'
+                  }`}
+                style={{
+                  color: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? currentTheme.accentColor : currentTheme.headerTextColor
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  {(isActive('/shops') || location.pathname.startsWith('/shop/')) ? (
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                  ) : (
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                  )}
+                </svg>
+                <span className="font-medium text-sm">Shops</span>
+              </Link>
+
               {/* Categories */}
               <Link
                 to="/categories"
@@ -516,6 +537,47 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </div>
                     <span className={`text-xs mt-0.5 relative z-10 ${isActive('/order-again') ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
                       Order Again
+                    </span>
+                  </Link>
+                </motion.div>
+
+                {/* Shops */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                  className="flex-1 h-full"
+                >
+                  <Link
+                    to="/shops"
+                    className="flex flex-col items-center justify-center h-full relative"
+                  >
+                    <div className="flex flex-col items-center justify-center relative z-10">
+                      <motion.svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
+                          scale: [1, 1.1, 1],
+                          y: [0, -2, 0]
+                        } : {}}
+                        transition={{
+                          duration: 0.4,
+                          ease: "easeInOut",
+                          repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
+                          repeatDelay: 2
+                        }}
+                      >
+                        {(isActive('/shops') || location.pathname.startsWith('/shop/')) ? (
+                          <path d="M3 9L12 2L21 9V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9Z M9 21V12H15V21" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
+                        ) : (
+                          <path d="M3 9L12 2L21 9V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9Z M9 21V12H15V21" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                        )}
+                      </motion.svg>
+                    </div>
+                    <span className={`text-xs mt-0.5 relative z-10 ${(isActive('/shops') || location.pathname.startsWith('/shop/')) ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
+                      Shops
                     </span>
                   </Link>
                 </motion.div>

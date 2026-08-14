@@ -56,6 +56,8 @@ const FashionStore = lazyWithRetry(() => import("./modules/user/FashionStore"), 
 const ToyStore = lazyWithRetry(() => import("./modules/user/ToyStore"), "ToyStore");
 const HobbyStore = lazyWithRetry(() => import("./modules/user/HobbyStore"), "HobbyStore");
 const StorePage = lazyWithRetry(() => import("./modules/user/StorePage"), "StorePage");
+const Shops = lazyWithRetry(() => import("./modules/user/Shops"), "Shops");
+const ShopDetail = lazyWithRetry(() => import("./modules/user/ShopDetail"), "ShopDetail");
 
 // Lazy load delivery routes
 const DeliveryLayout = lazyWithRetry(
@@ -867,9 +869,17 @@ function App() {
                                       element={<OrderDetail />}
                                     />
                                     <Route
-                                      path="/order-again"
-                                      element={<OrderAgain />}
-                                    />
+                                       path="/order-again"
+                                       element={<OrderAgain />}
+                                     />
+                                     <Route
+                                       path="/shops"
+                                       element={<Shops />}
+                                     />
+                                     <Route
+                                       path="/shop/:sellerId"
+                                       element={<ShopDetail />}
+                                     />
                                     <Route
                                       path="/account"
                                       element={<Account />}

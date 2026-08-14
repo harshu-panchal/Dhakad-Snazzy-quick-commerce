@@ -44,6 +44,7 @@ interface Seller {
     addressProof?: string;
     requireProductApproval?: boolean;
     viewCustomerDetails?: boolean;
+    showInDiscovery?: boolean;
 }
 
 // Helper function to convert backend seller to frontend format
@@ -85,6 +86,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         addressProof: seller.addressProof,
         requireProductApproval: seller.requireProductApproval,
         viewCustomerDetails: seller.viewCustomerDetails,
+        showInDiscovery: seller.showInDiscovery ?? true,
     };
 };
 
@@ -284,6 +286,7 @@ export default function AdminManageSellerList() {
                 ifsc: seller.ifsc || '',
                 requireProductApproval: seller.requireProductApproval ?? false,
                 viewCustomerDetails: seller.viewCustomerDetails ?? true,
+                showInDiscovery: seller.showInDiscovery ?? true,
                 balance: seller.balance || 0,
             });
             setNewRadius(seller.serviceRadiusKm || 10);
@@ -324,6 +327,7 @@ export default function AdminManageSellerList() {
                 ifsc: editForm.ifsc,
                 requireProductApproval: editForm.requireProductApproval,
                 viewCustomerDetails: editForm.viewCustomerDetails,
+                showInDiscovery: editForm.showInDiscovery,
                 balance: Number(editForm.balance) || 0,
             };
 
@@ -530,6 +534,31 @@ export default function AdminManageSellerList() {
         setSelectedSeller(null);
     };
 
+    const handleToggleDiscovery = async (seller: Seller) => {
+        const newValue = seller.showInDiscovery === false;
+        try {
+            // Optimistic update
+            setSellers(prev => prev.map(s => s._id === seller._id ? { ...s, showInDiscovery: newValue } : s));
+            
+            const response = await updateSeller(seller._id, { showInDiscovery: newValue });
+            if (!response.success) {
+                // Revert on failure
+                setSellers(prev => prev.map(s => s._id === seller._id ? { ...s, showInDiscovery: seller.showInDiscovery } : s));
+                setError(response.message || 'Failed to update discovery status');
+                setTimeout(() => setError(''), 3000);
+            } else {
+                setSuccessMessage(`Discovery status updated for ${seller.storeName}`);
+                setTimeout(() => setSuccessMessage(''), 3000);
+            }
+        } catch (err: any) {
+            // Revert on failure
+            setSellers(prev => prev.map(s => s._id === seller._id ? { ...s, showInDiscovery: seller.showInDiscovery } : s));
+            console.error('Error toggling discovery:', err);
+            setError(err.response?.data?.message || 'Failed to update discovery status');
+            setTimeout(() => setError(''), 3000);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-gray-50">
             {/* Page Content */}
@@ -686,6 +715,9 @@ export default function AdminManageSellerList() {
                                             Need Approval?
                                         </th>
                                         <th className="p-4">
+                                            Show in Discovery
+                                        </th>
+                                        <th className="p-4">
                                             Action
                                         </th>
                                     </tr>
@@ -757,6 +789,24 @@ export default function AdminManageSellerList() {
                                                 </span>
                                             </td>
                                             <td className="p-4 align-middle">
+                                                <button
+                                                    onClick={() => handleToggleDiscovery(seller)}
+                                                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                        seller.showInDiscovery !== false ? 'bg-teal-600' : 'bg-neutral-200'
+                                                    }`}
+                                                    role="switch"
+                                                    aria-checked={seller.showInDiscovery !== false}
+                                                    title={seller.showInDiscovery !== false ? "Show in Discovery: On" : "Show in Discovery: Off"}
+                                                >
+                                                    <span
+                                                        aria-hidden="true"
+                                                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                                            seller.showInDiscovery !== false ? 'translate-x-5' : 'translate-x-0'
+                                                        }`}
+                                                    />
+                                                </button>
+                                            </td>
+                                            <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => handleEdit(seller._id)}
@@ -784,7 +834,7 @@ export default function AdminManageSellerList() {
                                     ))}
                                     {displayedSellers.length === 0 && (
                                         <tr>
-                                            <td colSpan={11} className="p-8 text-center text-neutral-400">
+                                            <td colSpan={12} className="p-8 text-center text-neutral-400">
                                                 No sellers found.
                                             </td>
                                         </tr>
@@ -1313,7 +1363,7 @@ export default function AdminManageSellerList() {
                                     <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>
                                     Seller Settings & Balance
                                 </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-neutral-600 mb-1">Require Product Approval</label>
                                         <select
@@ -1330,6 +1380,17 @@ export default function AdminManageSellerList() {
                                         <select
                                             value={editForm.viewCustomerDetails ? 'true' : 'false'}
                                             onChange={(e) => setEditForm(prev => ({ ...prev, viewCustomerDetails: e.target.value === 'true' }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                        >
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Show in Discovery/Shops</label>
+                                        <select
+                                            value={editForm.showInDiscovery !== false ? 'true' : 'false'}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, showInDiscovery: e.target.value === 'true' }))}
                                             className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
                                         >
                                             <option value="true">Yes</option>
