@@ -43,6 +43,16 @@ const SubCategorySchema = new Schema<ISubCategory>(
   }
 );
 
+import { ensureAbsoluteImageUrl } from "../services/localStorageService";
+
+// Pre-save middleware to ensure absolute image URL
+SubCategorySchema.pre("save", function (next) {
+  if (this.image && typeof this.image === "string" && this.image.startsWith("/uploads/")) {
+    this.image = ensureAbsoluteImageUrl(this.image);
+  }
+  next();
+});
+
 // Index for faster queries
 SubCategorySchema.index({ category: 1, order: 1 });
 SubCategorySchema.index({ name: 1 });

@@ -13,9 +13,26 @@ function ensureDirExists(dirPath: string) {
   }
 }
 
-function getFullUrl(relativePath: string): string {
-  const serverUrl = process.env.SERVER_URL ? process.env.SERVER_URL.replace(/\/$/, "") : "";
-  return `${serverUrl}${relativePath}`;
+export function getFullUrl(relativePath: string): string {
+  const defaultServerUrl = "https://api.dhakadsnazzy.com";
+  const serverUrl =
+    process.env.SERVER_URL && process.env.SERVER_URL.trim() !== ""
+      ? process.env.SERVER_URL.trim().replace(/\/$/, "")
+      : defaultServerUrl;
+  const cleanPath = relativePath.startsWith("/") ? relativePath : `/${relativePath}`;
+  return `${serverUrl}${cleanPath}`;
+}
+
+/**
+ * Ensures relative upload paths starting with /uploads/ are converted to full absolute URLs
+ */
+export function ensureAbsoluteImageUrl(url: string | null | undefined): string {
+  if (!url || typeof url !== "string") return url || "";
+  const trimmed = url.trim();
+  if (trimmed.startsWith("/uploads/")) {
+    return getFullUrl(trimmed);
+  }
+  return trimmed;
 }
 
 /**
@@ -87,8 +104,9 @@ export async function uploadDocumentFromBuffer(
 export async function deleteImage(publicIdOrUrl: string): Promise<void> {
   try {
     let relativePath = publicIdOrUrl;
-    if (relativePath.startsWith("/uploads/")) {
-      relativePath = relativePath.replace("/uploads/", "");
+    if (relativePath.includes("/uploads/")) {
+      const idx = relativePath.indexOf("/uploads/");
+      relativePath = relativePath.substring(idx + "/uploads/".length);
     }
     const fullPath = path.join(UPLOADS_BASE_DIR, relativePath);
     if (fs.existsSync(fullPath)) {

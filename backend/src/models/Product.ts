@@ -340,8 +340,22 @@ ProductSchema.virtual("mrp").get(function () {
   return this.compareAtPrice;
 });
 
-// Calculate discount and sync stock/price from variations before saving
+import { ensureAbsoluteImageUrl } from "../services/localStorageService";
+
+// Calculate discount and sync stock/price/images from variations before saving
 ProductSchema.pre("save", function (next) {
+  // Normalize mainImage if relative
+  if (this.mainImage && typeof this.mainImage === "string" && this.mainImage.startsWith("/uploads/")) {
+    this.mainImage = ensureAbsoluteImageUrl(this.mainImage);
+  }
+
+  // Normalize galleryImages if relative
+  if (Array.isArray(this.galleryImages)) {
+    this.galleryImages = this.galleryImages.map((img) =>
+      typeof img === "string" && img.startsWith("/uploads/") ? ensureAbsoluteImageUrl(img) : img
+    );
+  }
+
   // Sync price and stock from variations if they exist
   if (this.variations && this.variations.length > 0) {
     // Set price to the price of the first variation if top-level price is not set or if we want to keep it in sync

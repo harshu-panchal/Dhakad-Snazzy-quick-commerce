@@ -122,13 +122,18 @@ CategorySchema.virtual("children", {
 CategorySchema.set("toJSON", { virtuals: true });
 CategorySchema.set("toObject", { virtuals: true });
 
-// Pre-save middleware to auto-generate slug if not provided
+import { ensureAbsoluteImageUrl } from "../services/localStorageService";
+
+// Pre-save middleware to auto-generate slug if not provided and ensure absolute image URL
 CategorySchema.pre("save", async function (next) {
   if (!this.slug && this.name) {
     this.slug = this.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
+  }
+  if (this.image && typeof this.image === "string" && this.image.startsWith("/uploads/")) {
+    this.image = ensureAbsoluteImageUrl(this.image);
   }
   next();
 });
