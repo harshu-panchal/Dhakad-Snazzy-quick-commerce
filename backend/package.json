@@ -4,7 +4,7 @@
   "description": "Dhakad Snazzy Backend API Server",
   "main": "dist/server.js",
   "scripts": {
-    "build": "node_modules\\.bin\\tsc",
+    "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "tsx test-auth.ts",
