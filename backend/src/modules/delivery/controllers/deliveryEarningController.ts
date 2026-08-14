@@ -39,7 +39,7 @@ export const getEarningsHistory = asyncHandler(async (req: Request, res: Respons
         { $limit: 30 } // Last 30 days
     ]);
 
-    const formattedEarnings = earnings.map(day => {
+    const formattedEarnings = earnings.map((day: any) => {
         // Humanize date labels like "Today", "Yesterday"
         const date = new Date(day._id);
         const today = new Date();

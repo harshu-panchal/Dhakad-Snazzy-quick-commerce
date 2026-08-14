@@ -74,7 +74,7 @@ export const getAllOrdersHistory = asyncHandler(
     });
 
     const commissionMap = new Map();
-    commissions.forEach((c) => {
+    commissions.forEach((c: any) => {
       commissionMap.set(c.order.toString(), c.commissionAmount);
     });
 
