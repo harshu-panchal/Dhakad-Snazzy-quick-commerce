@@ -211,46 +211,34 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <span className="font-medium text-sm">Home</span>
               </Link>
 
-              {/* Order Again */}
-              <Link
-                to="/order-again"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/order-again')
-                  ? 'bg-white shadow-md font-semibold'
-                  : 'hover:bg-white/20'
-                  }`}
-                style={{
-                  color: isActive('/order-again') ? currentTheme.accentColor : currentTheme.headerTextColor
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  {isActive('/order-again') ? (
-                    <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-                  ) : (
-                    <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                  )}
-                </svg>
-                <span className="font-medium text-sm">Order Again</span>
-              </Link>
 
               {/* Shops */}
               <Link
                 to="/shops"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${(isActive('/shops') || location.pathname.startsWith('/shop/'))
-                  ? 'bg-white shadow-md font-semibold'
-                  : 'hover:bg-white/20'
+                className={`group flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${(isActive('/shops') || location.pathname.startsWith('/shop/'))
+                  ? 'bg-white shadow-md font-semibold ring-2 ring-white/50 scale-105'
+                  : 'hover:bg-white/20 hover:scale-105'
                   }`}
                 style={{
                   color: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? currentTheme.accentColor : currentTheme.headerTextColor
                 }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg className="transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-110 group-hover:rotate-[8deg]" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   {(isActive('/shops') || location.pathname.startsWith('/shop/')) ? (
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                    <>
+                      <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" fill="currentColor" stroke="currentColor" strokeWidth="2" />
+                      <rect x="2" y="13" width="20" height="3" rx="1.5" fill="currentColor" />
+                      <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                    </>
                   ) : (
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                    <>
+                      <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" stroke="currentColor" strokeWidth="2" fill="none" />
+                      <rect x="2" y="13" width="20" height="3" rx="1.5" fill="currentColor" />
+                      <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                    </>
                   )}
                 </svg>
-                <span className="font-medium text-sm">Shops</span>
+                <span className="font-bold text-[13px] uppercase tracking-widest drop-shadow-sm transition-all duration-300 group-hover:tracking-[0.2em] group-hover:drop-shadow-md">Food Zone</span>
               </Link>
 
               {/* Categories */}
@@ -476,70 +464,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   </Link>
                 </motion.div>
 
-                {/* Order Again */}
-                <motion.div
-                  whileTap={{ scale: 0.95 }}
-                  transition={{ duration: 0.1 }}
-                  className="flex-1 h-full"
-                >
-                  <Link
-                    to="/order-again"
-                    className="flex flex-col items-center justify-center h-full relative"
-                  >
-                    <div className="flex flex-col items-center justify-center relative z-10">
-                      <motion.svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        animate={isActive('/order-again') ? {
-                          scale: [1, 1.1, 1],
-                          y: [0, -2, 0]
-                        } : {}}
-                        transition={{
-                          duration: 0.4,
-                          ease: "easeInOut",
-                          repeat: isActive('/order-again') ? Infinity : 0,
-                          repeatDelay: 2
-                        }}
-                      >
-                        {isActive('/order-again') ? (
-                          <>
-                            {/* Shopping bag body */}
-                            <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
-                            {/* Handles */}
-                            <path d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8" stroke="#1f2937" strokeWidth="2" strokeLinecap="round" fill="none" />
-                          </>
-                        ) : (
-                          <>
-                            {/* Shopping bag body */}
-                            <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                            {/* Handles */}
-                            <path d="M7 8V6C7 5.44772 7.44772 5 8 5H16C16.5523 5 17 5.44772 17 6V8" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" fill="none" />
-                          </>
-                        )}
-                        {/* Heart inside basket - grows when active, shrinks when inactive */}
-                        <AnimatePresence>
-                          {isActive('/order-again') && (
-                            <motion.path
-                              key="heart"
-                              d="M12 17C11.5 16.5 8 13.5 8 11.5C8 10 9 9 10.5 9C11.2 9 11.8 9.3 12 9.7C12.2 9.3 12.8 9 13.5 9C15 9 16 10 16 11.5C16 13.5 12.5 16.5 12 17Z"
-                              fill="#1f2937"
-                              initial={{ scale: 0, opacity: 0 }}
-                              animate={{ scale: 1, opacity: 1 }}
-                              exit={{ scale: 0, opacity: 0 }}
-                              transition={{ duration: 0.3, ease: "easeOut" }}
-                            />
-                          )}
-                        </AnimatePresence>
-                      </motion.svg>
-                    </div>
-                    <span className={`text-xs mt-0.5 relative z-10 ${isActive('/order-again') ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
-                      Order Again
-                    </span>
-                  </Link>
-                </motion.div>
+
 
                 {/* Shops */}
                 <motion.div
@@ -552,32 +477,53 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     className="flex flex-col items-center justify-center h-full relative"
                   >
                     <div className="flex flex-col items-center justify-center relative z-10">
+                      <AnimatePresence>
+                        {(isActive('/shops') || location.pathname.startsWith('/shop/')) && (
+                          <motion.div 
+                            className="absolute inset-0 bg-green-400 rounded-full blur-md opacity-30 z-0" 
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.5, 0.2] }} 
+                            exit={{ scale: 0, opacity: 0 }}
+                            transition={{ duration: 1.5, repeat: Infinity }} 
+                          />
+                        )}
+                      </AnimatePresence>
                       <motion.svg
+                        className="relative z-10"
                         width="24"
                         height="24"
                         viewBox="0 0 24 24"
                         fill="none"
                         xmlns="http://www.w3.org/2000/svg"
                         animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
-                          scale: [1, 1.1, 1],
-                          y: [0, -2, 0]
+                          scale: [1, 1.15, 0.92, 1.05, 1],
+                          y: [0, -4, 2, -1, 0],
+                          rotate: [0, -6, 4, -2, 0]
                         } : {}}
                         transition={{
-                          duration: 0.4,
+                          duration: 0.7,
                           ease: "easeInOut",
                           repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
-                          repeatDelay: 2
+                          repeatDelay: 1.5
                         }}
                       >
                         {(isActive('/shops') || location.pathname.startsWith('/shop/')) ? (
-                          <path d="M3 9L12 2L21 9V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9Z M9 21V12H15V21" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
+                          <>
+                            <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" />
+                            <rect x="2" y="13" width="20" height="3" rx="1.5" fill="#1f2937" />
+                            <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
+                          </>
                         ) : (
-                          <path d="M3 9L12 2L21 9V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V9Z M9 21V12H15V21" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                          <>
+                            <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" stroke="#6b7280" strokeWidth="2" fill="none" />
+                            <rect x="2" y="13" width="20" height="3" rx="1.5" fill="#6b7280" />
+                            <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
+                          </>
                         )}
                       </motion.svg>
                     </div>
-                    <span className={`text-xs mt-0.5 relative z-10 ${(isActive('/shops') || location.pathname.startsWith('/shop/')) ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
-                      Shops
+                    <span className={`text-[10px] mt-0.5 relative z-10 font-bold uppercase tracking-widest transition-all duration-300 ${(isActive('/shops') || location.pathname.startsWith('/shop/')) ? 'text-emerald-700 drop-shadow-[0_1px_1px_rgba(0,0,0,0.1)] scale-110 font-black' : 'text-neutral-500'}`}>
+                      Food Zone
                     </span>
                   </Link>
                 </motion.div>

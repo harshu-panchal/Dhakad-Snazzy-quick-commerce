@@ -49,7 +49,7 @@ export const getCart = async (params?: CartLocationParams): Promise<CartResponse
 /**
  * Add item to cart
  */
-export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
+export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string, replaceCart?: boolean): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
@@ -62,7 +62,8 @@ export const addToCart = async (productId: string, quantity: number = 1, variati
         productId,
         quantity,
         variation,
-        deliveryOption
+        deliveryOption,
+        replaceCart
     }, { params });
     return response.data;
 };

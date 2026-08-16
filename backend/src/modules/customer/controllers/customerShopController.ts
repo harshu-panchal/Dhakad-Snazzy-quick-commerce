@@ -134,10 +134,7 @@ export const getNearbyShops = async (req: Request, res: Response) => {
       }
 
       // Check seller view customer details setting
-      const isVisible = seller.viewCustomerDetails !== false;
-      const storeName = isVisible
-        ? seller.storeName || seller.sellerName || "Store"
-        : "Local Store";
+      const storeName = seller.storeName || seller.sellerName || "Local Store";
 
       // Fetch preview products for this seller
       const previewProducts = await Product.find({
@@ -332,10 +329,7 @@ export const getShopDetails = async (req: Request, res: Response) => {
     const storeCategories = Array.from(categoriesMap.values());
     const avgRating = ratingsCount > 0 ? (totalRatings / ratingsCount).toFixed(1) : "4.2";
 
-    const isVisible = seller.viewCustomerDetails !== false;
-    const storeName = isVisible
-      ? seller.storeName || seller.sellerName || "Store"
-      : "Local Store";
+    const storeName = seller.storeName || seller.sellerName || "Local Store";
 
     return res.status(200).json({
       success: true,

@@ -12,12 +12,41 @@ import {
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
 import { calculateProductPrice } from '../utils/priceUtils';
+import SellerConflictModal from '../modules/user/components/SellerConflictModal';
 
 const CART_STORAGE_KEY = 'saved_cart';
 
 interface AddToCartEvent {
   product: Product;
   sourcePosition?: { x: number; y: number };
+}
+
+// Resolves the seller ObjectId for a product, regardless of whether `seller`
+// arrived populated (object), as a raw id string, or via the `sellerId` field.
+function getProductSellerId(product: any): string | undefined {
+  if (!product) return undefined;
+  if (product.seller && typeof product.seller === 'object') {
+    return product.seller._id || product.seller.id;
+  }
+  if (typeof product.seller === 'string' && /^[0-9a-fA-F]{24}$/.test(product.seller)) {
+    return product.seller;
+  }
+  return product.sellerId;
+}
+
+function getProductSellerName(product: any): string | undefined {
+  if (!product) return undefined;
+  if (product.seller && typeof product.seller === 'object') {
+    return product.seller.storeName || product.seller.sellerName;
+  }
+  return product.storeName || product.shopName;
+}
+
+interface SellerConflictState {
+  product: Product;
+  sourceElement?: HTMLElement | null;
+  currentSellerName?: string;
+  newSellerName?: string;
 }
 
 interface CartContextType {
@@ -34,6 +63,9 @@ interface CartContextType {
   ) => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
+  sellerConflict: { currentSellerName?: string; newSellerName?: string } | null;
+  confirmSellerConflict: () => Promise<void>;
+  cancelSellerConflict: () => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -85,6 +117,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           pack: item.product.pack || '1 unit',
           categoryId: item.product.category || '',
           description: item.product.description,
+          seller: item.product.seller,
+          sellerId: typeof item.product.seller === 'string' ? item.product.seller : (item.product.seller?._id || item.product.seller?.id),
           variantId: item.variation // Preserving variation ID/value
         },
         quantity: item.quantity,
@@ -188,19 +222,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
               const productId = item.product.id || item.product._id;
               if (!productId) continue;
 
-              const variation = (item.product as any).variantId || 
-                               (item.product as any).selectedVariant?._id || 
+              const variation = (item.product as any).variantId ||
+                               (item.product as any).selectedVariant?._id ||
                                (item.product as any).variantTitle ||
                                item.variant ||
                                item.product.pack;
-              
-              await apiAddToCart(
-                productId,
-                item.quantity,
-                variation,
-                location?.latitude,
-                location?.longitude
-              );
+
+              try {
+                await apiAddToCart(
+                  productId,
+                  item.quantity,
+                  variation,
+                  location?.latitude,
+                  location?.longitude
+                );
+              } catch (err: any) {
+                // The account's existing server-side cart belongs to a different
+                // seller than this guest cart - the local (guest) cart wins and
+                // replaces it, since it reflects what the user just picked.
+                if (err.response?.status === 409 && err.response?.data?.sellerConflict) {
+                  await apiAddToCart(
+                    productId,
+                    item.quantity,
+                    variation,
+                    location?.latitude,
+                    location?.longitude,
+                    undefined,
+                    true
+                  );
+                } else {
+                  throw err;
+                }
+              }
             }
             hasSyncedRef.current = true;
             // Refresh cart to get updated data from backend
@@ -249,7 +302,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, [items, estimatedFee, platformFee, freeDeliveryThreshold, minimumOrderValue]);
 
-  const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
+  const [sellerConflict, setSellerConflict] = useState<SellerConflictState | null>(null);
+
+  const addToCart = async (product: Product, sourceElement?: HTMLElement | null, skipConflictCheck: boolean = false) => {
     // Get consistent product ID - MongoDB returns _id, frontend expects id
     const productId = product._id || product.id;
 
@@ -257,6 +312,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (pendingOperationsRef.current.has(productId)) {
       return;
     }
+
+    // A cart may only contain products from a single seller at a time (like a
+    // food-delivery cart). If it already has items from a different seller,
+    // pause and ask the customer to confirm before wiping their cart.
+    if (!skipConflictCheck) {
+      const validItems = items.filter((item) => item?.product);
+      if (validItems.length > 0) {
+        const newSellerId = getProductSellerId(product);
+        const existingSellerId = getProductSellerId(validItems[0].product);
+        const isSameProduct = (validItems[0].product.id || validItems[0].product._id) === productId;
+        if (!isSameProduct && newSellerId && existingSellerId && newSellerId !== existingSellerId) {
+          setSellerConflict({
+            product,
+            sourceElement,
+            currentSellerName: getProductSellerName(validItems[0].product),
+            newSellerName: getProductSellerName(product),
+          });
+          return;
+        }
+      }
+    }
+
     pendingOperationsRef.current.add(productId);
 
     // Normalize product to always have 'id' property for consistency
@@ -283,8 +360,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // Optimistically update state
     const previousItems = [...items];
     setItems((prevItems) => {
-      // Filter out null products and find existing item
-      const validItems = prevItems.filter(item => item?.product);
+      // Filter out null products and find existing item.
+      // On a confirmed seller-conflict replacement, start from an empty cart
+      // instead of merging with items from the previous seller.
+      const validItems = skipConflictCheck ? [] : prevItems.filter(item => item?.product);
 
       // Check for variant ID or variant title if product has variations
       let variantId = (product as any).variantId || (product as any).selectedVariant?._id;
@@ -358,7 +437,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           1,
           variation,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          undefined,
+          skipConflictCheck || undefined
         );
         if (response && response.data && response.data.items) {
           // Atomic update from server response
@@ -372,6 +453,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           console.warn('Response missing data or items:', response);
         }
       } catch (error: any) {
+        // Backend is the authority on the single-seller rule; if the client's
+        // view of the cart was stale, surface the same confirmation flow here.
+        if (error.response?.status === 409 && error.response?.data?.sellerConflict) {
+          setItems(previousItems);
+          setSellerConflict({
+            product,
+            sourceElement,
+            currentSellerName: error.response.data.data?.currentSellerName,
+            newSellerName: error.response.data.data?.newSellerName,
+          });
+          return;
+        }
         console.error("Add to cart failed", error);
         // Show error toast
         showToast(error.response?.data?.message || "Failed to add to cart", 'error');
@@ -537,11 +630,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await fetchCart(latitude, longitude, deliveryOption, options);
   }, [fetchCart]);
 
+  const confirmSellerConflict = async () => {
+    if (!sellerConflict) return;
+    const { product, sourceElement } = sellerConflict;
+    setSellerConflict(null);
+    await addToCart(product, sourceElement, true);
+  };
+
+  const cancelSellerConflict = () => setSellerConflict(null);
+
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, lastAddEvent, loading }}
+      value={{
+        cart,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        refreshCart,
+        lastAddEvent,
+        loading,
+        sellerConflict: sellerConflict
+          ? { currentSellerName: sellerConflict.currentSellerName, newSellerName: sellerConflict.newSellerName }
+          : null,
+        confirmSellerConflict,
+        cancelSellerConflict,
+      }}
     >
       {children}
+      <SellerConflictModal
+        isOpen={!!sellerConflict}
+        currentSellerName={sellerConflict?.currentSellerName}
+        newSellerName={sellerConflict?.newSellerName}
+        onConfirm={confirmSellerConflict}
+        onCancel={cancelSellerConflict}
+      />
     </CartContext.Provider>
   );
 }

@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface ICart extends Document {
   customer: mongoose.Types.ObjectId;
   items: mongoose.Types.ObjectId[]; // References to CartItem
+  seller: mongoose.Types.ObjectId | null; // The single seller all items in this cart belong to
   total: number;
   createdAt: Date;
   updatedAt: Date;
@@ -22,6 +23,11 @@ const CartSchema = new Schema<ICart>(
         ref: "CartItem",
       },
     ],
+    seller: {
+      type: Schema.Types.ObjectId,
+      ref: "Seller",
+      default: null,
+    },
     total: {
       type: Number,
       default: 0,

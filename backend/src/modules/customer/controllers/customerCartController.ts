@@ -233,7 +233,7 @@ export const getCart = async (req: Request, res: Response) => {
 export const addToCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
-        const { productId, quantity = 1, variation } = req.body;
+        const { productId, quantity = 1, variation, replaceCart } = req.body;
         const { latitude, longitude } = req.query;
 
         if (!productId) {
@@ -281,6 +281,41 @@ export const addToCart = async (req: Request, res: Response) => {
         if (!cart) {
             cart = await Cart.create({ customer: userId, items: [], total: 0 });
         }
+
+        const newSellerId = (seller._id || seller).toString();
+
+        // Backfill seller on legacy carts created before single-seller enforcement existed
+        if (!cart.seller && cart.items.length > 0) {
+            const firstItem = await CartItem.findOne({ _id: { $in: cart.items } }).populate({ path: 'product', select: 'seller' });
+            const firstItemSeller = (firstItem?.product as any)?.seller;
+            if (firstItemSeller) {
+                cart.seller = firstItemSeller;
+            }
+        }
+
+        // Enforce single-seller cart: a customer can only order from one seller at a time
+        if (cart.items.length > 0 && cart.seller && cart.seller.toString() !== newSellerId) {
+            if (!replaceCart) {
+                const currentSeller = await Seller.findById(cart.seller).select('storeName sellerName');
+                return res.status(409).json({
+                    success: false,
+                    sellerConflict: true,
+                    message: `Your cart contains items from ${currentSeller?.storeName || currentSeller?.sellerName || 'another store'}. Adding this item will clear your current cart.`,
+                    data: {
+                        currentSellerId: cart.seller,
+                        currentSellerName: currentSeller?.storeName || currentSeller?.sellerName,
+                        newSellerId,
+                        newSellerName: seller.storeName || seller.sellerName,
+                    }
+                });
+            }
+
+            // Customer confirmed replacing the cart with items from the new seller
+            await CartItem.deleteMany({ cart: cart._id });
+            cart.items = [];
+        }
+
+        cart.seller = new mongoose.Types.ObjectId(newSellerId);
 
         // Check if item already exists in cart
         let cartItem = await CartItem.findOne({
@@ -454,6 +489,11 @@ export const removeFromCart = async (req: Request, res: Response) => {
         // Remove from cart array
         cart.items = cart.items.filter(id => id.toString() !== itemId);
 
+        // Cart is now empty; free it up so a new seller can be added next
+        if (cart.items.length === 0) {
+            cart.seller = null;
+        }
+
         // Calculate total with location if provided
         let nearbySellerIds: mongoose.Types.ObjectId[] = [];
         if (userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng)) {
@@ -512,6 +552,7 @@ export const clearCart = async (req: Request, res: Response) => {
             await CartItem.deleteMany({ cart: cart._id });
             cart.items = [];
             cart.total = 0;
+            cart.seller = null;
             await cart.save();
         }
 
