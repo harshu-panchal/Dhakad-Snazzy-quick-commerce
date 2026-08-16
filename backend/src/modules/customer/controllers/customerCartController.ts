@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import Cart from '../../../models/Cart';
 import CartItem from '../../../models/CartItem';
 import Product from '../../../models/Product';
-import { findSellersWithinRange } from '../../../utils/locationHelper';
+import { findSellersWithinRange, calculateDistance, getDeliveryEligibility } from '../../../utils/locationHelper';
 import mongoose from 'mongoose';
 import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
@@ -143,6 +143,42 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
     };
 };
 
+// Helper to compute customer-to-seller distance and which delivery options that distance allows
+const getCartDeliveryEligibility = async (
+    sellerId: mongoose.Types.ObjectId | null | undefined,
+    userLat: number | null,
+    userLng: number | null
+) => {
+    const openResult = { distanceKm: null as number | null, instantAllowed: true, standardAllowed: true, instantDeliveryRadiusKm: null as number | null };
+
+    if (!sellerId || userLat === null || userLng === null) {
+        return openResult;
+    }
+
+    const seller = await Seller.findById(sellerId).select('location latitude longitude');
+    let sellerLat: number | null = null;
+    let sellerLng: number | null = null;
+
+    if (seller?.location?.coordinates?.length === 2) {
+        sellerLng = seller.location.coordinates[0];
+        sellerLat = seller.location.coordinates[1];
+    } else if (seller?.latitude && seller?.longitude) {
+        sellerLat = parseFloat(seller.latitude);
+        sellerLng = parseFloat(seller.longitude);
+    }
+
+    if (sellerLat === null || sellerLng === null || isNaN(sellerLat) || isNaN(sellerLng)) {
+        return openResult;
+    }
+
+    const distanceKm = calculateDistance(userLat, userLng, sellerLat, sellerLng);
+    const settings = await AppSettings.getSettings();
+    const instantDeliveryRadiusKm = settings.deliveryConfig?.instantDeliveryRadiusKm ?? null;
+    const { instantAllowed, standardAllowed } = getDeliveryEligibility(distanceKm, instantDeliveryRadiusKm);
+
+    return { distanceKm, instantAllowed, standardAllowed, instantDeliveryRadiusKm };
+};
+
 // Get current user's cart
 export const getCart = async (req: Request, res: Response) => {
     try {
@@ -209,6 +245,7 @@ export const getCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng, deliveryOption);
+        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -217,7 +254,8 @@ export const getCart = async (req: Request, res: Response) => {
                 items: filteredItems,
                 unavailableItems: unavailableItems, // Include unavailable items
                 total,
-                ...fees
+                ...fees,
+                ...deliveryEligibility
             }
         });
     } catch (error: any) {
@@ -360,6 +398,7 @@ export const addToCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -368,7 +407,8 @@ export const addToCart = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees
+                ...fees,
+                ...deliveryEligibility
             }
         });
     } catch (error: any) {
@@ -448,6 +488,7 @@ export const updateCartItem = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -456,7 +497,8 @@ export const updateCartItem = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees
+                ...fees,
+                ...deliveryEligibility
             }
         });
     } catch (error: any) {
@@ -522,6 +564,7 @@ export const removeFromCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -530,7 +573,8 @@ export const removeFromCart = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees
+                ...fees,
+                ...deliveryEligibility
             }
         });
     } catch (error: any) {

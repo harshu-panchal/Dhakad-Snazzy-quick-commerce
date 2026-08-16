@@ -5,7 +5,7 @@ import OrderItem from "../../../models/OrderItem";
 import Customer from "../../../models/Customer";
 import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
-import { calculateDistance } from "../../../utils/locationHelper";
+import { calculateDistance, getDeliveryEligibility } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
@@ -430,6 +430,32 @@ export const createOrder = async (req: Request, res: Response) => {
           return res.status(403).json({
             success: false,
             message: `Your delivery address is ${distance.toFixed(2)} km away from ${seller.storeName}. They only deliver within ${serviceRadius} km. Please select products from sellers in your area.`,
+          });
+        }
+
+        // Enforce the admin-configured instant/standard delivery boundary.
+        // The backend is authoritative here - the frontend only disables the
+        // ineligible option as a UX convenience.
+        const instantDeliveryRadiusKm = settings.deliveryConfig?.instantDeliveryRadiusKm;
+        const { instantAllowed, standardAllowed } = getDeliveryEligibility(
+          distance,
+          instantDeliveryRadiusKm,
+        );
+        const effectiveDeliveryOption = deliveryOption || "Standard";
+
+        if (effectiveDeliveryOption === "Instant" && !instantAllowed) {
+          if (session) await session.abortTransaction();
+          return res.status(400).json({
+            success: false,
+            message: `Instant delivery is only available within ${instantDeliveryRadiusKm} km of ${seller.storeName}. Your address is ${distance.toFixed(2)} km away - please select Standard delivery.`,
+          });
+        }
+
+        if (effectiveDeliveryOption === "Standard" && !standardAllowed) {
+          if (session) await session.abortTransaction();
+          return res.status(400).json({
+            success: false,
+            message: `Your address is within ${instantDeliveryRadiusKm} km of ${seller.storeName}, so only Instant delivery is available for this distance.`,
           });
         }
       }

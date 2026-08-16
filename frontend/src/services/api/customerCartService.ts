@@ -22,6 +22,10 @@ export interface Cart {
     platformFee?: number;
     freeDeliveryThreshold?: number;
     minimumOrderValue?: number;
+    distanceKm?: number;
+    instantAllowed?: boolean;
+    standardAllowed?: boolean;
+    instantDeliveryRadiusKm?: number;
     debug_config?: any;
     backendTotal?: number;
 }

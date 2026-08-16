@@ -23,6 +23,9 @@ export default function AdminBillingSettings() {
     const [deliveryBoyKmRate, setDeliveryBoyKmRate] = useState<number>(0);
     const [googleMapsKey, setGoogleMapsKey] = useState<string>('');
 
+    // Instant vs Standard delivery boundary (0 = disabled, both options always available)
+    const [instantDeliveryRadiusKm, setInstantDeliveryRadiusKm] = useState<number>(0);
+
     // Feature Flags
     const [showSellerDetails, setShowSellerDetails] = useState<boolean>(true);
 
@@ -51,6 +54,7 @@ export default function AdminBillingSettings() {
                     setKmRate(data.deliveryConfig.kmRate || 0);
                     setDeliveryBoyKmRate(data.deliveryConfig.deliveryBoyKmRate || 0);
                     setGoogleMapsKey(data.deliveryConfig.googleMapsKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
+                    setInstantDeliveryRadiusKm(data.deliveryConfig.instantDeliveryRadiusKm || 0);
                 } else {
                     // If no config exists, try to pre-fill from env
                     setGoogleMapsKey(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
@@ -83,7 +87,8 @@ export default function AdminBillingSettings() {
                     baseDistance,
                     kmRate,
                     deliveryBoyKmRate,
-                    googleMapsKey
+                    googleMapsKey,
+                    instantDeliveryRadiusKm: instantDeliveryRadiusKm > 0 ? instantDeliveryRadiusKm : null
                 },
                 features: {
                     ...(settings?.features || {
@@ -234,6 +239,29 @@ export default function AdminBillingSettings() {
                                 Distance Based
                             </button>
                         </div>
+                    </div>
+
+                    <div className="mb-6 pb-6 border-b border-neutral-100">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Instant Delivery Radius (km)
+                        </label>
+                        <div className="relative max-w-md">
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                value={instantDeliveryRadiusKm === 0 ? '' : instantDeliveryRadiusKm}
+                                onChange={(e) => setInstantDeliveryRadiusKm(e.target.value === '' ? 0 : Number(e.target.value))}
+                                className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                placeholder="e.g. 10 (leave blank to disable)"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">km</span>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                            Customers within this distance of a seller can only choose Instant delivery; customers
+                            beyond it (but still within the seller's own service radius) can only choose Standard.
+                            Leave blank or 0 to let customers pick either option regardless of distance.
+                        </p>
                     </div>
 
                     {!isDistanceBased ? (

@@ -181,17 +181,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         setMinimumOrderValue(response.data.minimumOrderValue);
+        setDeliveryDistanceKm((response.data as any).distanceKm);
+        setInstantDeliveryAllowed((response.data as any).instantAllowed ?? true);
+        setStandardDeliveryAllowed((response.data as any).standardAllowed ?? true);
+        setInstantDeliveryRadiusKm((response.data as any).instantDeliveryRadiusKm);
       } else if (!options?.preserveItems) {
         setItems([]);
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
         setMinimumOrderValue(undefined);
+        setDeliveryDistanceKm(undefined);
+        setInstantDeliveryAllowed(true);
+        setStandardDeliveryAllowed(true);
+        setInstantDeliveryRadiusKm(undefined);
       } else {
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
         setMinimumOrderValue(undefined);
+        setDeliveryDistanceKm(undefined);
+        setInstantDeliveryAllowed(true);
+        setStandardDeliveryAllowed(true);
+        setInstantDeliveryRadiusKm(undefined);
       }
     } catch (error) {
       console.error("Failed to fetch cart:", error);
@@ -277,6 +289,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | undefined>(undefined);
   const [minimumOrderValue, setMinimumOrderValue] = useState<number | undefined>(undefined);
 
+  // Admin-configured instant/standard delivery boundary - which options the
+  // customer's distance from the cart's seller currently allows
+  const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | undefined>(undefined);
+  const [instantDeliveryAllowed, setInstantDeliveryAllowed] = useState<boolean>(true);
+  const [standardDeliveryAllowed, setStandardDeliveryAllowed] = useState<boolean>(true);
+  const [instantDeliveryRadiusKm, setInstantDeliveryRadiusKm] = useState<number | undefined>(undefined);
+
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
     const validItems = items.filter(item => item?.product);
@@ -297,10 +316,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       platformFee,
       freeDeliveryThreshold,
       minimumOrderValue,
+      deliveryDistanceKm,
+      instantDeliveryAllowed,
+      standardDeliveryAllowed,
+      instantDeliveryRadiusKm,
       debug_config: (items as any).debug_config,
       backendTotal: (items as any).backendTotal
     };
-  }, [items, estimatedFee, platformFee, freeDeliveryThreshold, minimumOrderValue]);
+  }, [items, estimatedFee, platformFee, freeDeliveryThreshold, minimumOrderValue, deliveryDistanceKm, instantDeliveryAllowed, standardDeliveryAllowed, instantDeliveryRadiusKm]);
 
   const [sellerConflict, setSellerConflict] = useState<SellerConflictState | null>(null);
 
@@ -449,6 +472,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
+          setDeliveryDistanceKm((response.data as any).distanceKm);
+          setInstantDeliveryAllowed((response.data as any).instantAllowed ?? true);
+          setStandardDeliveryAllowed((response.data as any).standardAllowed ?? true);
+          setInstantDeliveryRadiusKm((response.data as any).instantDeliveryRadiusKm);
         } else {
           console.warn('Response missing data or items:', response);
         }
@@ -508,6 +535,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
+          setDeliveryDistanceKm((response.data as any).distanceKm);
+          setInstantDeliveryAllowed((response.data as any).instantAllowed ?? true);
+          setStandardDeliveryAllowed((response.data as any).standardAllowed ?? true);
+          setInstantDeliveryRadiusKm((response.data as any).instantDeliveryRadiusKm);
         }
       } catch (error) {
         console.error("Remove from cart failed", error);
@@ -596,6 +627,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
+          setDeliveryDistanceKm((response.data as any).distanceKm);
+          setInstantDeliveryAllowed((response.data as any).instantAllowed ?? true);
+          setStandardDeliveryAllowed((response.data as any).standardAllowed ?? true);
+          setInstantDeliveryRadiusKm((response.data as any).instantDeliveryRadiusKm);
         }
       } catch (error) {
         console.error("Update quantity failed", error);
@@ -613,6 +648,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = async () => {
     setItems([]);
+    setDeliveryDistanceKm(undefined);
+    setInstantDeliveryAllowed(true);
+    setStandardDeliveryAllowed(true);
+    setInstantDeliveryRadiusKm(undefined);
     try {
       await apiClearCart();
     } catch (error) {

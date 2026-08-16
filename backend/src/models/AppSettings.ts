@@ -65,6 +65,10 @@ export interface IAppSettings extends Document {
     baseDistance: number;
     kmRate: number;
     deliveryBoyKmRate?: number;
+    /** Max customer-to-seller distance (km, straight-line) eligible for Instant delivery.
+     * Beyond this (up to the seller's own serviceRadiusKm) only Standard is allowed.
+     * null/undefined = feature off, both options always available. */
+    instantDeliveryRadiusKm?: number | null;
   };
 
   // Tax Settings
@@ -282,6 +286,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       baseDistance: { type: Number, default: 0 },
       kmRate: { type: Number, default: 0 },
       deliveryBoyKmRate: { type: Number, default: 0 },
+      instantDeliveryRadiusKm: {
+        type: Number,
+        default: null,
+        min: [0, "Instant delivery radius cannot be negative"],
+      },
     },
     // Tax Settings
     gstEnabled: {

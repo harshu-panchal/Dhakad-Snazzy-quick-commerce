@@ -92,3 +92,31 @@ export async function findSellersWithinRange(
     return [];
   }
 }
+
+/**
+ * Given a customer-to-seller distance and the admin-configured instant delivery
+ * radius, determine which delivery options the customer is allowed to pick.
+ * A customer can only choose one of the two - never both, never neither
+ * (unless the boundary itself is unset, in which case both remain open).
+ * @param distanceKm Straight-line distance between customer and seller, or null if unknown
+ * @param instantDeliveryRadiusKm Admin-configured boundary (km), or null/undefined if gating is disabled
+ */
+export function getDeliveryEligibility(
+  distanceKm: number | null,
+  instantDeliveryRadiusKm: number | null | undefined
+): { instantAllowed: boolean; standardAllowed: boolean } {
+  if (
+    distanceKm === null ||
+    instantDeliveryRadiusKm === null ||
+    instantDeliveryRadiusKm === undefined ||
+    instantDeliveryRadiusKm <= 0
+  ) {
+    return { instantAllowed: true, standardAllowed: true };
+  }
+
+  if (distanceKm <= instantDeliveryRadiusKm) {
+    return { instantAllowed: true, standardAllowed: false };
+  }
+
+  return { instantAllowed: false, standardAllowed: true };
+}

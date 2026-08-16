@@ -84,6 +84,8 @@ export interface AppSettings {
     baseDistance: number;
     kmRate: number;
     deliveryBoyKmRate?: number;
+    /** Max customer-to-seller distance (km) eligible for Instant delivery. Beyond this, only Standard is offered. null/unset = no gating. */
+    instantDeliveryRadiusKm?: number | null;
   };
   gstEnabled: boolean;
   gstRate?: number;

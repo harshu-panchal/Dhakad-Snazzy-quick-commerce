@@ -7,6 +7,7 @@ import LocationPermissionRequest from './LocationPermissionRequest';
 import { useThemeContext } from '../context/ThemeContext';
 import ServiceNotAvailable from './ServiceNotAvailable';
 import { checkServiceability } from '../services/api/customerHomeService';
+import burgerIcon from '@assets/login/Burger1.png';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -466,65 +467,107 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
 
 
-                {/* Shops */}
+                {/* Shops / Food Zone */}
                 <motion.div
                   whileTap={{ scale: 0.95 }}
                   transition={{ duration: 0.1 }}
-                  className="flex-1 h-full"
+                  className="flex-[1.2] h-full"
                 >
                   <Link
                     to="/shops"
                     className="flex flex-col items-center justify-center h-full relative"
                   >
-                    <div className="flex flex-col items-center justify-center relative z-10">
-                      <AnimatePresence>
-                        {(isActive('/shops') || location.pathname.startsWith('/shop/')) && (
-                          <motion.div 
-                            className="absolute inset-0 bg-green-400 rounded-full blur-md opacity-30 z-0" 
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.5, 0.2] }} 
-                            exit={{ scale: 0, opacity: 0 }}
-                            transition={{ duration: 1.5, repeat: Infinity }} 
-                          />
-                        )}
-                      </AnimatePresence>
-                      <motion.svg
-                        className="relative z-10"
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
-                          scale: [1, 1.15, 0.92, 1.05, 1],
-                          y: [0, -4, 2, -1, 0],
-                          rotate: [0, -6, 4, -2, 0]
-                        } : {}}
-                        transition={{
-                          duration: 0.7,
-                          ease: "easeInOut",
-                          repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
-                          repeatDelay: 1.5
+                    <motion.div 
+                      className={`absolute -top-5 w-[86px] h-[82px] bg-[#fffaf4] rounded-2xl flex flex-col items-center justify-center border border-orange-100 z-20 overflow-visible transition-colors duration-300`}
+                      animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
+                        scale: [1, 1.05, 1],
+                        boxShadow: ['0 0 20px rgba(251,146,60,0.4)', '0 0 32px rgba(251,146,60,0.8)', '0 0 20px rgba(251,146,60,0.4)']
+                      } : {
+                        scale: 1,
+                        boxShadow: '0 0 15px rgba(251,146,60,0.3)'
+                      }}
+                      transition={{
+                        duration: 2.5,
+                        repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      
+                      {/* Sun background */}
+                      <motion.div 
+                        className="absolute top-[22%] w-[48px] h-[24px] bg-[#FFD700] rounded-t-full z-0"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { 
+                          scale: [1, 1.15, 1], 
+                          opacity: [0.7, 1, 0.7] 
+                        } : { opacity: 0.9 }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      />
+
+                      {/* Sparkles Top */}
+                      <motion.div 
+                        className="absolute top-[5%] left-[32%] w-[3px] h-[8px] bg-[#FF9800] rounded-full rotate-[-30deg]"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { opacity: [0.3, 1, 0.3], y: [0, -3, 0] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.1 }}
+                      />
+                      <motion.div 
+                        className="absolute top-[1%] left-[50%] -translate-x-1/2 w-[3px] h-[8px] bg-[#FF9800] rounded-full"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { opacity: [0.3, 1, 0.3], y: [0, -4, 0] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+                      />
+                      <motion.div 
+                        className="absolute top-[5%] right-[32%] w-[3px] h-[8px] bg-[#FF9800] rounded-full rotate-[30deg]"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { opacity: [0.3, 1, 0.3], y: [0, -3, 0] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+                      />
+                      
+                      {/* Sparkles Left */}
+                      <motion.div 
+                        className="absolute top-[38%] left-[8%] w-[8px] h-[3px] bg-[#4ADE80] rounded-full rotate-[-20deg]"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { scale: [1, 1.4, 1], opacity: [0.5, 1, 0.5] } : {}}
+                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+                      />
+                      <motion.div 
+                        className="absolute top-[58%] left-[10%] w-[10px] h-[3px] bg-[#FBBF24] rounded-full rotate-[20deg]"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { scale: [1, 1.3, 1], opacity: [0.4, 1, 0.4], x: [0, -2, 0] } : {}}
+                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+                      />
+
+                      {/* Sparkles Right */}
+                      <motion.svg 
+                        className="absolute top-[32%] right-[6%] w-[14px] h-[14px] text-[#FFC107]" 
+                        viewBox="0 0 24 24" 
+                        fill="currentColor"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { rotate: 360, scale: [1, 1.25, 1] } : {}}
+                        transition={{ 
+                          rotate: { duration: 4, repeat: Infinity, ease: "linear" },
+                          scale: { duration: 2, repeat: Infinity, ease: "easeInOut" } 
                         }}
                       >
-                        {(isActive('/shops') || location.pathname.startsWith('/shop/')) ? (
-                          <>
-                            <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" />
-                            <rect x="2" y="13" width="20" height="3" rx="1.5" fill="#1f2937" />
-                            <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" fill="#22c55e" stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
-                          </>
-                        ) : (
-                          <>
-                            <path d="M4 11C4 6.58172 7.58172 3 12 3C16.4183 3 20 6.58172 20 11V11.5H4V11Z" stroke="#6b7280" strokeWidth="2" fill="none" />
-                            <rect x="2" y="13" width="20" height="3" rx="1.5" fill="#6b7280" />
-                            <path d="M4 17H20V18C20 20.2091 18.2091 22 16 22H8C5.79086 22 4 20.2091 4 18V17Z" stroke="#6b7280" strokeWidth="2" strokeLinejoin="round" fill="none" />
-                          </>
-                        )}
+                        <path d="M12 0l2 8 8 2-8 2-2 8-2-8-8-2 8-2 2-8z" />
                       </motion.svg>
-                    </div>
-                    <span className={`text-[10px] mt-0.5 relative z-10 font-bold uppercase tracking-widest transition-all duration-300 ${(isActive('/shops') || location.pathname.startsWith('/shop/')) ? 'text-emerald-700 drop-shadow-[0_1px_1px_rgba(0,0,0,0.1)] scale-110 font-black' : 'text-neutral-500'}`}>
-                      Food Zone
-                    </span>
+                      <motion.div 
+                        className="absolute top-[56%] right-[11%] w-[5px] h-[5px] bg-[#FF9800] rounded-full"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { scale: [1, 1.5, 1], opacity: [0.2, 1, 0.2] } : {}}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+                      />
+
+                      {/* Burger Image */}
+                      <motion.img 
+                        src={burgerIcon} 
+                        alt="Food Zone" 
+                        className="w-[46px] h-[46px] object-contain relative z-10 mt-[6px]" 
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { 
+                          y: [0, -5, 0],
+                          rotate: [0, -3, 3, 0]
+                        } : {}}
+                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      />
+
+                      {/* Text */}
+                      <span className="text-[11px] font-black uppercase text-[#FF7A00] tracking-wide mt-[2px] relative z-10">
+                        FOOD ZONE
+                      </span>
+                    </motion.div>
                   </Link>
                 </motion.div>
 

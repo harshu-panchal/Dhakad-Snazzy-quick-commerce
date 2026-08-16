@@ -91,6 +91,27 @@ export default function Checkout() {
     }
   }, [selectedAddress, deliveryOption, refreshCart]);
 
+  // If the admin-configured instant/standard boundary makes the currently
+  // selected option ineligible for this address's distance, auto-switch to
+  // whichever option is actually available instead of leaving the customer
+  // stuck on a disabled choice.
+  useEffect(() => {
+    if (cart.instantDeliveryAllowed === false && deliveryOption === "Instant") {
+      setDeliveryOption("Standard");
+      showGlobalToast(
+        "Instant delivery isn't available for this address. Switched to Standard delivery.",
+        "info",
+      );
+    } else if (cart.standardDeliveryAllowed === false && deliveryOption === "Standard") {
+      setDeliveryOption("Instant");
+      showGlobalToast(
+        "This address is within the instant delivery zone, so only Instant delivery is available.",
+        "info",
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.instantDeliveryAllowed, cart.standardDeliveryAllowed]);
+
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<ApiCoupon[]>([]);
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
@@ -1692,65 +1713,90 @@ export default function Checkout() {
         <h2 className="text-sm font-bold text-neutral-900 mb-3">
           Select Delivery Option
         </h2>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setDeliveryOption("Standard")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              deliveryOption === "Standard"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-            }`}>
-            <div
-              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Standard" ? "bg-green-600" : "bg-neutral-100"}`}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={
-                  deliveryOption === "Standard" ? "white" : "currentColor"
-                }
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
-                <circle cx="5.5" cy="18.5" r="1.5" />
-                <circle cx="18.5" cy="18.5" r="1.5" />
-              </svg>
-            </div>
-            <span className="text-xs font-bold">Standard Delivery</span>
-            <p className="text-[8px] mt-0.5 opacity-70">
-              (Expected in 2-4 days)
-            </p>
-          </button>
+        {(() => {
+          const standardDisabled = cart.standardDeliveryAllowed === false;
+          const instantDisabled = cart.instantDeliveryAllowed === false;
+          return (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => !standardDisabled && setDeliveryOption("Standard")}
+                  disabled={standardDisabled}
+                  title={standardDisabled ? `Not available for your distance - only Instant delivery is offered within ${cart.instantDeliveryRadiusKm} km` : undefined}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                    standardDisabled
+                      ? "border-neutral-100 bg-neutral-50 text-neutral-300 cursor-not-allowed"
+                      : deliveryOption === "Standard"
+                        ? "border-green-600 bg-green-50 text-green-700"
+                        : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+                  }`}>
+                  <div
+                    className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${standardDisabled ? "bg-neutral-200" : deliveryOption === "Standard" ? "bg-green-600" : "bg-neutral-100"}`}>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={
+                        !standardDisabled && deliveryOption === "Standard" ? "white" : "currentColor"
+                      }
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round">
+                      <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
+                      <circle cx="5.5" cy="18.5" r="1.5" />
+                      <circle cx="18.5" cy="18.5" r="1.5" />
+                    </svg>
+                  </div>
+                  <span className="text-xs font-bold">Standard Delivery</span>
+                  <p className="text-[8px] mt-0.5 opacity-70">
+                    {standardDisabled
+                      ? `Not available within ${cart.instantDeliveryRadiusKm} km`
+                      : "(Expected in 2-4 days)"}
+                  </p>
+                </button>
 
-          <button
-            onClick={() => setDeliveryOption("Instant")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              deliveryOption === "Instant"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-            }`}>
-            <div
-              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"}`}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={deliveryOption === "Instant" ? "white" : "currentColor"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            </div>
-            <span className="text-xs font-bold">Instant Delivery</span>
-            <p className="text-[8px] mt-0.5 opacity-70">
-              (Expected in 10-15 mins)
-            </p>
-          </button>
-        </div>
+                <button
+                  onClick={() => !instantDisabled && setDeliveryOption("Instant")}
+                  disabled={instantDisabled}
+                  title={instantDisabled ? `Not available for your distance - only Standard delivery is offered beyond ${cart.instantDeliveryRadiusKm} km` : undefined}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                    instantDisabled
+                      ? "border-neutral-100 bg-neutral-50 text-neutral-300 cursor-not-allowed"
+                      : deliveryOption === "Instant"
+                        ? "border-green-600 bg-green-50 text-green-700"
+                        : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+                  }`}>
+                  <div
+                    className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${instantDisabled ? "bg-neutral-200" : deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"}`}>
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={!instantDisabled && deliveryOption === "Instant" ? "white" : "currentColor"}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  </div>
+                  <span className="text-xs font-bold">Instant Delivery</span>
+                  <p className="text-[8px] mt-0.5 opacity-70">
+                    {instantDisabled
+                      ? `Only within ${cart.instantDeliveryRadiusKm} km`
+                      : "(Expected in 10-15 mins)"}
+                  </p>
+                </button>
+              </div>
+              {(standardDisabled || instantDisabled) && cart.deliveryDistanceKm != null && (
+                <p className="text-[11px] text-neutral-500 mt-2">
+                  Your address is {cart.deliveryDistanceKm.toFixed(1)} km from the seller.
+                </p>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* Payment Method Selection */}
