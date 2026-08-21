@@ -166,25 +166,6 @@ export const confirmSellerPickup = async (
   }
 };
 
-export const checkCustomerProximity = async (
-  orderId: string,
-  latitude: number,
-  longitude: number,
-) => {
-  try {
-    const response = await api.post(
-      `${BASE_URL}/orders/${orderId}/check-customer-proximity`,
-      {
-        latitude,
-        longitude,
-      },
-    );
-    return response.data;
-  } catch (error) {
-    throw handleApiError(error);
-  }
-};
-
 // --- Tracking ---
 export const updateGeneralLocation = async (
   latitude: number,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getOrderDetails, updateOrderStatus, getSellerLocationsForOrder, sendDeliveryOtp, verifyDeliveryOtp, updateDeliveryLocation, checkSellerProximity, confirmSellerPickup, checkCustomerProximity } from '../../../services/api/delivery/deliveryService';
+import { getOrderDetails, updateOrderStatus, getSellerLocationsForOrder, sendDeliveryOtp, verifyDeliveryOtp, updateDeliveryLocation, checkSellerProximity, confirmSellerPickup } from '../../../services/api/delivery/deliveryService';
 import deliveryIcon from '@assets/deliveryboy/deliveryIcon.png';
 import GoogleMapsTracking from '../../../components/GoogleMapsTracking';
 
@@ -107,10 +107,6 @@ export default function DeliveryOrderDetail() {
     // New state for seller proximity and pickup tracking
     const [sellerProximity, setSellerProximity] = useState<Record<string, { withinRange: boolean; distance: number }>>({});
     const [pickupLoading, setPickupLoading] = useState<Record<string, boolean>>({});
-
-    // New state for customer proximity
-    const [customerProximity, setCustomerProximity] = useState<{ withinRange: boolean; distance: number } | null>(null);
-    const [getOtpEnabled, setGetOtpEnabled] = useState(false);
 
     const fetchOrder = async () => {
         if (!id) return;
@@ -246,33 +242,6 @@ export default function DeliveryOrderDetail() {
             return () => clearInterval(interval);
         }
     }, [id, deliveryBoyLocation, sellerLocations, order?.status]);
-
-    // Check proximity to customer (runs periodically)
-    useEffect(() => {
-        const checkCustomerProx = async () => {
-            if (!id || !deliveryBoyLocation) return;
-            if (order?.status !== 'Out for Delivery') return;
-
-            try {
-                const response = await checkCustomerProximity(id, deliveryBoyLocation.lat, deliveryBoyLocation.lng);
-                if (response.success && response.data) {
-                    setCustomerProximity({
-                        withinRange: response.data.withinRange,
-                        distance: response.data.distanceMeters
-                    });
-                    setGetOtpEnabled(response.data.withinRange);
-                }
-            } catch (error) {
-                console.error('Failed to check customer proximity:', error);
-            }
-        };
-
-        if (deliveryBoyLocation && order?.status === 'Out for Delivery') {
-            checkCustomerProx();
-            const interval = setInterval(checkCustomerProx, 4000); // Check every 4 seconds
-            return () => clearInterval(interval);
-        }
-    }, [id, deliveryBoyLocation, order?.status]);
 
     // Track if location permission was denied
     const locationPermissionDeniedRef = useRef<boolean>(false);
@@ -860,17 +829,6 @@ export default function DeliveryOrderDetail() {
                     <div className="bg-white rounded-2xl p-4 shadow-2xl border border-neutral-200">
                         <p className="text-sm font-semibold text-neutral-900 mb-3">Customer Delivery OTP</p>
 
-                        {/* Distance indicator */}
-                        {customerProximity && (
-                            <p className={`text-xs mb-2 font-medium ${customerProximity.withinRange ? 'text-green-600' :
-                                customerProximity.distance < 1000 ? 'text-yellow-600' : 'text-red-600'
-                                }`}>
-                                {customerProximity.distance < 1000
-                                    ? `${customerProximity.distance}m from customer`
-                                    : `${(customerProximity.distance / 1000).toFixed(1)}km from customer`}
-                            </p>
-                        )}
-
                         {/* 4-digit OTP Input - Always visible but disabled until OTP is sent */}
                         <input
                             type="text"
@@ -887,13 +845,13 @@ export default function DeliveryOrderDetail() {
                             {!showOtpInput ? (
                                 <button
                                     onClick={handleSendOtp}
-                                    disabled={!getOtpEnabled || otpSending}
-                                    className={`flex-1 py-3 rounded-xl font-semibold transition-all ${getOtpEnabled && !otpSending
+                                    disabled={otpSending}
+                                    className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!otpSending
                                         ? 'bg-green-600 text-white hover:bg-green-700 active:scale-[0.98]'
                                         : 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
                                         }`}
                                 >
-                                    {otpSending ? 'Sending...' : getOtpEnabled ? 'Get OTP' : 'Move within 500m to get OTP'}
+                                    {otpSending ? 'Sending...' : 'Get OTP'}
                                 </button>
                             ) : (
                                 <>

@@ -10,7 +10,170 @@ import LowestPricesProduct from "../../../models/LowestPricesProduct";
 import PromoStrip from "../../../models/PromoStrip";
 import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
-import { findSellersWithinRange } from "../../../utils/locationHelper";
+import { findSellersWithinRange, calculateDistance } from "../../../utils/locationHelper";
+
+// Shapes a raw Product doc (with populated seller/shopId) into the item shape
+// the frontend home-section renderers (ProductCard) expect.
+function mapProductForHomeSection(p: any, isAvailable: boolean) {
+  const sellerObj = typeof p.seller === "object" && p.seller !== null ? p.seller : null;
+  const shopObj = typeof p.shopId === "object" && p.shopId !== null ? p.shopId : null;
+  const isSellerVisible = sellerObj ? sellerObj.viewCustomerDetails !== false : true;
+  const storeName = isSellerVisible ? (sellerObj?.storeName || sellerObj?.sellerName || null) : null;
+  const shopName = shopObj?.name || storeName || null;
+
+  return {
+    id: p._id.toString(),
+    productId: p._id.toString(),
+    name: p.productName,
+    productName: p.productName,
+    image: p.mainImage,
+    mainImage: p.mainImage,
+    price: p.price,
+    discPrice: p.discPrice || 0,
+    compareAtPrice: p.compareAtPrice || 0,
+    mrp: p.compareAtPrice || p.mrp || p.price || 0,
+    variations: p.variations || [],
+    discount:
+      p.discount ||
+      ((p.compareAtPrice || p.mrp) && p.price
+        ? Math.round((((p.compareAtPrice || p.mrp) - p.price) / (p.compareAtPrice || p.mrp)) * 100)
+        : 0),
+    productImages: p.mainImage ? [p.mainImage] : [],
+    rating: p.rating || 0,
+    reviewsCount: p.reviewsCount || 0,
+    reviews: p.reviewsCount || 0,
+    pack: p.pack || "",
+    type: "product",
+    isAvailable,
+    seller: p.seller,
+    storeName,
+    shopName,
+  };
+}
+
+function shuffleArray<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+const FALLBACK_PRODUCTS_PER_SECTION = 9;
+// Per-seller (not global) cap, so a seller with a large catalog can't crowd
+// other in-range sellers out of the scan - every in-range store with stock
+// gets represented.
+const FALLBACK_PRODUCTS_PER_SELLER_SCAN = 30;
+
+// Extracts a seller's coordinates, preferring the GeoJSON point and falling
+// back to the legacy string lat/lng fields - same precedence used elsewhere
+// (e.g. findSellersWithinRange) for consistency.
+function getSellerCoordinates(seller: any): { lat: number; lng: number } | null {
+  if (seller?.location?.coordinates?.length === 2) {
+    const [lng, lat] = seller.location.coordinates;
+    return { lat, lng };
+  }
+  if (seller?.latitude && seller?.longitude) {
+    const lat = parseFloat(seller.latitude);
+    const lng = parseFloat(seller.longitude);
+    if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+  }
+  return null;
+}
+
+// When the admin hasn't configured any home sections with content for this
+// location, auto-build sections from EVERY nearby seller instead of leaving
+// the page blank: one section per (seller, category) combo actually in
+// stock, headed by "<Shop Name> - <Category Name>", laid out 2 or 3 per row,
+// with the nearest seller's sections first. Every seller whose service
+// radius covers the customer gets represented, not just a handful.
+async function buildNearbySellerFallbackSections(
+  nearbySellerIds: mongoose.Types.ObjectId[],
+  userLat: number | null,
+  userLng: number | null
+): Promise<any[]> {
+  const productQuery = {
+    status: "Active",
+    publish: true,
+    $or: [
+      { isShopByStoreOnly: { $ne: true } },
+      { isShopByStoreOnly: { $exists: false } },
+    ],
+  };
+  const productSelect =
+    "productName mainImage price discPrice compareAtPrice mrp discount rating reviewsCount pack seller category variations shopId";
+
+  // Query per-seller (not one global query) so a seller with a huge catalog
+  // can't push other in-range sellers' products out of the result set.
+  const productsPerSeller = await Promise.all(
+    nearbySellerIds.map((sellerId) =>
+      Product.find({ ...productQuery, seller: sellerId })
+        .select(productSelect)
+        .populate("seller", "storeName sellerName viewCustomerDetails location latitude longitude")
+        .populate("category", "name")
+        .populate("shopId", "name")
+        .sort({ createdAt: -1 })
+        .limit(FALLBACK_PRODUCTS_PER_SELLER_SCAN)
+        .lean()
+    )
+  );
+  const products = productsPerSeller.flat();
+
+  const groups = new Map<
+    string,
+    { storeName: string | null; categoryName: string | null; distanceKm: number; products: any[] }
+  >();
+
+  for (const p of products as any[]) {
+    const sellerObj = typeof p.seller === "object" && p.seller !== null ? p.seller : null;
+    if (!sellerObj) continue;
+
+    const categoryObj = typeof p.category === "object" && p.category !== null ? p.category : null;
+    const categoryName = categoryObj?.name || null;
+
+    // Respect "Show Seller Details in Customer App": if an admin has hidden
+    // this seller's identity, don't put their name in a heading - but still
+    // surface their products (same rule ProductCard already applies to the
+    // shop badge elsewhere), headed by just the category when one is known.
+    const isSellerVisible = sellerObj.viewCustomerDetails !== false;
+    const storeName = isSellerVisible ? sellerObj.storeName || sellerObj.sellerName : null;
+
+    // Nothing usable to head this group with - skip it.
+    if (!storeName && !categoryName) continue;
+
+    const key = `${sellerObj._id}::${categoryObj?._id || "none"}`;
+    if (!groups.has(key)) {
+      const sellerCoords = getSellerCoordinates(sellerObj);
+      const distanceKm =
+        sellerCoords && userLat !== null && userLng !== null
+          ? calculateDistance(userLat, userLng, sellerCoords.lat, sellerCoords.lng)
+          : Number.POSITIVE_INFINITY; // unknown distance - sink to the bottom rather than the top
+      groups.set(key, { storeName, categoryName, distanceKm, products: [] });
+    }
+    groups.get(key)!.products.push(p);
+  }
+
+  return Array.from(groups.values())
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .map((group, index) => {
+      const columns = Math.random() < 0.5 ? 2 : 3;
+      const sectionProducts = shuffleArray(group.products).slice(0, FALLBACK_PRODUCTS_PER_SECTION);
+
+      const title =
+        group.storeName && group.categoryName
+          ? `${group.storeName} - ${group.categoryName}`
+          : group.storeName || group.categoryName;
+
+      return {
+        id: `nearby-fallback-${index}`,
+        title,
+        displayType: "products",
+        columns,
+        data: sectionProducts.map((p: any) => mapProductForHomeSection(p, true)),
+      };
+    });
+}
 
 // Helper function to fetch data for a home section based on its configuration
 async function fetchSectionData(
@@ -195,40 +358,7 @@ async function fetchSectionData(
             ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
             : false;
 
-        const sellerObj = typeof p.seller === 'object' && p.seller !== null ? p.seller : null;
-        const shopObj = typeof p.shopId === 'object' && p.shopId !== null ? p.shopId : null;
-        const isSellerVisible = sellerObj ? sellerObj.viewCustomerDetails !== false : true;
-        const storeName = isSellerVisible ? (sellerObj?.storeName || sellerObj?.sellerName || null) : null;
-        const shopName = shopObj?.name || storeName || null;
-
-        return {
-          id: p._id.toString(),
-          productId: p._id.toString(),
-          name: p.productName,
-          productName: p.productName,
-          image: p.mainImage,
-          mainImage: p.mainImage,
-          price: p.price,
-          discPrice: p.discPrice || 0,
-          compareAtPrice: p.compareAtPrice || 0,
-          mrp: p.compareAtPrice || p.mrp || p.price || 0,
-          variations: p.variations || [],
-          discount:
-            p.discount ||
-            ((p.compareAtPrice || p.mrp) && p.price
-              ? Math.round((((p.compareAtPrice || p.mrp) - p.price) / (p.compareAtPrice || p.mrp)) * 100)
-              : 0),
-          productImages: p.mainImage ? [p.mainImage] : [],
-          rating: p.rating || 0,
-          reviewsCount: p.reviewsCount || 0,
-          reviews: p.reviewsCount || 0,
-          pack: p.pack || "",
-          type: "product",
-          isAvailable,
-          seller: p.seller,
-          storeName,
-          shopName,
-        };
+        return mapProductForHomeSection(p, isAvailable);
       });
 
     }
@@ -669,6 +799,22 @@ export const getHomeContent = async (req: Request, res: Response) => {
       })
     );
 
+    // If none of the admin-configured PRODUCT sections actually have any items
+    // for this location, the page would show no real, buyable products (even if
+    // a harmless category/subcategory browsing section happens to have tiles).
+    // Fall back to auto-generated sections built from nearby sellers' products.
+    const hasAnyProductSectionData = dynamicSections.some(
+      (section: any) =>
+        section.displayType === "products" &&
+        Array.isArray(section.data) &&
+        section.data.length > 0
+    );
+
+    const finalHomeSections =
+      !hasAnyProductSectionData && hasUserLocation && nearbySellerIds.length > 0
+        ? await buildNearbySellerFallbackSections(nearbySellerIds, userLat, userLng)
+        : dynamicSections;
+
     // 10. Fetch PromoStrip for the current header category (with caching)
     const currentHeaderCategorySlug = (headerCategorySlug as string) || "all";
     const promoStripCacheKey = `promoStrip-${currentHeaderCategorySlug.toLowerCase()}`;
@@ -720,8 +866,8 @@ export const getHomeContent = async (req: Request, res: Response) => {
         bestsellers: visibleBestsellers,
         lowestPrices: validLowestPricesProducts, // Admin-selected products for LowestPricesEver section
         categories,
-        // Dynamic sections created by admin
-        homeSections: dynamicSections,
+        // Dynamic sections created by admin (or auto-generated nearby-seller fallback)
+        homeSections: finalHomeSections,
         shops: visibleShops,
         promoBanners: [
           {

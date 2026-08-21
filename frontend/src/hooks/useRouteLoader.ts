@@ -12,17 +12,13 @@ const useRouteLoader = () => {
     // On initial mount, the LoadingProvider already started it (count=1)
     if (!isInitialMount.current) {
       startRouteLoading();
+    } else {
+      isInitialMount.current = false;
     }
 
-    // Small delay to simulate route processing and ensure loader visibility
-    const timer = setTimeout(() => {
-      stopRouteLoading(); // This will decrement the count (to 0 on initial mount, or matching the startRouteLoading on navigation)
-      if (isInitialMount.current) {
-        isInitialMount.current = false;
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
+    // By the time this effect runs, the new route has already committed and
+    // painted, so stop immediately - no artificial delay.
+    stopRouteLoading();
   }, [location.pathname, startRouteLoading, stopRouteLoading]);
 };
 

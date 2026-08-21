@@ -40,7 +40,6 @@ router.post("/orders/:id/verify-delivery-otp", deliveryOrderController.verifyDel
 // New proximity and pickup routes
 router.post("/orders/:id/check-seller-proximity", deliveryOrderController.checkSellerProximity);
 router.post("/orders/:id/confirm-seller-pickup", deliveryOrderController.confirmSellerPickup);
-router.post("/orders/:id/check-customer-proximity", deliveryOrderController.checkCustomerProximity);
 
 // Earnings
 router.get("/earnings", deliveryEarningController.getEarningsHistory);

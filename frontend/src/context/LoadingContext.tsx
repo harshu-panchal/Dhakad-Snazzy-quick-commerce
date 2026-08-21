@@ -82,16 +82,8 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         clearTimeout(routeSafetyTimer.current);
         routeSafetyTimer.current = null;
       }
-      const now = Date.now();
-      const startTime = routeLoadingStartTime.current || now;
-      const elapsed = now - startTime;
-      const remainingTime = Math.max(0, MINIMUM_LOADING_TIME - elapsed);
-      setTimeout(() => {
-        if (activeRouteRequests.current === 0) {
-          setIsRouteLoading(false);
-          routeLoadingStartTime.current = null;
-        }
-      }, remainingTime);
+      setIsRouteLoading(false);
+      routeLoadingStartTime.current = null;
     }
   }, []);
 
