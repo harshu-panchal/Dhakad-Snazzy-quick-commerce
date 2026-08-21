@@ -185,11 +185,7 @@ export async function recomputeOrderFulfillment(
     };
   }
 
-  // Only trigger delivery boy assignment if deliveryOption is Instant.
-  // For Standard delivery, the admin manually assigns a delivery partner.
-  const shouldTriggerAssignment = order.deliveryOption === "Instant"
-    ? await tryStartDeliveryAssignment(order._id as mongoose.Types.ObjectId)
-    : false;
+  const shouldTriggerAssignment = await tryStartDeliveryAssignment(order._id as mongoose.Types.ObjectId);
 
   if (io && state.rejectedSellerIds.length > 0) {
     io.to(`order-${orderId}`).emit("order-partial-rejection", {
