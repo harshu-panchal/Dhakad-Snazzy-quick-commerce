@@ -8,6 +8,57 @@ import {
   Category as ApiCategory,
 } from "../../services/api/customerProductService";
 import { useLocation as useLocationContext } from "../../hooks/useLocation";
+import { getOptimizedImageUrl } from "../../utils/cloudinary";
+
+// Pure lookup, no component state involved - lives at module scope so it can
+// be used from the filterOptions useMemo below without any ordering issues.
+function getIconForFilter(name: string): string {
+  const iconMap: Record<string, string> = {
+    Tomato: "🍅",
+    Potato: "🥔",
+    Chilli: "🌶️",
+    Spinach: "🥬",
+    Brinjal: "🍆",
+    Onion: "🧅",
+    Peanuts: "🥜",
+    Lemon: "🍋",
+    Mushroom: "🍄",
+    Capsicum: "🫑",
+    Ginger: "🫚",
+    Carrot: "🥕",
+    Fenugreek: "🌿",
+    Broccoli: "🥦",
+    Cucumber: "🥒",
+    Cabbage: "🥬",
+    Cauliflower: "🥦",
+    Apple: "🍎",
+    Banana: "🍌",
+    Orange: "🍊",
+    Mango: "🥭",
+    // Fashion Icons
+    Men: "👨",
+    Women: "👩",
+    Kids: "👶",
+    Shirt: "👕",
+    "T-Shirt": "👕",
+    Jeans: "👖",
+    Pants: "👖",
+    Saree: "🥻",
+    "Kurta/Kurti": "👘",
+    Dress: "👗",
+    Tops: "👚",
+    Skirt: "👗",
+    "Winter Wear": "🧥",
+    Shorts: "🩳",
+    Shoes: "👟",
+    Watch: "⌚",
+    Sunglasses: "🕶️",
+    "Bags & Wallets": "👜",
+    Belts: "🧶",
+    Jewellery: "💍",
+  };
+  return iconMap[name] || "🏷️";
+}
 
 export default function CategoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -248,6 +299,34 @@ export default function CategoryPage() {
     return result;
   }, [products, appliedFilters, sortBy, commonTypes, appliedPriceRange]);
 
+  // Extract filter options from products - memoized so this O(n) scan over
+  // `products` only reruns when the product list actually changes, not on
+  // every filter-search keystroke or price-slider tick.
+  const filterOptions = useMemo(() => {
+    const categoryProductsForFilters = products.filter((p) => p.categoryId === id);
+    const filterMap = new Map<string, number>();
+
+    categoryProductsForFilters.forEach((product) => {
+      // Extract main ingredient/type from product name
+      const name = product.name.toLowerCase();
+      // Remove common prefixes like "fresh", "organic", etc.
+      const cleanName = name
+        .replace(/^(fresh|organic|premium|best|new)\s+/i, "")
+        .trim();
+
+      for (const type of commonTypes) {
+        if (type.keywords.some((keyword) => cleanName.includes(keyword))) {
+          filterMap.set(type.display, (filterMap.get(type.display) || 0) + 1);
+          break;
+        }
+      }
+    });
+
+    return Array.from(filterMap.entries())
+      .map(([name, count]) => ({ name, count, icon: getIconForFilter(name) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, id, commonTypes]);
+
   if ((categoryLoading || loading) && !products.length && !category) {
     return null; // Let global IconLoader handle it
   }
@@ -285,83 +364,6 @@ export default function CategoryPage() {
     );
   }
 
-  // Extract filter options from products
-  const getFilterOptions = () => {
-    const categoryProducts = products.filter((p) => p.categoryId === id);
-    const filterMap = new Map<string, number>();
-
-    categoryProducts.forEach((product) => {
-      // Extract main ingredient/type from product name
-      const name = product.name.toLowerCase();
-      // Remove common prefixes like "fresh", "organic", etc.
-      const cleanName = name
-        .replace(/^(fresh|organic|premium|best|new)\s+/i, "")
-        .trim();
-
-
-
-      for (const type of commonTypes) {
-        if (type.keywords.some((keyword) => cleanName.includes(keyword))) {
-          filterMap.set(type.display, (filterMap.get(type.display) || 0) + 1);
-          break;
-        }
-      }
-    });
-
-    return Array.from(filterMap.entries())
-      .map(([name, count]) => ({ name, count, icon: getIconForFilter(name) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  };
-
-  const getIconForFilter = (name: string): string => {
-    const iconMap: Record<string, string> = {
-      Tomato: "🍅",
-      Potato: "🥔",
-      Chilli: "🌶️",
-      Spinach: "🥬",
-      Brinjal: "🍆",
-      Onion: "🧅",
-      Peanuts: "🥜",
-      Lemon: "🍋",
-      Mushroom: "🍄",
-      Capsicum: "🫑",
-      Ginger: "🫚",
-      Carrot: "🥕",
-      Fenugreek: "🌿",
-      Broccoli: "🥦",
-      Cucumber: "🥒",
-      Cabbage: "🥬",
-      Cauliflower: "🥦",
-      Apple: "🍎",
-      Banana: "🍌",
-      Orange: "🍊",
-      Mango: "🥭",
-      // Fashion Icons
-      Men: "👨",
-      Women: "👩",
-      Kids: "👶",
-      Shirt: "👕",
-      "T-Shirt": "👕",
-      Jeans: "👖",
-      Pants: "👖",
-      Saree: "🥻",
-      "Kurta/Kurti": "👘",
-      Dress: "👗",
-      Tops: "👚",
-      Skirt: "👗",
-      "Winter Wear": "🧥",
-      Shorts: "🩳",
-      Shoes: "👟",
-      Watch: "⌚",
-      Sunglasses: "🕶️",
-      "Bags & Wallets": "👜",
-      Belts: "🧶",
-      Jewellery: "💍",
-    };
-    return iconMap[name] || "🏷️";
-  };
-
-  const filterOptions = getFilterOptions();
   const filteredOptions = filterOptions.filter((option) =>
     option.name.toLowerCase().includes(filterSearchQuery.toLowerCase())
   );
@@ -426,9 +428,10 @@ export default function CategoryPage() {
                     }`}>
                   {subcat.image ? (
                     <img
-                      src={subcat.image}
+                      src={getOptimizedImageUrl(subcat.image, { width: 100 })}
                       alt={subcat.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.style.display = "none";
@@ -581,9 +584,10 @@ export default function CategoryPage() {
                     <span className="text-sm flex-shrink-0">
                       {subcat.image ? (
                         <img
-                          src={subcat.image}
+                          src={getOptimizedImageUrl(subcat.image, { width: 32 })}
                           alt=""
                           className="w-4 h-4 object-cover rounded-full"
+                          loading="lazy"
                         />
                       ) : (
                         subcat.icon || "📦"

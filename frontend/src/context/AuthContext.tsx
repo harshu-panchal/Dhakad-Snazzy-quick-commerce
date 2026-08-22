@@ -3,6 +3,8 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useMemo,
   ReactNode,
 } from "react";
 import {
@@ -128,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (newToken: string, userData: User) => {
+  const login = useCallback((newToken: string, userData: User) => {
     setToken(newToken);
     setUser(userData);
     setIsAuthenticated(true);
@@ -164,9 +166,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Failed to register FCM token:", error);
         });
     });
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
@@ -178,23 +180,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error("Failed to remove FCM token:", error);
       });
     });
-  };
+  }, []);
 
-  const updateUser = (userData: User) => {
+  const updateUser = useCallback((userData: User) => {
     setUser(userData);
     localStorage.setItem("userData", JSON.stringify(userData));
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      isAuthenticated,
+      user,
+      token,
+      login,
+      logout,
+      updateUser,
+    }),
+    [isAuthenticated, user, token, login, logout, updateUser]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        user,
-        token,
-        login,
-        logout,
-        updateUser,
-      }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

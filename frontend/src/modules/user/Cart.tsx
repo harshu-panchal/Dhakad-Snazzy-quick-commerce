@@ -4,6 +4,7 @@ import { useCart } from '../../context/CartContext';
 import Button from '../../components/ui/button';
 import { appConfig } from '../../services/configService';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import { getOptimizedImageUrl } from '../../utils/cloudinary';
 
 export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
@@ -76,9 +77,10 @@ export default function Cart() {
                 <div className="w-20 h-20 md:w-24 md:h-24 bg-neutral-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   {item.product.imageUrl ? (
                     <img
-                      src={item.product.imageUrl}
+                      src={getOptimizedImageUrl(item.product.imageUrl, { width: 200 })}
                       alt={item.product.name}
                       className="w-full h-full object-cover rounded-lg"
+                      loading="lazy"
                     />
                   ) : (
                     <span className="text-2xl text-neutral-400">

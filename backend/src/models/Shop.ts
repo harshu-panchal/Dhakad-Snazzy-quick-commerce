@@ -73,6 +73,9 @@ const ShopSchema = new Schema<IShop>(
   }
 );
 
+// Supports the customer home page's "isActive" filter + "order" sort
+ShopSchema.index({ isActive: 1, order: 1 });
+
 // Generate storeId from name if not provided
 ShopSchema.pre('save', function (next) {
   if (!this.storeId && this.name) {

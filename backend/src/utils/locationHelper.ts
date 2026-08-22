@@ -51,7 +51,9 @@ export async function findSellersWithinRange(
     // Fetch all approved sellers with location data
     const sellers = await Seller.find({
       status: "Approved",
-    }).select("_id location serviceRadiusKm latitude longitude");
+    })
+      .select("_id location serviceRadiusKm latitude longitude")
+      .lean();
 
     // Filter sellers where user is within their service radius
     const nearbySellerIds: mongoose.Types.ObjectId[] = [];

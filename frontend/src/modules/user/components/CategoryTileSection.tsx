@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import LazyImage from "../../../components/LazyImage";
 
@@ -109,14 +108,9 @@ export default function CategoryTileSection({
             const hasImages = images.filter(Boolean).length > 0;
 
             return (
-              <motion.div
+              <div
                 key={tile.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="flex flex-col">
+                className="flex flex-col transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]">
                 <Link
                   to={
                     tile.subcategoryId || tile.type === "subcategory"
@@ -172,6 +166,7 @@ export default function CategoryTileSection({
                                 <LazyImage
                                   key={idx}
                                   src={img}
+                                  width={150}
                                   alt=""
                                   className="w-full h-full object-contain bg-white rounded-sm"
                                   onError={(e) => {
@@ -193,6 +188,7 @@ export default function CategoryTileSection({
                         // Other sections: Single image - use contain to show full image without cropping
                         <LazyImage
                           src={images[0] || ""}
+                          width={300}
                           alt={tile.name}
                           className="w-full h-full object-contain rounded-lg"
                           onError={(e) => {
@@ -238,7 +234,7 @@ export default function CategoryTileSection({
                     </span>
                   </div>
                 )}
-              </motion.div>
+              </div>
             );
           })}
         </div>

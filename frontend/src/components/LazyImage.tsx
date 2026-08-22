@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { getOptimizedImageUrl } from '../utils/cloudinary';
 
 interface LazyImageProps {
   src: string;
@@ -7,6 +8,8 @@ interface LazyImageProps {
   placeholder?: string;
   rootMargin?: string;
   onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  /** Optional target width - applies a Cloudinary resize/auto-quality transform when the src is a Cloudinary URL. */
+  width?: number;
   [key: string]: any;
 }
 
@@ -21,15 +24,20 @@ export default function LazyImage({
   placeholder,
   rootMargin = '200px',
   onError,
+  width,
   ...props
 }: LazyImageProps) {
+  const resolvedSrc = useMemo(
+    () => (width ? getOptimizedImageUrl(src, { width }) || '' : src),
+    [src, width]
+  );
   const [imageSrc, setImageSrc] = useState<string | null>(placeholder || null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    if (!src) return;
+    if (!resolvedSrc) return;
 
     // Use Intersection Observer for lazy loading
     const observer = new IntersectionObserver(
@@ -38,9 +46,9 @@ export default function LazyImage({
           if (entry.isIntersecting) {
             // Start loading the image
             const img = new Image();
-            img.src = src;
+            img.src = resolvedSrc;
             img.onload = () => {
-              setImageSrc(src);
+              setImageSrc(resolvedSrc);
               setIsLoaded(true);
             };
             img.onerror = () => {
@@ -63,7 +71,7 @@ export default function LazyImage({
     return () => {
       observer.disconnect();
     };
-  }, [src, rootMargin, onError]);
+  }, [resolvedSrc, rootMargin, onError]);
 
   return (
     <img

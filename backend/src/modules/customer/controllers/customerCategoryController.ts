@@ -85,18 +85,35 @@ export const getCategoriesWithSubs = async (_req: Request, res: Response) => {
       }
     });
 
-    categoriesWithSubs = await Promise.all(
-      categories.map(async (category) => {
-        const subcategories = await SubCategory.find({
-          category: category._id,
-        })
-          .sort({ order: 1 })
-          .select("name image order");
+    // Fetch every category's subcategories in a single batched query instead
+    // of one query per category, then group them back in memory.
+    const categoryIds = categories.map((category) => category._id);
+    const allSubcategories = await SubCategory.find({
+      category: { $in: categoryIds },
+    })
+      .sort({ order: 1 })
+      .select("name image order category")
+      .lean();
 
-        // Keep only subcategories that have at least one product
-        const filteredSubs = subcategories.filter((sub) =>
-          subcategoryCountMap.has(sub._id.toString())
-        );
+    const subcategoriesByCategory = new Map<string, typeof allSubcategories>();
+    for (const sub of allSubcategories) {
+      const key = sub.category!.toString();
+      if (!subcategoriesByCategory.has(key)) {
+        subcategoriesByCategory.set(key, []);
+      }
+      subcategoriesByCategory.get(key)!.push(sub);
+    }
+
+    categoriesWithSubs = categories
+      .map((category) => {
+        const subcategories = subcategoriesByCategory.get(category._id.toString()) || [];
+
+        // Keep only subcategories that have at least one product, and drop
+        // the "category" field used for grouping above - it wasn't part of
+        // this endpoint's response shape before and consumers don't expect it.
+        const filteredSubs = subcategories
+          .filter((sub) => subcategoryCountMap.has(sub._id.toString()))
+          .map(({ category: _category, ...sub }) => sub);
 
         const directCategoryCount =
           categoryCountMap.get(category._id.toString()) || 0;
@@ -118,7 +135,7 @@ export const getCategoriesWithSubs = async (_req: Request, res: Response) => {
           totalProducts,
         };
       })
-    ).then((list) => list.filter(Boolean));
+      .filter(Boolean);
 
     // Cache for 10 minutes
     cache.set(cacheKey, categoriesWithSubs, 10 * 60 * 1000);
@@ -213,7 +230,8 @@ export const getCategoryById = async (req: Request, res: Response) => {
               .select("name image order category")
               .sort({
                 order: 1,
-              });
+              })
+              .lean();
             return res.status(200).json({
               success: true,
               data: {
@@ -264,7 +282,8 @@ export const getCategoryById = async (req: Request, res: Response) => {
           .select("name image order slug icon")
           .sort({
             order: 1,
-          });
+          })
+          .lean();
 
         console.log(
           `[getCategoryById] Found ${subcategories.length} sibling subcategories for parent ${parentCategory.name}`
@@ -306,7 +325,8 @@ export const getCategoryById = async (req: Request, res: Response) => {
       .select("name image order slug icon")
       .sort({
         order: 1,
-      });
+      })
+      .lean();
 
     console.log(
       `[getCategoryById] Found ${subcategories.length} subcategories for ${category.name}`

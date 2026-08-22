@@ -743,13 +743,14 @@ export const getMyOrders = async (req: Request, res: Response) => {
       })
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
 
     const total = await Order.countDocuments(query);
 
     // Transform orders to match frontend Order type
-    const transformedOrders = orders.map((order) => {
-      const orderObj = order.toObject();
+    const transformedOrders = orders.map((order: any) => {
+      const orderObj = order;
       return {
         ...orderObj,
         id: orderObj._id.toString(),
@@ -802,7 +803,8 @@ export const getOrderById = async (req: Request, res: Response) => {
           { path: "seller", select: "storeName city phone fssaiLicNo" },
         ],
       })
-      .populate("deliveryBoy", "name phone profileImage vehicleNumber");
+      .populate("deliveryBoy", "name phone profileImage vehicleNumber")
+      .lean();
 
     if (!order) {
       return res.status(404).json({
@@ -816,7 +818,7 @@ export const getOrderById = async (req: Request, res: Response) => {
     const deliveryOtp = customer?.deliveryOtp;
 
     // Transform order to match frontend Order type
-    const orderObj = order.toObject();
+    const orderObj: any = order;
     const transformedOrder = {
       ...orderObj,
       id: orderObj._id.toString(),

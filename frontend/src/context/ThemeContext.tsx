@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useMemo, ReactNode } from 'react';
 import { getTheme, Theme } from '../utils/themes';
 
 interface ThemeContextType {
@@ -14,8 +14,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const currentTheme = getTheme(activeCategory);
 
+    const value = useMemo(
+        () => ({ activeCategory, setActiveCategory, currentTheme }),
+        [activeCategory, currentTheme]
+    );
+
     return (
-        <ThemeContext.Provider value={{ activeCategory, setActiveCategory, currentTheme }}>
+        <ThemeContext.Provider value={value}>
             {children}
         </ThemeContext.Provider>
     );

@@ -94,6 +94,7 @@ const ProductCard = memo(({
             {product.imageUrl ? (
               <LazyImage
                 src={product.imageUrl}
+                width={300}
                 alt={product.name}
                 className="w-full h-full object-contain"
               />

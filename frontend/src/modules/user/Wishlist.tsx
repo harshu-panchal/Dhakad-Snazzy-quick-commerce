@@ -64,6 +64,7 @@ export default function Wishlist() {
                   {product.imageUrl || product.mainImage ? (
                     <LazyImage
                       src={productImage}
+                      width={300}
                       alt={product.name}
                       className="w-full h-full object-contain"
                     />

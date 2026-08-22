@@ -2,6 +2,8 @@ import {
   useState,
   ReactNode,
   useEffect,
+  useCallback,
+  useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
 import { Order } from "../types/order";
@@ -52,7 +54,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const { isAuthenticated, user, updateUser } = useAuth();
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     // Ensure userType is set - if user is authenticated but userType is missing, assume Customer
     // This handles cases where user was logged in before userType was added to the login flow
     const userType =
@@ -77,7 +79,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
     // Ensure userType is set in user object if missing (for backward compatibility)
@@ -95,7 +97,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.userType, user?.id]);
 
-  const addOrder = async (order: Order): Promise<string | undefined> => {
+  const addOrder = useCallback(async (order: Order): Promise<string | undefined> => {
     try {
       // Construct payload
       const payload = {
@@ -153,13 +155,13 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       }
       throw error;
     }
-  };
+  }, [fetchOrders]);
 
-  const getOrderById = (id: string): Order | undefined => {
+  const getOrderById = useCallback((id: string): Order | undefined => {
     return orders.find((order) => order.id === id);
-  };
+  }, [orders]);
 
-  const fetchOrderById = async (id: string): Promise<Order | undefined> => {
+  const fetchOrderById = useCallback(async (id: string): Promise<Order | undefined> => {
     try {
       const { getOrderById: apiGetOrderById } = await import(
         "../services/api/customerOrderService"
@@ -181,9 +183,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       console.error("Failed to fetch order by id", error);
     }
     return undefined;
-  };
+  }, []);
 
-  const updateOrderStatus = async (id: string, status: Order["status"]) => {
+  const updateOrderStatus = useCallback(async (id: string, status: Order["status"]) => {
     // This is likely for cancellation if allowed
     setOrders((prevOrders) =>
       prevOrders.map((order) =>
@@ -191,18 +193,22 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       )
     );
     // Call API if exists
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      orders,
+      addOrder,
+      getOrderById,
+      fetchOrderById,
+      updateOrderStatus,
+      loading,
+    }),
+    [orders, addOrder, getOrderById, fetchOrderById, updateOrderStatus, loading]
+  );
 
   return (
-    <OrdersContext.Provider
-      value={{
-        orders,
-        addOrder,
-        getOrderById,
-        fetchOrderById,
-        updateOrderStatus,
-        loading,
-      }}>
+    <OrdersContext.Provider value={value}>
       {children}
     </OrdersContext.Provider>
   );

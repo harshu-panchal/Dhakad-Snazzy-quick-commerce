@@ -1,6 +1,5 @@
-import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { useRef, useMemo, useCallback } from 'react';
+import { memo, useRef, useMemo, useCallback } from 'react';
 import { Product } from '../../../types/domain';
 import { useCart } from '../../../context/CartContext';
 import { useWishlist } from '../../../hooks/useWishlist';
@@ -9,6 +8,7 @@ import Badge from '../../../components/ui/badge';
 import StarRating from '../../../components/ui/StarRating';
 
 import { calculateProductPrice } from '../../../utils/priceUtils';
+import { getOptimizedImageUrl } from '../../../utils/cloudinary';
 
 interface ProductCardProps {
   product: Product;
@@ -25,7 +25,7 @@ interface ProductCardProps {
   categoryStyle?: boolean;
 }
 
-export default function ProductCard({
+function ProductCard({
   product,
   showBadge = false,
   badgeText,
@@ -139,12 +139,16 @@ export default function ProductCard({
     isOperationPendingRef.current = true;
 
     try {
-      await updateQuantity(productId, inCartQty - 1);
+      // Pass the matched cart item's own variant identifier through - CartContext's
+      // updateQuantity matches by variant only when one is explicitly passed, and
+      // every server-synced cart item has a variant value set (see
+      // mapApiItemsToState), so omitting it here would never find the item to update.
+      await updateQuantity(productId, inCartQty - 1, cartItem?.variant);
     } finally {
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  }, [productId, inCartQty, updateQuantity]);
+  }, [productId, inCartQty, updateQuantity, cartItem]);
 
   const handleIncrease = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -164,7 +168,8 @@ export default function ProductCard({
 
     try {
       if (inCartQty > 0) {
-        await updateQuantity(productId, inCartQty + 1);
+        // See handleDecrease for why the cart item's variant must be passed through.
+        await updateQuantity(productId, inCartQty + 1, cartItem?.variant);
       } else {
         await addToCart(product, addButtonRef.current);
       }
@@ -172,30 +177,30 @@ export default function ProductCard({
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  }, [product, productId, inCartQty, updateQuantity, addToCart]);
+  }, [product, productId, inCartQty, updateQuantity, addToCart, cartItem]);
 
   // Memoize class names
-  const cardClassName = useMemo(() => 
-    `${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative`
+  const cardClassName = useMemo(() =>
+    `${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative transition-transform duration-200 will-change-transform hover:-translate-y-0.5 active:scale-[0.97]`
   , [categoryStyle]);
 
   const imageContainerClassName = useMemo(() => 
     `w-full ${compact ? 'h-32 md:h-40' : categoryStyle ? 'h-28 md:h-36' : 'h-40 md:h-48'} bg-neutral-100 flex items-center justify-center overflow-hidden relative`
   , [compact, categoryStyle]);
 
-  const infoContainerClassName = useMemo(() => 
+  const infoContainerClassName = useMemo(() =>
     `${compact ? 'p-3 md:p-4' : categoryStyle ? 'px-2.5 md:px-3 pt-1.5 md:pt-2 pb-2 md:pb-3' : 'p-4 md:p-5'} flex-1 flex flex-col`
   , [compact, categoryStyle]);
 
+  // Grid thumbnails only ever render at ~300px wide - no need to download the
+  // full-resolution original that Cloudinary stores.
+  const thumbnailUrl = useMemo(
+    () => getOptimizedImageUrl(product.imageUrl || product.mainImage, { width: 400 }),
+    [product.imageUrl, product.mainImage]
+  );
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.2 }}
-      className={cardClassName}
-    >
+    <div className={cardClassName}>
       <div
         onClick={handleCardClick}
         className="cursor-pointer flex-1 flex flex-col"
@@ -204,7 +209,7 @@ export default function ProductCard({
           {product.imageUrl || product.mainImage ? (
             <img
               ref={imageRef}
-              src={product.imageUrl || product.mainImage}
+              src={thumbnailUrl}
               alt={product.name || product.productName || 'Product'}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -553,6 +558,8 @@ export default function ProductCard({
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
+
+export default memo(ProductCard);

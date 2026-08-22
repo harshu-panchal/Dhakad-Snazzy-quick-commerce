@@ -57,15 +57,26 @@ export interface CategoryListResponse {
 /**
  * Get products with filters (Public)
  * Location (latitude/longitude) is required to filter products by seller's service radius
+ * Cached briefly (30s) so revisiting the same Search/Category query (e.g. via
+ * back navigation) doesn't always refetch - short TTL since price/stock can
+ * change more often than categories.
  */
 export const getProducts = async (params?: GetProductsParams): Promise<ProductListResponse> => {
-    const response = await api.get<ProductListResponse>('/customer/products', { params });
-    return response.data;
+    const cacheKey = `customer-products-${JSON.stringify(params || {})}`;
+    return apiCache.getOrFetch(
+        cacheKey,
+        async () => {
+            const response = await api.get<ProductListResponse>('/customer/products', { params });
+            return response.data;
+        },
+        30 * 1000 // 30 seconds cache
+    );
 };
 
 /**
  * Get product details by ID (Public)
  * Location (latitude/longitude) is required to verify product availability
+ * Cached briefly (30s) - same reasoning as getProducts.
  */
 export const getProductById = async (id: string, latitude?: number, longitude?: number): Promise<ProductDetailResponse> => {
     const params: any = {};
@@ -73,8 +84,15 @@ export const getProductById = async (id: string, latitude?: number, longitude?: 
         params.latitude = latitude;
         params.longitude = longitude;
     }
-    const response = await api.get<ProductDetailResponse>(`/customer/products/${id}`, { params });
-    return response.data;
+    const cacheKey = `customer-product-${id}-${JSON.stringify(params)}`;
+    return apiCache.getOrFetch(
+        cacheKey,
+        async () => {
+            const response = await api.get<ProductDetailResponse>(`/customer/products/${id}`, { params });
+            return response.data;
+        },
+        30 * 1000 // 30 seconds cache
+    );
 };
 
 /**

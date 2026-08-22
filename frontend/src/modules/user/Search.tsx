@@ -1,9 +1,14 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import ProductCard from './components/ProductCard';
 import { getProducts } from '../../services/api/customerProductService';
 import { Product } from '../../types/domain';
 import { useLocation } from '../../hooks/useLocation';
+
+// Fetching everything up front (previously limit: 1000) meant rendering
+// hundreds of cards at once for a popular search term. Paginate instead and
+// load more as the user scrolls near the bottom.
+const PAGE_SIZE = 40;
 
 export default function Search() {
   const navigate = useNavigate();
@@ -12,7 +17,12 @@ export default function Search() {
   const searchQuery = searchParams.get('q') || '';
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Update input when URL param changes (e.g. back button)
   useEffect(() => {
@@ -37,35 +47,97 @@ export default function Search() {
     return () => clearTimeout(timeoutId);
   }, [searchInput, searchQuery, setSearchParams]);
 
-  // Fetch products based on search query in URL
+  // Fetch page 1 whenever the search query or location changes
   useEffect(() => {
-    const fetchProducts = async () => {
+    // Fast typing can fire several requests before earlier ones resolve;
+    // this guards against an older response overwriting a newer one.
+    let ignore = false;
+
+    const fetchFirstPage = async () => {
       const q = searchParams.get('q') || '';
       if (!q.trim()) {
         setSearchResults([]);
+        setTotalCount(0);
+        setHasMore(false);
+        setPage(1);
         return;
       }
 
       setLoading(true);
       try {
-        const params: any = { search: q, limit: 1000 };
+        const params: any = { search: q, limit: PAGE_SIZE, page: 1 };
         // Include user location for seller service radius filtering
         if (location?.latitude && location?.longitude) {
           params.latitude = location.latitude;
           params.longitude = location.longitude;
         }
         const response = await getProducts(params);
-        setSearchResults(response.data as unknown as Product[]);
+        if (ignore) return;
+        const results = response.data as unknown as Product[];
+        setSearchResults(results);
+        setTotalCount(response.pagination?.total ?? results.length);
+        setPage(1);
+        setHasMore(response.pagination ? response.pagination.page < response.pagination.pages : false);
       } catch (error) {
+        if (ignore) return;
         console.error('Error searching products:', error);
         setSearchResults([]);
+        setTotalCount(0);
+        setHasMore(false);
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchFirstPage();
+
+    return () => {
+      ignore = true;
+    };
   }, [searchParams, location]);
+
+  // Load the next page and append it to the current results
+  const loadMore = useCallback(async () => {
+    const q = searchParams.get('q') || '';
+    if (!q.trim() || loading || loadingMore || !hasMore) return;
+
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const params: any = { search: q, limit: PAGE_SIZE, page: nextPage };
+      if (location?.latitude && location?.longitude) {
+        params.latitude = location.latitude;
+        params.longitude = location.longitude;
+      }
+      const response = await getProducts(params);
+      const results = response.data as unknown as Product[];
+      setSearchResults((prev) => [...prev, ...results]);
+      setPage(nextPage);
+      setHasMore(response.pagination ? response.pagination.page < response.pagination.pages : false);
+    } catch (error) {
+      console.error('Error loading more search results:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [searchParams, location, page, loading, loadingMore, hasMore]);
+
+  // Trigger loadMore when the sentinel at the bottom of the grid scrolls into view
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,7 +212,7 @@ export default function Search() {
         {searchQuery.trim() ? (
           <>
             <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6">
-              {loading ? 'Searching...' : `Search Results ${searchResults.length > 0 ? `(${searchResults.length})` : ''}`}
+              {loading ? 'Searching...' : `Search Results ${totalCount > 0 ? `(${totalCount})` : ''}`}
             </h2>
 
             {loading ? (
@@ -148,18 +220,27 @@ export default function Search() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
               </div>
             ) : searchResults.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
-                {searchResults.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    categoryStyle={true}
-                    showBadge={true}
-                    showPackBadge={false}
-                    showStockInfo={true}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
+                  {searchResults.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      categoryStyle={true}
+                      showBadge={true}
+                      showPackBadge={false}
+                      showStockInfo={true}
+                    />
+                  ))}
+                </div>
+                {/* Sentinel that triggers loading the next page when scrolled into view */}
+                <div ref={sentinelRef} className="h-1" />
+                {loadingMore && (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-12 md:py-16 bg-white rounded-2xl border border-neutral-100 shadow-sm">
                 <div className="text-6xl mb-4">🔍</div>

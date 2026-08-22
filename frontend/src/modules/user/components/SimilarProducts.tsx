@@ -1,6 +1,7 @@
 import { Product } from '../../../types/domain';
 import { useNavigate } from 'react-router-dom';
 import { calculateProductPrice } from '../../../utils/priceUtils';
+import { getOptimizedImageUrl } from '../../../utils/cloudinary';
 
 interface SimilarProductsProps {
   products: Product[];
@@ -36,7 +37,7 @@ export default function SimilarProducts({ products, currentProductId }: SimilarP
                 <div className="w-full h-24 bg-neutral-100 flex items-center justify-center overflow-hidden">
                   {product.imageUrl ? (
                     <img
-                      src={product.imageUrl}
+                      src={getOptimizedImageUrl(product.imageUrl, { width: 150 })}
                       alt={product.name}
                       className="w-full h-full object-cover"
                       loading="lazy"

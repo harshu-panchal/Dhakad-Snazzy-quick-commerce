@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode, useRef, useCallback } from 'react';
+import { useState, useEffect, ReactNode, useRef, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import api from '../services/api/config';
 import { LocationContext, Location } from './locationContext.types';
@@ -599,19 +599,31 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const value = useMemo(
+    () => ({
+      location,
+      isLocationEnabled,
+      isLocationLoading,
+      locationError,
+      locationPermissionStatus,
+      requestLocation,
+      updateLocation,
+      clearLocation,
+    }),
+    [
+      location,
+      isLocationEnabled,
+      isLocationLoading,
+      locationError,
+      locationPermissionStatus,
+      requestLocation,
+      updateLocation,
+      clearLocation,
+    ]
+  );
+
   return (
-    <LocationContext.Provider
-      value={{
-        location,
-        isLocationEnabled,
-        isLocationLoading,
-        locationError,
-        locationPermissionStatus,
-        requestLocation,
-        updateLocation,
-        clearLocation,
-      }}
-    >
+    <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
   );

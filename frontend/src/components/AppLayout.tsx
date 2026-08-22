@@ -494,13 +494,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     >
                       
                       {/* Sun background */}
-                      <motion.div 
+                      <motion.div
                         className="absolute top-[22%] w-[48px] h-[24px] bg-[#FFD700] rounded-t-full z-0"
-                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { 
-                          scale: [1, 1.15, 1], 
-                          opacity: [0.7, 1, 0.7] 
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
+                          scale: [1, 1.15, 1],
+                          opacity: [0.7, 1, 0.7]
                         } : { opacity: 0.9 }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        transition={{
+                          duration: 3,
+                          repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
+                          ease: "easeInOut"
+                        }}
                       />
 
                       {/* Sparkles Top */}
@@ -552,15 +556,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
                       />
 
                       {/* Burger Image */}
-                      <motion.img 
-                        src={burgerIcon} 
-                        alt="Food Zone" 
-                        className="w-[46px] h-[46px] object-contain relative z-10 mt-[6px]" 
-                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? { 
+                      <motion.img
+                        src={burgerIcon}
+                        alt="Food Zone"
+                        className="w-[46px] h-[46px] object-contain relative z-10 mt-[6px]"
+                        animate={(isActive('/shops') || location.pathname.startsWith('/shop/')) ? {
                           y: [0, -5, 0],
                           rotate: [0, -3, 3, 0]
                         } : {}}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        transition={{
+                          duration: 3,
+                          repeat: (isActive('/shops') || location.pathname.startsWith('/shop/')) ? Infinity : 0,
+                          ease: "easeInOut"
+                        }}
                       />
 
                       {/* Text */}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from 'react';
 
 interface LoadingContextType {
   isLoading: boolean;
@@ -87,15 +87,20 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  return (
-    <LoadingContext.Provider value={{
+  const value = useMemo(
+    () => ({
       isLoading,
       isRouteLoading,
       startLoading,
       stopLoading,
       startRouteLoading,
-      stopRouteLoading
-    }}>
+      stopRouteLoading,
+    }),
+    [isLoading, isRouteLoading, startLoading, stopLoading, startRouteLoading, stopRouteLoading]
+  );
+
+  return (
+    <LoadingContext.Provider value={value}>
       {children}
     </LoadingContext.Provider>
   );

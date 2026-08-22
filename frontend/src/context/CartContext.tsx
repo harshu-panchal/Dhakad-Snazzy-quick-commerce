@@ -327,7 +327,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [sellerConflict, setSellerConflict] = useState<SellerConflictState | null>(null);
 
-  const addToCart = async (product: Product, sourceElement?: HTMLElement | null, skipConflictCheck: boolean = false) => {
+  const addToCart = useCallback(async (product: Product, sourceElement?: HTMLElement | null, skipConflictCheck: boolean = false) => {
     // Get consistent product ID - MongoDB returns _id, frontend expects id
     const productId = product._id || product.id;
 
@@ -506,9 +506,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Remove from pending operations immediately
       pendingOperationsRef.current.delete(productId);
     }
-  };
+  }, [items, showToast, isAuthenticated, user, location, mapApiItemsToState]);
 
-  const removeFromCart = async (productId: string) => {
+  const removeFromCart = useCallback(async (productId: string) => {
     // Prevent concurrent operations on the same product
     if (pendingOperationsRef.current.has(productId)) {
       return;
@@ -551,9 +551,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // For unregistered users, remove from pending operations immediately
       pendingOperationsRef.current.delete(productId);
     }
-  };
+  }, [items, isAuthenticated, user, location, mapApiItemsToState]);
 
-  const updateQuantity = async (productId: string, quantity: number, variantId?: string, variantTitle?: string) => {
+  const updateQuantity = useCallback(async (productId: string, quantity: number, variantId?: string, variantTitle?: string) => {
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
@@ -643,10 +643,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // For unregistered users, remove from pending operations immediately
       pendingOperationsRef.current.delete(operationKey);
     }
-  };
+  }, [items, isAuthenticated, user, location, mapApiItemsToState, removeFromCart]);
 
 
-  const clearCart = async () => {
+  const clearCart = useCallback(async () => {
     setItems([]);
     setDeliveryDistanceKm(undefined);
     setInstantDeliveryAllowed(true);
@@ -658,7 +658,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       console.error("Clear cart failed", error);
       await fetchCart();
     }
-  };
+  }, [fetchCart]);
 
   const refreshCart = useCallback(async (
     latitude?: number,
@@ -669,33 +669,54 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await fetchCart(latitude, longitude, deliveryOption, options);
   }, [fetchCart]);
 
-  const confirmSellerConflict = async () => {
+  const confirmSellerConflict = useCallback(async () => {
     if (!sellerConflict) return;
     const { product, sourceElement } = sellerConflict;
     setSellerConflict(null);
     await addToCart(product, sourceElement, true);
-  };
+  }, [sellerConflict, addToCart]);
 
-  const cancelSellerConflict = () => setSellerConflict(null);
+  const cancelSellerConflict = useCallback(() => setSellerConflict(null), []);
+
+  const contextSellerConflict = useMemo(
+    () =>
+      sellerConflict
+        ? { currentSellerName: sellerConflict.currentSellerName, newSellerName: sellerConflict.newSellerName }
+        : null,
+    [sellerConflict]
+  );
+
+  const value = useMemo(
+    () => ({
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      refreshCart,
+      lastAddEvent,
+      loading,
+      sellerConflict: contextSellerConflict,
+      confirmSellerConflict,
+      cancelSellerConflict,
+    }),
+    [
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      refreshCart,
+      lastAddEvent,
+      loading,
+      contextSellerConflict,
+      confirmSellerConflict,
+      cancelSellerConflict,
+    ]
+  );
 
   return (
-    <CartContext.Provider
-      value={{
-        cart,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        refreshCart,
-        lastAddEvent,
-        loading,
-        sellerConflict: sellerConflict
-          ? { currentSellerName: sellerConflict.currentSellerName, newSellerName: sellerConflict.newSellerName }
-          : null,
-        confirmSellerConflict,
-        cancelSellerConflict,
-      }}
-    >
+    <CartContext.Provider value={value}>
       {children}
       <SellerConflictModal
         isOpen={!!sellerConflict}

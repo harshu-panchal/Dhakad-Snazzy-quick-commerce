@@ -14,7 +14,7 @@ export const getProducts = async (req: Request, res: Response) => {
       subcategory,
       search,
       page = 1,
-      limit = 20,
+      limit: rawLimit = 20,
       sort,
       minPrice,
       maxPrice,
@@ -23,6 +23,10 @@ export const getProducts = async (req: Request, res: Response) => {
       latitude, // User location latitude
       longitude, // User location longitude
     } = req.query;
+
+    // Cap the page size so a caller (or a misbehaving client) can't force a
+    // full-catalog fetch via ?limit=100000.
+    const limit = Math.min(Number(rawLimit) || 20, 100);
 
     const query: any = {
       status: "Active",
@@ -55,7 +59,7 @@ export const getProducts = async (req: Request, res: Response) => {
           data: [],
           pagination: {
             page: Number(page),
-            limit: Number(limit),
+            limit,
             total: 0,
             pages: 0,
           },
@@ -179,7 +183,7 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     // Calculate skip for pagination
-    const skip = (Number(page) - 1) * Number(limit);
+    const skip = (Number(page) - 1) * limit;
 
     // Build sort object
     let sortOptions: any = { createdAt: -1 }; // Default new to old
@@ -195,12 +199,13 @@ export const getProducts = async (req: Request, res: Response) => {
       .populate("seller", "storeName sellerName viewCustomerDetails")
       .sort(sortOptions)
       .skip(skip)
-      .limit(Number(limit));
+      .limit(limit)
+      .lean();
 
     const total = await Product.countDocuments(query);
 
     const formattedProducts = products.map((p: any) => {
-      const prodObj = p.toObject ? p.toObject() : { ...p };
+      const prodObj = { ...p };
       if (prodObj.seller && typeof prodObj.seller === "object" && prodObj.seller.viewCustomerDetails === false) {
         delete prodObj.seller.storeName;
         delete prodObj.seller.sellerName;
@@ -213,9 +218,9 @@ export const getProducts = async (req: Request, res: Response) => {
       data: formattedProducts,
       pagination: {
         page: Number(page),
-        limit: Number(limit),
+        limit,
         total,
-        pages: Math.ceil(total / Number(limit)),
+        pages: Math.ceil(total / limit),
       },
     });
   } catch (error: any) {
@@ -251,7 +256,8 @@ export const getProductById = async (req: Request, res: Response) => {
       .populate(
         "seller",
         "sellerName storeName city fssaiLicNo address location serviceRadiusKm viewCustomerDetails"
-      );
+      )
+      .lean();
 
     if (!product) {
       return res.status(404).json({
@@ -349,12 +355,13 @@ export const getProductById = async (req: Request, res: Response) => {
       .limit(6)
       .select(
         "productName price discPrice compareAtPrice mrp variations mainImage pack discount _id rating reviewsCount"
-      );
+      )
+      .lean();
 
     const settings = await AppSettings.getSettings();
     let showSellerDetails = settings?.features?.showSellerDetails !== false;
 
-    const prodObj = product.toObject();
+    const prodObj = { ...product };
     if (prodObj.seller && typeof prodObj.seller === "object" && (prodObj.seller as any).viewCustomerDetails === false) {
       showSellerDetails = false;
       delete (prodObj.seller as any).storeName;
