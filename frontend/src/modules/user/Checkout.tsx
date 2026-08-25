@@ -1833,7 +1833,6 @@ export default function Checkout() {
             </p>
           </button>
 
-          {/* Cash on Delivery option disabled/commented out
           <button
             onClick={() => setPaymentMethod("COD")}
             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
@@ -1860,7 +1859,6 @@ export default function Checkout() {
               (Pay when you receive)
             </p>
           </button>
-          */}
         </div>
       </div>
 
