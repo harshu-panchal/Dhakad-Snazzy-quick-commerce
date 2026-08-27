@@ -54,3 +54,31 @@ uploads/*
 # Cloudinary raw downloaded folder
 cloudinary/
 ../cloudinary/
+
+# SSH keys generated during server recovery
+new-mern-backend-key
+new-mern-backend-key.pub
+
+# Image recovery tooling (local-only, not for git)
+recovered_images/
+web_sourced/
+recovered_images2/
+recovered_images2_clean/
+recovered_clean.tar.gz
+recovered_images.tar.gz
+recovered_images2_clean_upload.tar.gz
+broken_images.json
+match_data.js
+match_images.html
+png_list.txt
+jpeg_list.txt
+find_broken_images.js
+check_images.js
+contact_sheets/
+apply_batch*.js
+apply_test_match.js
+apply_matches.js
+revert_changes.js
+rebuild_changelog.js
+recovery_changelog*.json
+*.tar.gz

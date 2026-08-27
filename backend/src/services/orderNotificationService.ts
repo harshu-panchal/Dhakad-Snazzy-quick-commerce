@@ -26,6 +26,21 @@ export interface OrderNotificationState {
 export const notificationStates = new Map<string, OrderNotificationState>();
 
 /**
+ * Loosely compare two city strings. Profiles/orders often store city as a
+ * longer free-text value (e.g. "Biaora Rajgarh Madhya Pradesh") while the
+ * other side stores just "Biaora", so an exact match would wrongly exclude
+ * otherwise-matching delivery boys. A bidirectional substring check handles
+ * both directions.
+ */
+function citiesMatch(cityA?: string | null, cityB?: string | null): boolean {
+    if (!cityA || !cityB) return false;
+    const a = cityA.trim().toLowerCase();
+    const b = cityB.trim().toLowerCase();
+    if (!a || !b) return false;
+    return a.includes(b) || b.includes(a);
+}
+
+/**
  * Calculate distance between two coordinates using Haversine formula
  * Returns distance in kilometers
  */
@@ -58,11 +73,11 @@ export async function findAvailableDeliveryBoys(city?: string): Promise<mongoose
             isOnline: true,
             status: 'Active',
         };
+        let deliveryBoys = await Delivery.find(query);
+
         if (city) {
-            const escapedCity = city.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            query.city = { $regex: new RegExp(`^\\s*${escapedCity}\\s*$`, 'i') };
+            deliveryBoys = deliveryBoys.filter(db => citiesMatch(city, db.city));
         }
-        const deliveryBoys = await Delivery.find(query);
 
         console.log(`📝 [DEBUG] Found ${deliveryBoys.length} eligible delivery boys:`);
         deliveryBoys.forEach(db => {
@@ -104,12 +119,11 @@ export async function findDeliveryBoysNearLocation(
                 }
             }
         };
-        if (city) {
-            const escapedCity = city.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            geoQuery.city = { $regex: new RegExp(`^\\s*${escapedCity}\\s*$`, 'i') };
-        }
 
-        const deliveryBoysWithLocation = await Delivery.find(geoQuery).select('_id location name mobile isOnline status');
+        let deliveryBoysWithLocation = await Delivery.find(geoQuery).select('_id location name mobile isOnline status city');
+        if (city) {
+            deliveryBoysWithLocation = deliveryBoysWithLocation.filter(db => citiesMatch(city, db.city));
+        }
 
         if (deliveryBoysWithLocation.length > 0) {
             console.log(`📍 [NEAR] Found ${deliveryBoysWithLocation.length} delivery boys using GeoJSON near [${longitude}, ${latitude}]:`);
@@ -140,12 +154,11 @@ export async function findDeliveryBoysNearLocation(
             status: 'Active',
             location: { $exists: true }
         };
-        if (city) {
-            const escapedCity = city.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            manualQuery.city = { $regex: new RegExp(`^\\s*${escapedCity}\\s*$`, 'i') };
-        }
 
-        const onlineDeliveryBoys = await Delivery.find(manualQuery).select('_id location name');
+        let onlineDeliveryBoys = await Delivery.find(manualQuery).select('_id location name city');
+        if (city) {
+            onlineDeliveryBoys = onlineDeliveryBoys.filter(db => citiesMatch(city, db.city));
+        }
 
         for (const db of onlineDeliveryBoys) {
             if (db.location && db.location.coordinates) {
@@ -175,12 +188,11 @@ export async function findDeliveryBoysNearLocation(
             isOnline: true,
             status: 'Active',
         };
-        if (city) {
-            const escapedCity = city.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-            fallbackQuery.city = { $regex: new RegExp(`^\\s*${escapedCity}\\s*$`, 'i') };
-        }
 
-        const allDeliveryBoys = await Delivery.find(fallbackQuery).select('_id');
+        let allDeliveryBoys = await Delivery.find(fallbackQuery).select('_id city');
+        if (city) {
+            allDeliveryBoys = allDeliveryBoys.filter(db => citiesMatch(city, db.city));
+        }
 
         if (allDeliveryBoys.length === 0) {
             return [];
