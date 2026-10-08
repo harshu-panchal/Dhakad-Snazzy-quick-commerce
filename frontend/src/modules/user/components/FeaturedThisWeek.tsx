@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getProducts } from '../../../services/api/customerProductService';
+import MediaThumbnail from '../../../components/ui/MediaThumbnail';
 
 interface FeaturedCard {
   id: string;
@@ -95,7 +96,7 @@ export default function FeaturedThisWeek() {
                       }`}
                   >
                     {product.imageUrl ? (
-                      <img
+                      <MediaThumbnail
                         src={product.imageUrl}
                         alt={product.name || 'Product'}
                         className="w-full h-full object-contain p-2 drop-shadow-lg"

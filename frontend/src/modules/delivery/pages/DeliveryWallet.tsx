@@ -8,6 +8,10 @@ import {
   requestDeliveryWithdrawal,
   getDeliveryWithdrawals,
   getDeliveryCommissions,
+  // Cashfree (PRIMARY)
+  createAdminPayoutOrderCashfree,
+  verifyAdminPayoutCashfree,
+  // Razorpay (SECONDARY / fallback)
   createAdminPayoutOrder,
   verifyAdminPayout,
 } from "../../../services/api/deliveryWalletService";
@@ -38,7 +42,7 @@ export default function DeliveryWallet() {
 
   useEffect(() => {
     fetchWalletData();
-    // Load Razorpay script
+    // Preload Razorpay script for fallback (Cashfree loads its own SDK on demand)
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
@@ -117,12 +121,89 @@ export default function DeliveryWallet() {
       return;
     }
 
+    setIsSubmitting(true);
+
+    // -------------------------------------------------------------------------
+    // Step 1: Try Cashfree (PRIMARY)
+    // -------------------------------------------------------------------------
     try {
-      setIsSubmitting(true);
+      const orderRes = await createAdminPayoutOrderCashfree(pendingAdminPayout);
+
+      if (!orderRes.success) {
+        throw new Error(orderRes.message || "Cashfree order creation failed");
+      }
+
+      const { paymentSessionId, cfOrderId, cashfreeEnv } = orderRes.data;
+
+      // Load Cashfree SDK
+      await new Promise<void>((resolve, reject) => {
+        if (typeof (window as any).Cashfree !== 'undefined') { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load Cashfree SDK'));
+        document.body.appendChild(s);
+      });
+
+      const cashfree = (window as any).Cashfree({
+        mode: (cashfreeEnv || 'TEST').toUpperCase() === 'PRODUCTION' ? 'production' : 'sandbox',
+      });
+
+      const result = await cashfree.checkout({
+        paymentSessionId,
+        redirectTarget: '_modal',
+      });
+
+      if (result.error) {
+        const errMsg: string = result.error?.message || 'Cashfree payment failed';
+        // Cancellation — just show a toast, don't fall back
+        if (
+          errMsg.toLowerCase().includes('cancel') ||
+          errMsg.toLowerCase().includes('dismiss') ||
+          errMsg.toLowerCase().includes('dropped')
+        ) {
+          showToast("Payment cancelled", "error");
+          setIsSubmitting(false);
+          return;
+        }
+        // Technical error — fall through to Razorpay fallback
+        throw new Error(errMsg);
+      }
+
+      // Cashfree payment succeeded — verify server-side
+      const cfPaymentId = result.paymentDetails?.paymentCode || '';
+      const verifyRes = await verifyAdminPayoutCashfree({
+        cfOrderId,
+        cfPaymentId,
+        amount: pendingAdminPayout,
+      });
+
+      if (verifyRes.success) {
+        showToast("Payment to admin successful", "success");
+        fetchWalletData();
+        setIsSubmitting(false);
+        return;
+      } else {
+        throw new Error(verifyRes.message || "Cashfree verification failed");
+      }
+    } catch (cashfreeError: any) {
+      // -----------------------------------------------------------------------
+      // Step 2: Cashfree failed with technical error — fallback to Razorpay
+      // -----------------------------------------------------------------------
+      console.warn("[Cashfree] Admin payout error, falling back to Razorpay:", cashfreeError?.message);
+      showToast("Switching to alternate payment gateway...", "info");
+    }
+
+    // -------------------------------------------------------------------------
+    // Razorpay FALLBACK
+    // -------------------------------------------------------------------------
+    try {
       const orderRes = await createAdminPayoutOrder(pendingAdminPayout);
 
       if (!orderRes.success) {
         showToast(orderRes.message || "Failed to create payout order", "error");
+        setIsSubmitting(false);
         return;
       }
 

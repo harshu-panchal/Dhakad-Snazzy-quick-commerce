@@ -7,13 +7,105 @@ import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
 import { calculateDistance, getDeliveryEligibility } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
-import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
 import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
 import { getOrderItemCommissionRate } from "../../../services/commissionService";
 import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Coupon from "../../../models/Coupon";
+
+/**
+ * Check if the given paymentMethod string represents Cash on Delivery
+ */
+export const isPaymentMethodCod = (paymentMethod?: string): boolean => {
+  return typeof paymentMethod === "string" && paymentMethod.trim().toUpperCase() === "COD";
+};
+
+/**
+ * Restore product inventory stock and coupon usage when an order is cancelled or abandoned
+ */
+export const restoreOrderInventoryAndCoupon = async (
+  orderOrId: any,
+  session: mongoose.ClientSession | null = null,
+) => {
+  if (!orderOrId) return;
+
+  let order = orderOrId;
+  if (typeof orderOrId === 'string' || orderOrId instanceof mongoose.Types.ObjectId) {
+    order = session ? await Order.findById(orderOrId).session(session) : await Order.findById(orderOrId);
+  } else if (!order.items && order._id) {
+    order = session ? await Order.findById(order._id).session(session) : await Order.findById(order._id);
+  }
+
+  if (!order || !order.items || order.items.length === 0) return;
+
+  for (const item of order.items) {
+    const orderItem = session
+      ? await OrderItem.findById(item).session(session)
+      : await OrderItem.findById(item);
+
+    if (orderItem) {
+      const product = session
+        ? await Product.findById(orderItem.product).session(session)
+        : await Product.findById(orderItem.product);
+
+      if (product) {
+        // Check if it was a variation
+        if (orderItem.variation) {
+          const variationIndex = product.variations?.findIndex(
+            (v: any) =>
+              v.value === orderItem.variation ||
+              v.title === orderItem.variation ||
+              v.pack === orderItem.variation,
+          );
+
+          if (
+            variationIndex !== undefined &&
+            variationIndex !== -1 &&
+            product.variations &&
+            product.variations[variationIndex]
+          ) {
+            const currentStock =
+              product.variations[variationIndex].stock || 0;
+            product.variations[variationIndex].stock =
+              currentStock + orderItem.quantity;
+          } else if (product.variations && product.variations.length > 0) {
+            const currentStock = product.variations[0].stock || 0;
+            product.variations[0].stock = currentStock + orderItem.quantity;
+          }
+        }
+
+        // Increment main stock
+        product.stock += orderItem.quantity;
+        if (session) {
+          await product.save({ session });
+        } else {
+          await product.save();
+        }
+      }
+
+      orderItem.status = "Cancelled";
+      if (session) {
+        await orderItem.save({ session });
+      } else {
+        await orderItem.save();
+      }
+    }
+  }
+
+  // Restore coupon usage count
+  if (order.couponCode) {
+    try {
+      await Coupon.findOneAndUpdate(
+        { code: order.couponCode, usageCount: { $gt: 0 } },
+        { $inc: { usageCount: -1 } },
+      );
+      console.log(`📢 Restored coupon usage count for ${order.couponCode}`);
+    } catch (couponError) {
+      console.error("Failed to restore coupon usage:", couponError);
+    }
+  }
+};
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -44,6 +136,26 @@ export const createOrder = async (req: Request, res: Response) => {
       paymentMethod,
       deliveryOption,
     });
+
+    // Clean up any stale pending/unpaid orders for this customer to free up stock & coupon
+    try {
+      const stalePendingOrders = await Order.find({
+        customer: userId,
+        status: "Pending",
+        paymentStatus: "Pending",
+      });
+      for (const stale of stalePendingOrders) {
+        await restoreOrderInventoryAndCoupon(stale, null);
+        stale.status = "Cancelled";
+        stale.paymentStatus = "Failed";
+        stale.cancellationReason = "Abandoned checkout session / replaced by new order";
+        stale.cancelledAt = new Date();
+        await stale.save();
+        console.log(`🧹 Cleaned up abandoned pending order ${stale.orderNumber} for customer ${userId}`);
+      }
+    } catch (cleanupErr) {
+      console.error("Error cleaning up stale pending orders:", cleanupErr);
+    }
 
     if (!items || items.length === 0) {
       if (session) await session.abortTransaction();
@@ -150,6 +262,9 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
+    // Determine if this is Cash on Delivery or Online payment
+    const isCod = isPaymentMethodCod(paymentMethod);
+
     // Initialize Order first to get an ID
     const newOrder = new Order({
       customer: new mongoose.Types.ObjectId(userId),
@@ -167,7 +282,7 @@ export const createOrder = async (req: Request, res: Response) => {
       },
       paymentMethod: paymentMethod || "COD",
       paymentStatus: "Pending",
-      status: (paymentMethod === "Online" || paymentMethod === "razorpay") ? "Pending" : "Received",
+      status: isCod ? "Received" : "Pending",
       deliveryOption: deliveryOption || "Standard",
       subtotal: 0,
       tax: 0,
@@ -657,8 +772,8 @@ export const createOrder = async (req: Request, res: Response) => {
       const io: SocketIOServer = req.app.get("io") as SocketIOServer;
       if (io) {
         // Only notify sellers immediately if it's a COD order
-        // Online orders will notify after payment verification in paymentService
-        if (paymentMethod === "COD") {
+        // Online orders will notify after payment verification in paymentService / cashfreeService
+        if (isCod) {
           // Use newOrder directly - notifySellersOfOrderUpdate will handle fetching items if needed
           notifySellersOfOrderUpdate(io, newOrder, "NEW_ORDER");
           console.log(
@@ -732,6 +847,9 @@ export const getMyOrders = async (req: Request, res: Response) => {
 
     if (status) {
       query.status = status; // Note: Model field is 'status', not 'orderStatus'
+    } else {
+      // By default, exclude unconfirmed Pending checkout orders from customer order history
+      query.status = { $ne: "Pending" };
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -815,7 +933,15 @@ export const getOrderById = async (req: Request, res: Response) => {
 
     // Get customer's permanent delivery OTP
     const customer = await Customer.findById(userId).select("deliveryOtp");
-    const deliveryOtp = customer?.deliveryOtp;
+    let deliveryOtp = customer?.deliveryOtp;
+
+    // Legacy accounts (created before the deliveryOtp field, or updated via
+    // findOneAndUpdate which skips pre-save hooks) may lack an OTP.
+    // Generate one on demand so the customer app can always display it.
+    if (!deliveryOtp) {
+      deliveryOtp = Math.floor(1000 + Math.random() * 9000).toString();
+      await Customer.findByIdAndUpdate(userId, { deliveryOtp });
+    }
 
     // Transform order to match frontend Order type
     const orderObj: any = order;
@@ -873,20 +999,25 @@ export const refreshDeliveryOtp = async (req: Request, res: Response) => {
         .json({ success: false, message: "Order is already delivered" });
     }
 
-    // Generate and send new OTP
-    const result = await generateDeliveryOtp(id);
+    // The OTP is the customer's permanent deliveryOtp — regenerate it so a
+    // compromised OTP can be rotated on demand.
+    const newOtp = Math.floor(1000 + Math.random() * 9000).toString();
+    await Customer.findByIdAndUpdate(userId, { deliveryOtp: newOtp });
 
-    // Emit socket event if needed (customer room)
+    // Emit socket event so customer UI shows the fresh OTP
     const io = (req.app as any).get("io");
     if (io) {
       io.to(`order-${id}`).emit("delivery-otp-refreshed", {
         orderId: id,
-        deliveryOtp: order.deliveryOtp, // The service saves it to the order
-        expiresAt: order.deliveryOtpExpiresAt,
+        deliveryOtp: newOtp,
       });
     }
 
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      message: "Delivery OTP refreshed",
+      deliveryOtp: newOtp,
+    });
   } catch (error: any) {
     console.error("Error refreshing delivery OTP:", error);
     return res.status(500).json({
@@ -950,62 +1081,8 @@ export const cancelOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Restore stock
-    for (const item of order.items) {
-      const orderItem = session
-        ? await OrderItem.findById(item).session(session)
-        : await OrderItem.findById(item);
-
-      if (orderItem) {
-        const product = session
-          ? await Product.findById(orderItem.product).session(session)
-          : await Product.findById(orderItem.product);
-
-        if (product) {
-          // Check if it was a variation
-          if (orderItem.variation) {
-            // Try to find matching variation
-            const variationIndex = product.variations?.findIndex(
-              (v: any) =>
-                v.value === orderItem.variation ||
-                v.title === orderItem.variation ||
-                v.pack === orderItem.variation,
-            );
-
-            if (
-              variationIndex !== undefined &&
-              variationIndex !== -1 &&
-              product.variations &&
-              product.variations[variationIndex]
-            ) {
-              const currentStock =
-                product.variations[variationIndex].stock || 0;
-              product.variations[variationIndex].stock =
-                currentStock + orderItem.quantity;
-            } else if (product.variations && product.variations.length > 0) {
-              // Fallback to first variation if specific one not found (should be rare)
-              const currentStock = product.variations[0].stock || 0;
-              product.variations[0].stock = currentStock + orderItem.quantity;
-            }
-          }
-
-          // Helper: also increment main stock if variations are just attributes or if simple product
-          product.stock += orderItem.quantity;
-          if (session) {
-            await product.save({ session });
-          } else {
-            await product.save();
-          }
-        }
-
-        orderItem.status = "Cancelled";
-        if (session) {
-          await orderItem.save({ session });
-        } else {
-          await orderItem.save();
-        }
-      }
-    }
+    // Restore stock and coupon
+    await restoreOrderInventoryAndCoupon(order, session);
 
     order.status = "Cancelled";
     order.cancellationReason = reason;
@@ -1088,6 +1165,53 @@ export const cancelOrder = async (req: Request, res: Response) => {
     });
   } finally {
     if (session) session.endSession();
+  }
+};
+
+/**
+ * Cancel a pending online order (called when user cancels/fails checkout payment)
+ * Immediately releases reserved stock and coupon
+ */
+export const cancelPendingOrder = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user!.userId;
+
+    const order = await Order.findOne({ _id: id, customer: userId });
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.status !== "Pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Only Pending orders can be cancelled via this endpoint. Order is currently ${order.status}`,
+      });
+    }
+
+    await restoreOrderInventoryAndCoupon(order, null);
+
+    order.status = "Cancelled";
+    order.paymentStatus = "Failed";
+    order.cancellationReason = reason || "Payment cancelled or failed during checkout";
+    order.cancelledAt = new Date();
+    order.cancelledBy = new mongoose.Types.ObjectId(userId);
+    await order.save();
+
+    console.log(`🛑 Pending order ${order.orderNumber} cancelled by customer and stock/coupon restored`);
+
+    return res.status(200).json({
+      success: true,
+      message: "Pending order cancelled and inventory restored",
+      data: order,
+    });
+  } catch (error: any) {
+    console.error("Error cancelling pending order:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to cancel pending order",
+    });
   }
 };
 

@@ -1,726 +1,948 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   getPromoStrips,
   createPromoStrip,
   updatePromoStrip,
-  deletePromoStrip,
   type PromoStrip,
-  type PromoStripFormData,
-  type CategoryCard,
+  type BannerMedia,
 } from "../../../services/api/admin/adminPromoStripService";
-import { getCategories, type Category } from "../../../services/api/categoryService";
-import { getHeaderCategoriesAdmin, type HeaderCategory } from "../../../services/api/headerCategoryService";
-import { getProducts as getAdminProducts, type Product } from "../../../services/api/admin/adminProductService";
+import {
+  getHeaderCategoriesAdmin,
+  type HeaderCategory,
+} from "../../../services/api/headerCategoryService";
+import { uploadImage, uploadVideo } from "../../../services/api/uploadService";
+import { resolveMediaUrl } from "../../../utils/media";
 
 export default function AdminPromoStrip() {
-  // Form state
-  const [headerCategorySlug, setHeaderCategorySlug] = useState("");
-  const [heading, setHeading] = useState("");
-  const [saleText, setSaleText] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<string[]>([]);
-  const [crazyDealsTitle, setCrazyDealsTitle] = useState("CRAZY DEALS");
-  const [isActive, setIsActive] = useState(true);
-  const [order, setOrder] = useState(0);
-
-  // Data state
-  const [promoStrips, setPromoStrips] = useState<PromoStrip[]>([]);
   const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productSearch, setProductSearch] = useState("");
+  const [promoStrips, setPromoStrips] = useState<PromoStrip[]>([]);
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [modalError, setModalError] = useState<string>("");
+  const [success, setSuccess] = useState<string>("");
 
-  // UI state
-  const [loading, setLoading] = useState(false);
-  const [loadingPromoStrips, setLoadingPromoStrips] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  // Modal State for Add / Edit Slide
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSlideIndex, setEditingSlideIndex] = useState<number | null>(null);
 
-  // Pagination
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
+  // Slide Form State
+  const [slideType, setSlideType] = useState<"image" | "video">("image");
+  const [slideMediaUrl, setSlideMediaUrl] = useState("");
+  const [slideThumbnailUrl, setSlideThumbnailUrl] = useState("");
+  const [slideTitle, setSlideTitle] = useState("");
+  const [slideSubtitle, setSlideSubtitle] = useState("");
+  const [slideLink, setSlideLink] = useState("");
+  const [slideButtonText, setSlideButtonText] = useState("Shop Now");
+  const [slideOrder, setSlideOrder] = useState<number>(0);
+  const [slideIsActive, setSlideIsActive] = useState(true);
+  const [uploadSourceType, setUploadSourceType] = useState<"upload" | "url">("upload");
 
-  // Fetch initial data
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Load initial data
   useEffect(() => {
-    fetchPromoStrips();
-    fetchHeaderCategories();
-    fetchCategories();
+    loadData();
   }, []);
 
-  // Fetch products when search changes
-  useEffect(() => {
-    if (productSearch.length > 2) {
-      const timeoutId = setTimeout(() => {
-        fetchProducts(productSearch);
-      }, 300);
-      return () => clearTimeout(timeoutId);
-    } else if (productSearch.length === 0) {
-      // Load initial products when search is cleared
-      fetchProducts("");
-    } else {
-      setProducts([]);
-    }
-  }, [productSearch]);
-
-  const fetchPromoStrips = async () => {
-    try {
-      setLoadingPromoStrips(true);
-      const data = await getPromoStrips();
-      setPromoStrips(data);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to fetch PromoStrips");
-    } finally {
-      setLoadingPromoStrips(false);
-    }
-  };
-
-  const fetchHeaderCategories = async () => {
-    try {
-      const data = await getHeaderCategoriesAdmin();
-      setHeaderCategories(data);
-    } catch (err: any) {
-      console.error("Failed to fetch header categories:", err);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const response = await getCategories();
-      if (response.success && response.data) {
-        setCategories(response.data);
-      } else {
-        setCategories([]);
-      }
-    } catch (err: any) {
-      console.error("Failed to fetch categories:", err);
-      setCategories([]);
-    }
-  };
-
-  const fetchProducts = async (search: string) => {
-    try {
-      const response = await getAdminProducts({ search, limit: 20 });
-      if (response.success && response.data) {
-        // Admin products API returns data directly as array
-        setProducts(Array.isArray(response.data) ? response.data : []);
-      } else {
-        setProducts([]);
-      }
-    } catch (err: any) {
-      console.error("Failed to fetch products:", err);
-      setProducts([]);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    if (!headerCategorySlug || !heading || !saleText || !startDate || !endDate) {
-      setError("Please fill in all required fields");
-      return;
-    }
-
-    if (new Date(endDate) <= new Date(startDate)) {
-      setError("End date must be after start date");
-      return;
-    }
-
-    // Validate at least 4 featured products for carousel
-    if (featuredProducts.length < 4) {
-      setError("Please select at least 4 products for the CRAZY DEALS carousel section");
-      return;
-    }
-
-    const formData: PromoStripFormData = {
-      headerCategorySlug,
-      heading,
-      saleText,
-      startDate,
-      endDate,
-      categoryCards: categoryCards.map((card) => ({
-        categoryId: card.categoryId,
-        title: card.title,
-        badge: card.badge,
-        discountPercentage: card.discountPercentage,
-        order: card.order,
-      })),
-      featuredProducts,
-      isActive,
-      order,
-    };
-
+  const loadData = async () => {
     try {
       setLoading(true);
-
-      if (editingId) {
-        await updatePromoStrip(editingId, formData);
-        setSuccess("PromoStrip updated successfully!");
-        resetForm();
-        fetchPromoStrips();
-      } else {
-        await createPromoStrip(formData);
-        setSuccess("PromoStrip created successfully!");
-        resetForm();
-        fetchPromoStrips();
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to save PromoStrip");
+      setError("");
+      const [cats, strips] = await Promise.all([
+        getHeaderCategoriesAdmin(),
+        getPromoStrips(),
+      ]);
+      setHeaderCategories(cats || []);
+      setPromoStrips(strips || []);
+    } catch (err: unknown) {
+      console.error("Failed to load promo strip data:", err);
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to load data";
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (promoStrip: PromoStrip) => {
-    setHeaderCategorySlug(promoStrip.headerCategorySlug);
-    setHeading(promoStrip.heading);
-    setSaleText(promoStrip.saleText);
-    setStartDate(promoStrip.startDate.split("T")[0]);
-    setEndDate(promoStrip.endDate.split("T")[0]);
-    setCategoryCards(
-      promoStrip.categoryCards.map((card) => {
-        const categoryIdValue = typeof card.categoryId === "string"
-          ? card.categoryId
-          : (card.categoryId as any)?._id || card.categoryId;
-        const categoryObj = typeof card.categoryId === "object" ? card.categoryId as any : null;
-        return {
-          categoryId: categoryIdValue,
-          title: categoryObj?.name || card.title || "",
-          badge: card.badge || "",
-          discountPercentage: card.discountPercentage || 0,
-          order: card.order || 0,
-          _id: card._id,
-        };
-      })
+  // Find the PromoStrip document for the currently selected header category
+  const currentPromoStrip = useMemo(() => {
+    return promoStrips.find(
+      (s) => (s.headerCategorySlug || "").toLowerCase() === selectedCategorySlug.toLowerCase()
     );
-    setFeaturedProducts(
-      promoStrip.featuredProducts.map((p) => {
-        if (typeof p === "string") {
-          return p;
-        }
-        return (p as any)?._id || p;
-      })
-    );
-    setCrazyDealsTitle(promoStrip.crazyDealsTitle || "CRAZY DEALS");
-    setIsActive(promoStrip.isActive);
-    setOrder(promoStrip.order);
-    setEditingId(promoStrip._id);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [promoStrips, selectedCategorySlug]);
+
+  const currentBanners: BannerMedia[] = useMemo(() => {
+    if (!currentPromoStrip?.banners) return [];
+    return [...currentPromoStrip.banners].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [currentPromoStrip]);
+
+  // Open modal to add new slide
+  const handleOpenAddModal = () => {
+    setEditingSlideIndex(null);
+    setSlideType("image");
+    setSlideMediaUrl("");
+    setSlideThumbnailUrl("");
+    setSlideTitle("");
+    setSlideSubtitle("");
+    setSlideLink(`/category/${selectedCategorySlug !== "all" ? selectedCategorySlug : "all"}`);
+    setSlideButtonText("Shop Now");
+    setSlideOrder(currentBanners.length);
+    setSlideIsActive(true);
+    setUploadSourceType("upload");
+    setError("");
+    setModalError("");
+    setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this PromoStrip?")) {
+  // Open modal to edit existing slide
+  const handleOpenEditModal = (slide: BannerMedia, index: number) => {
+    setEditingSlideIndex(index);
+    setSlideType(slide.type || "image");
+    setSlideMediaUrl(slide.mediaUrl || "");
+    setSlideThumbnailUrl(slide.thumbnailUrl || "");
+    setSlideTitle(slide.title || "");
+    setSlideSubtitle(slide.subtitle || "");
+    setSlideLink(slide.link || "");
+    setSlideButtonText(slide.buttonText || "Shop Now");
+    setSlideOrder(slide.order !== undefined ? slide.order : index);
+    setSlideIsActive(slide.isActive !== false);
+    setUploadSourceType("url");
+    setError("");
+    setModalError("");
+    setIsModalOpen(true);
+  };
+
+  // Handle media file upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so re-selecting same file triggers onChange
+    e.target.value = "";
+
+    try {
+      setUploading(true);
+      setModalError("");
+      setError("");
+
+      if (slideType === "video") {
+        const isVideo =
+          file.type.startsWith("video/") ||
+          /\.(mp4|webm|mov|m4v|mkv|avi|ogv|3gp)$/i.test(file.name);
+
+        if (!isVideo) {
+          setModalError("Please select a valid video file (MP4, WebM, MOV, MKV)");
+          return;
+        }
+
+        const maxVideoSize = 200 * 1024 * 1024; // 200MB
+        if (file.size > maxVideoSize) {
+          setModalError(
+            `Video file exceeds 200MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`
+          );
+          return;
+        }
+
+        // Show immediate local preview while uploading
+        const localPreview = URL.createObjectURL(file);
+        setSlideMediaUrl(localPreview);
+
+        const result = await uploadVideo(file, "banners/videos");
+        const finalUrl = result.url || result.secureUrl;
+        setSlideMediaUrl(finalUrl);
+      } else {
+        const isImage =
+          file.type.startsWith("image/") ||
+          /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name);
+
+        if (!isImage) {
+          setModalError("Please select a valid image file (JPG, PNG, WebP, GIF)");
+          return;
+        }
+
+        const maxImageSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxImageSize) {
+          setModalError(
+            `Image file exceeds 50MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`
+          );
+          return;
+        }
+
+        // Show immediate local preview
+        const localPreview = URL.createObjectURL(file);
+        setSlideMediaUrl(localPreview);
+
+        const result = await uploadImage(file, "banners/images");
+        const finalUrl = result.url || result.secureUrl;
+        setSlideMediaUrl(finalUrl);
+      }
+    } catch (err: unknown) {
+      console.error("Upload error:", err);
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err as Error)?.message ||
+        "Failed to upload file. Please check file format and size.";
+      setModalError(msg);
+      setSlideMediaUrl("");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Save current slide to the selected category PromoStrip
+  const handleSaveSlide = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!slideMediaUrl) {
+      setModalError("Please upload a media file or provide a valid Media URL.");
       return;
     }
 
     try {
-      await deletePromoStrip(id);
-      setSuccess("PromoStrip deleted successfully!");
-      fetchPromoStrips();
-      if (editingId === id) {
-        resetForm();
+      setSaving(true);
+      setModalError("");
+      setError("");
+
+      const newSlide: BannerMedia = {
+        type: slideType,
+        mediaUrl: slideMediaUrl,
+        thumbnailUrl: slideThumbnailUrl || undefined,
+        title: slideTitle,
+        subtitle: slideSubtitle,
+        link: slideLink,
+        buttonText: slideButtonText,
+        order: Number(slideOrder) || 0,
+        isActive: slideIsActive,
+      };
+
+      const updatedBanners: BannerMedia[] = [...(currentPromoStrip?.banners || [])];
+
+      if (editingSlideIndex !== null) {
+        // Update existing slide
+        updatedBanners[editingSlideIndex] = {
+          ...updatedBanners[editingSlideIndex],
+          ...newSlide,
+        };
+      } else {
+        // Add new slide
+        updatedBanners.push(newSlide);
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to delete PromoStrip");
+
+      // Re-sort by order
+      updatedBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+      if (currentPromoStrip?._id) {
+        // Update existing document
+        await updatePromoStrip(currentPromoStrip._id, {
+          headerCategorySlug: selectedCategorySlug.toLowerCase(),
+          banners: updatedBanners,
+          isActive: true,
+        });
+      } else {
+        // Create new document for this category
+        await createPromoStrip({
+          headerCategorySlug: selectedCategorySlug.toLowerCase(),
+          banners: updatedBanners,
+          heading: "SPECIAL OFFERS",
+          saleText: "SALE",
+          startDate: new Date().toISOString(),
+          endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          isActive: true,
+          order: 0,
+        });
+      }
+
+      setSuccess("Banner/Video slide saved successfully!");
+      setIsModalOpen(false);
+      await loadData();
+      setTimeout(() => setSuccess(""), 3500);
+    } catch (err: unknown) {
+      console.error("Failed to save slide:", err);
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Failed to save slide";
+      setModalError(msg);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const resetForm = () => {
-    setHeaderCategorySlug("");
-    setHeading("");
-    setSaleText("");
-    setStartDate("");
-    setEndDate("");
-    setCategoryCards([]);
-    setFeaturedProducts([]);
-    setCrazyDealsTitle("CRAZY DEALS");
-    setIsActive(true);
-    setOrder(0);
-    setEditingId(null);
-  };
+  // Delete slide
+  const handleDeleteSlide = async (index: number) => {
+    if (!window.confirm("Are you sure you want to delete this banner/video?")) return;
+    if (!currentPromoStrip?._id) return;
 
-  const addCategoryCard = () => {
-    setCategoryCards([
-      ...categoryCards,
-      {
-        categoryId: "",
-        title: "",
-        badge: "",
-        discountPercentage: 0,
-        order: categoryCards.length,
-      },
-    ]);
-  };
+    try {
+      setSaving(true);
+      setError("");
 
-  const updateCategoryCard = (index: number, field: keyof CategoryCard, value: any) => {
-    const updated = [...categoryCards];
-    // Ensure categoryId is always a string when setting it
-    if (field === 'categoryId' && typeof value !== 'string') {
-      value = typeof value === 'object' && value?._id ? value._id : String(value);
+      const updatedBanners = currentBanners.filter((_, idx) => idx !== index);
+
+      await updatePromoStrip(currentPromoStrip._id, {
+        headerCategorySlug: selectedCategorySlug.toLowerCase(),
+        banners: updatedBanners,
+      });
+
+      setSuccess("Slide deleted successfully!");
+      await loadData();
+      setTimeout(() => setSuccess(""), 3500);
+    } catch (err: unknown) {
+      console.error("Delete error:", err);
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Failed to delete slide";
+      setError(msg);
+    } finally {
+      setSaving(false);
     }
-    updated[index] = { ...updated[index], [field]: value };
-    setCategoryCards(updated);
   };
 
-  const removeCategoryCard = (index: number) => {
-    setCategoryCards(categoryCards.filter((_, i) => i !== index));
-  };
+  // Toggle active status of a slide
+  const handleToggleActive = async (index: number) => {
+    if (!currentPromoStrip?._id) return;
 
-  const addFeaturedProduct = (productId: string) => {
-    if (!featuredProducts.includes(productId)) {
-      setFeaturedProducts([...featuredProducts, productId]);
+    try {
+      setSaving(true);
+      const updatedBanners = [...currentBanners];
+      updatedBanners[index].isActive = !updatedBanners[index].isActive;
+
+      await updatePromoStrip(currentPromoStrip._id, {
+        headerCategorySlug: selectedCategorySlug.toLowerCase(),
+        banners: updatedBanners,
+      });
+
+      await loadData();
+    } catch (err: unknown) {
+      console.error("Toggle error:", err);
+      setError("Failed to update slide status");
+    } finally {
+      setSaving(false);
     }
-    setProductSearch("");
-    setProducts([]);
   };
 
-  const removeFeaturedProduct = (productId: string) => {
-    setFeaturedProducts(featuredProducts.filter((id) => id !== productId));
+  // Move slide up / down in order
+  const handleMoveSlide = async (index: number, direction: "up" | "down") => {
+    if (!currentPromoStrip?._id) return;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentBanners.length) return;
+
+    try {
+      setSaving(true);
+      const updatedBanners = [...currentBanners];
+      const temp = updatedBanners[index];
+      updatedBanners[index] = updatedBanners[targetIndex];
+      updatedBanners[targetIndex] = temp;
+
+      // Re-assign order numbers
+      updatedBanners.forEach((b, idx) => {
+        b.order = idx;
+      });
+
+      await updatePromoStrip(currentPromoStrip._id, {
+        headerCategorySlug: selectedCategorySlug.toLowerCase(),
+        banners: updatedBanners,
+      });
+
+      await loadData();
+    } catch (err: unknown) {
+      console.error("Reorder error:", err);
+      setError("Failed to reorder slides");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Pagination
-  const totalPages = Math.ceil(promoStrips.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const displayedPromoStrips = promoStrips.slice(startIndex, endIndex);
+  // All category tabs
+  const categoryTabs = useMemo(() => {
+    const defaultTabs = [{ slug: "all", name: "All (Default)" }];
+    const otherTabs = headerCategories
+      .filter((c) => c.slug !== "all" && c.status === "Published")
+      .map((c) => ({
+        slug: c.slug,
+        name: c.name,
+      }));
+    return [...defaultTabs, ...otherTabs];
+  }, [headerCategories]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
-      {/* Page Header */}
-      <div className="p-6 pb-0">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-neutral-800">Promo Strips</h1>
-          <div className="text-sm text-blue-500">
-            <span className="text-blue-500 hover:underline cursor-pointer">Home</span>{" "}
-            <span className="text-neutral-400">/</span> Promo Strips
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl shadow-sm border border-neutral-200">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </span>
+            <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">
+              Header Category Banners & Videos
+            </h1>
           </div>
+          <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+            Configure carousel banner images and promotional videos shown separately for each header category page.
+          </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleOpenAddModal}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-md transition-all active:scale-95 whitespace-nowrap"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Add Banner / Video</span>
+        </button>
       </div>
 
-      {/* Success/Error Messages */}
-      {(success || error) && (
-        <div className="px-6">
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4">
-              {success}
-            </div>
-          )}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
-          )}
+      {/* Notifications */}
+      {error && (
+        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="text-red-500 font-bold ml-2">×</button>
+        </div>
+      )}
+      {success && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm flex items-center justify-between">
+          <span>{success}</span>
+          <button onClick={() => setSuccess("")} className="text-emerald-500 font-bold ml-2">×</button>
         </div>
       )}
 
-      {/* Page Content */}
-      <div className="flex-1 px-6 pb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-          {/* Left Sidebar: Add/Edit Form */}
-          <div className="bg-white rounded-lg shadow-sm border border-neutral-200 p-6 flex flex-col">
-            <h2 className="text-lg font-semibold text-neutral-800 mb-4">
-              {editingId ? "Edit PromoStrip" : "Add PromoStrip"}
-            </h2>
+      {/* Category Tabs */}
+      <div className="bg-white p-3 rounded-2xl shadow-sm border border-neutral-200">
+        <div className="text-xs font-bold text-neutral-400 uppercase tracking-wider px-2 mb-2">
+          Select Header Category to Manage:
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {categoryTabs.map((tab) => {
+            const isSelected = selectedCategorySlug.toLowerCase() === tab.slug.toLowerCase();
+            const strip = promoStrips.find(
+              (s) => (s.headerCategorySlug || "").toLowerCase() === tab.slug.toLowerCase()
+            );
+            const count = strip?.banners?.length || 0;
 
-            <form onSubmit={handleSubmit} className="space-y-4 flex-1 overflow-y-auto">
-              {/* Header Category Slug */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Header Category <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={headerCategorySlug}
-                  onChange={(e) => setHeaderCategorySlug(e.target.value)}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                  required
+            return (
+              <button
+                key={tab.slug}
+                type="button"
+                onClick={() => setSelectedCategorySlug(tab.slug)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap flex items-center gap-2 ${
+                  isSelected
+                    ? "bg-neutral-900 text-white shadow"
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                }`}
+              >
+                <span>{tab.name}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                    isSelected ? "bg-white/20 text-white" : "bg-neutral-200 text-neutral-600"
+                  }`}
                 >
-                  <option value="">Select header category</option>
-                  <option value="all">All</option>
-                  {headerCategories
-                    .filter((hc) => hc.status === "Published")
-                    .map((hc) => (
-                      <option key={hc._id} value={hc.slug}>
-                        {hc.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-              {/* Heading */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Heading <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={heading}
-                  onChange={(e) => setHeading(e.target.value)}
-                  placeholder="e.g., HOUSEFULL SALE"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                  required
-                />
-              </div>
+      {/* Slide Cards List */}
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-neutral-200">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 capitalize">
+              {selectedCategorySlug} Carousel Media ({currentBanners.length})
+            </h2>
+            <p className="text-xs text-neutral-500">
+              Slides will cycle automatically in the header carousel when this category is selected.
+            </p>
+          </div>
 
-              {/* Sale Text */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Sale Text <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={saleText}
-                  onChange={(e) => setSaleText(e.target.value)}
-                  placeholder="e.g., SALE"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                  required
-                />
-              </div>
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200/60"
+          >
+            + Add Slide
+          </button>
+        </div>
 
-              {/* Date Range */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Start Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                    required
-                  />
+        {loading ? (
+          <div className="py-12 text-center text-neutral-400 text-sm animate-pulse">
+            Loading banners and videos...
+          </div>
+        ) : currentBanners.length === 0 ? (
+          <div className="py-12 px-4 text-center rounded-xl border-2 border-dashed border-neutral-200 bg-neutral-50/50">
+            <div className="w-12 h-12 mx-auto rounded-full bg-neutral-200 flex items-center justify-center text-neutral-500 mb-3">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                <line x1="7" y1="2" x2="7" y2="22" />
+                <line x1="17" y1="2" x2="17" y2="22" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-neutral-800">
+              No custom banners or videos yet for "{selectedCategorySlug}"
+            </h3>
+            <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto">
+              Curated default slides will be shown until you add custom slides. Click below to add your first banner or video!
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow"
+            >
+              + Add First Slide
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {currentBanners.map((banner, index) => (
+              <div
+                key={banner._id || index}
+                className={`group relative rounded-2xl overflow-hidden border transition-all ${
+                  banner.isActive !== false
+                    ? "border-neutral-200 bg-white hover:shadow-md"
+                    : "border-neutral-200 bg-neutral-50 opacity-60"
+                }`}
+              >
+                {/* Media Preview Box */}
+                <div className="relative h-44 bg-neutral-900 overflow-hidden flex items-center justify-center">
+                  {banner.type === "video" ? (
+                    <video
+                      src={resolveMediaUrl(banner.mediaUrl)}
+                      poster={resolveMediaUrl(banner.thumbnailUrl)}
+                      className="w-full h-full object-cover"
+                      muted
+                      loop
+                      controls
+                    />
+                  ) : (
+                    <img
+                      src={resolveMediaUrl(banner.mediaUrl)}
+                      alt={banner.title || "Banner"}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+
+                  {/* Type Badge */}
+                  <div className="absolute top-2 left-2 z-10">
+                    <span
+                      className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow ${
+                        banner.type === "video"
+                          ? "bg-purple-600 text-white"
+                          : "bg-blue-600 text-white"
+                      }`}
+                    >
+                      {banner.type === "video" ? "📹 VIDEO" : "🖼️ BANNER"}
+                    </span>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="absolute top-2 right-2 z-10">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(index)}
+                      className={`text-[9px] font-bold px-2 py-0.5 rounded-full shadow ${
+                        banner.isActive !== false
+                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                          : "bg-neutral-500 text-white hover:bg-neutral-600"
+                      }`}
+                    >
+                      {banner.isActive !== false ? "Active" : "Disabled"}
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    End Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                    required
-                  />
-                </div>
-              </div>
 
-              {/* Category Cards */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-neutral-700">
-                    Category Cards
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addCategoryCard}
-                    className="text-sm text-teal-600 hover:text-teal-700 font-medium"
-                  >
-                    + Add Card
-                  </button>
-                </div>
-                <div className="space-y-3 max-h-60 overflow-y-auto">
-                  {categoryCards.map((card, index) => (
-                    <div key={index} className="border border-neutral-200 rounded p-3 bg-neutral-50">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-medium text-neutral-600">Card {index + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeCategoryCard(index)}
-                          className="text-red-500 hover:text-red-700 text-xs"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <select
-                          value={typeof card.categoryId === 'string' ? card.categoryId : (card.categoryId as any)?._id || ''}
-                          onChange={(e) => updateCategoryCard(index, "categoryId", e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-neutral-300 rounded bg-white"
-                          required
-                        >
-                          <option value="">Select category</option>
-                          {Array.isArray(categories) && categories.map((cat) => (
-                            <option key={cat._id} value={cat._id}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          value={card.title}
-                          onChange={(e) => updateCategoryCard(index, "title", e.target.value)}
-                          placeholder="Custom title"
-                          className="w-full px-2 py-1 text-sm border border-neutral-300 rounded bg-white"
-                        />
-                        <input
-                          type="text"
-                          value={card.badge}
-                          onChange={(e) => updateCategoryCard(index, "badge", e.target.value)}
-                          placeholder="Badge (e.g., Up to 55% OFF)"
-                          className="w-full px-2 py-1 text-sm border border-neutral-300 rounded bg-white"
-                          required
-                        />
-                        <input
-                          type="number"
-                          value={card.discountPercentage}
-                          onChange={(e) => updateCategoryCard(index, "discountPercentage", parseFloat(e.target.value) || 0)}
-                          placeholder="Discount %"
-                          min="0"
-                          max="100"
-                          className="w-full px-2 py-1 text-sm border border-neutral-300 rounded bg-white"
-                          required
-                        />
-                      </div>
+                {/* Info & Details */}
+                <div className="p-3.5 space-y-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-neutral-900 line-clamp-1">
+                      {banner.title || "(Untitled Slide)"}
+                    </h3>
+                    {banner.subtitle && (
+                      <p className="text-xs text-neutral-500 line-clamp-1 mt-0.5">
+                        {banner.subtitle}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-neutral-500 pt-1 border-t border-neutral-100">
+                    <span className="truncate max-w-[160px]" title={banner.link || "No link"}>
+                      🔗 {banner.link || "None"}
+                    </span>
+                    <span className="font-semibold text-neutral-400">Order: {banner.order || index}</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between gap-1 pt-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={index === 0 || saving}
+                        onClick={() => handleMoveSlide(index, "up")}
+                        className="p-1 rounded hover:bg-neutral-100 text-neutral-500 disabled:opacity-30"
+                        title="Move Up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === currentBanners.length - 1 || saving}
+                        onClick={() => handleMoveSlide(index, "down")}
+                        className="p-1 rounded hover:bg-neutral-100 text-neutral-500 disabled:opacity-30"
+                        title="Move Down"
+                      >
+                        ▼
+                      </button>
                     </div>
-                  ))}
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(banner, index)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSlide(index)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-semibold"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-              {/* CRAZY DEALS Title */}
+      {/* ADD / EDIT SLIDE MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden my-8">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/70">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  CRAZY DEALS Title
-                </label>
-                <input
-                  type="text"
-                  value={crazyDealsTitle}
-                  onChange={(e) => setCrazyDealsTitle(e.target.value)}
-                  placeholder="e.g., CRAZY DEALS, SPECIAL OFFERS"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                />
-                <p className="text-xs text-neutral-500 mt-1">
-                  Custom title for the featured products section (default: "CRAZY DEALS")
+                <h3 className="text-lg font-bold text-neutral-900">
+                  {editingSlideIndex !== null ? "Edit Slide" : "Add Banner or Video"}
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  For category: <span className="font-bold uppercase">{selectedCategorySlug}</span>
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-neutral-200 hover:bg-neutral-300 flex items-center justify-center text-neutral-600 text-lg font-bold"
+              >
+                ×
+              </button>
+            </div>
 
-              {/* Featured Products */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Featured Products <span className="text-red-500">*</span>
-                  <span className="text-xs text-neutral-500 font-normal ml-2">
-                    (Minimum 4 required for carousel)
-                  </span>
-                </label>
-                <input
-                  type="text"
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  placeholder="Search products (type at least 3 characters)..."
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none mb-2"
-                />
-                {productSearch.length > 0 && productSearch.length < 3 && (
-                  <p className="text-xs text-neutral-500 mb-2">Type at least 3 characters to search</p>
-                )}
-                {products.length > 0 && (
-                  <div className="border border-neutral-300 rounded max-h-40 overflow-y-auto mb-2">
-                    {products.map((product) => (
-                      <div
-                        key={product._id}
-                        onClick={() => addFeaturedProduct(product._id)}
-                        className="p-2 hover:bg-neutral-50 cursor-pointer text-sm"
-                      >
-                        {product.productName}
-                      </div>
-                    ))}
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveSlide} className="p-6 space-y-4">
+              {/* Modal Error Alert */}
+              {modalError && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-red-500">⚠️</span>
+                    <span>{modalError}</span>
                   </div>
-                )}
-                {productSearch.length >= 3 && products.length === 0 && (
-                  <p className="text-xs text-neutral-500 mb-2">No products found</p>
-                )}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {featuredProducts.map((productId) => {
-                    const product = products.find((p) => p._id === productId);
-                    return (
-                      <div
-                        key={productId}
-                        className="flex items-center gap-1 bg-teal-50 text-teal-700 px-2 py-1 rounded text-sm"
-                      >
-                        <span>{product?.productName || productId}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeFeaturedProduct(productId)}
-                          className="text-teal-700 hover:text-teal-900"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs font-medium ${
-                    featuredProducts.length >= 4 ? 'text-green-600' : 'text-orange-600'
-                  }`}>
-                    {featuredProducts.length} / 4 products selected
-                  </span>
-                  {featuredProducts.length < 4 && (
-                    <span className="text-xs text-orange-600">
-                      (Need {4 - featuredProducts.length} more)
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Active Toggle */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded"
-                />
-                <label htmlFor="isActive" className="text-sm font-medium text-neutral-700">
-                  Active
-                </label>
-              </div>
-
-              {/* Order */}
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Order</label>
-                <input
-                  type="number"
-                  value={order}
-                  onChange={(e) => setOrder(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none"
-                />
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : editingId ? "Update" : "Create"}
-                </button>
-                {editingId && (
                   <button
                     type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2 border border-neutral-300 rounded text-neutral-700 hover:bg-neutral-50"
+                    onClick={() => setModalError("")}
+                    className="text-red-500 hover:text-red-700 font-bold ml-2 text-base leading-none p-1"
                   >
-                    Cancel
+                    ×
                   </button>
+                </div>
+              )}
+
+              {/* Media Type Toggle */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                  Media Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlideType("image");
+                      setModalError("");
+                    }}
+                    className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border transition-all ${
+                      slideType === "image"
+                        ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
+                        : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <span>🖼️ Image Banner</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSlideType("video");
+                      setModalError("");
+                    }}
+                    className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 border transition-all ${
+                      slideType === "video"
+                        ? "bg-purple-50 border-purple-500 text-purple-700 shadow-sm"
+                        : "bg-white border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                    }`}
+                  >
+                    <span>📹 Video Slide</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Upload vs URL Tabs */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-neutral-700">
+                    {slideType === "video" ? "Video Media Source" : "Banner Image Source"}
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUploadSourceType("upload")}
+                      className={`text-xs px-2 py-0.5 rounded font-medium ${
+                        uploadSourceType === "upload"
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-500 hover:text-neutral-900"
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadSourceType("url")}
+                      className={`text-xs px-2 py-0.5 rounded font-medium ${
+                        uploadSourceType === "url"
+                          ? "bg-neutral-900 text-white"
+                          : "text-neutral-500 hover:text-neutral-900"
+                      }`}
+                    >
+                      Media URL
+                    </button>
+                  </div>
+                </div>
+
+                {uploadSourceType === "upload" ? (
+                  <div
+                    onClick={() => !uploading && fileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                      uploading
+                        ? "border-emerald-400 bg-emerald-50/30 cursor-wait"
+                        : "border-neutral-300 hover:border-emerald-500 cursor-pointer bg-neutral-50/50 hover:bg-emerald-50/20"
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={
+                        slideType === "video"
+                          ? "video/*,.mp4,.webm,.mov,.mkv,.m4v"
+                          : "image/*,.png,.jpg,.jpeg,.webp"
+                      }
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      disabled={uploading}
+                    />
+                    {uploading ? (
+                      <div className="py-2 flex flex-col items-center justify-center gap-2">
+                        <div className="w-7 h-7 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-xs text-neutral-700 font-semibold animate-pulse">
+                          Uploading {slideType}... Please wait.
+                        </div>
+                        <p className="text-[10px] text-neutral-400">
+                          {slideType === "video"
+                            ? "Video processing may take a few moments depending on file size"
+                            : "Uploading image..."}
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-2xl mb-1">{slideType === "video" ? "📹" : "📁"}</div>
+                        <p className="text-xs font-semibold text-neutral-800">
+                          Click to upload {slideType === "video" ? "video file (MP4, WebM, MOV, MKV)" : "banner image"}
+                        </p>
+                        <p className="text-[10px] text-neutral-400 mt-1">
+                          {slideType === "video"
+                            ? "Max size: 200MB • Recommended aspect ratio: 16:9 or 21:9"
+                            : "Max size: 50MB • Recommended aspect ratio: 16:9 or 21:9"}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <input
+                    type="url"
+                    value={slideMediaUrl}
+                    onChange={(e) => setSlideMediaUrl(e.target.value)}
+                    placeholder={
+                      slideType === "video"
+                        ? "https://example.com/video.mp4 or /assets/..."
+                        : "https://example.com/banner.jpg"
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
                 )}
+
+                {/* Media Live Preview */}
+                {slideMediaUrl && (
+                  <div className="mt-2.5 rounded-xl overflow-hidden border border-neutral-200 bg-black h-40 flex items-center justify-center relative group">
+                    {slideType === "video" ? (
+                      <video
+                        src={resolveMediaUrl(slideMediaUrl)}
+                        controls
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <img
+                        src={resolveMediaUrl(slideMediaUrl)}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-medium px-2 py-0.5 rounded backdrop-blur">
+                      Live Preview
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSlideMediaUrl("")}
+                      className="absolute top-2 right-2 bg-black/70 hover:bg-red-600 text-white text-xs w-6 h-6 rounded-full flex items-center justify-center transition-colors shadow"
+                      title="Remove media"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Title & Subtitle */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Headline / Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={slideTitle}
+                    onChange={(e) => setSlideTitle(e.target.value)}
+                    placeholder="e.g. Summer Fashion 2026"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Subtitle / Offer Tag (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={slideSubtitle}
+                    onChange={(e) => setSlideSubtitle(e.target.value)}
+                    placeholder="e.g. Flat 60% OFF Today"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Target Link & Button Text */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Target Route / Link
+                  </label>
+                  <input
+                    type="text"
+                    value={slideLink}
+                    onChange={(e) => setSlideLink(e.target.value)}
+                    placeholder="/category/fashion or /product/123"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Button Text
+                  </label>
+                  <input
+                    type="text"
+                    value={slideButtonText}
+                    onChange={(e) => setSlideButtonText(e.target.value)}
+                    placeholder="Shop Now"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Order & Active */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={slideOrder}
+                    onChange={(e) => setSlideOrder(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-200 text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex items-center pt-5">
+                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={slideIsActive}
+                      onChange={(e) => setSlideIsActive(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded border-neutral-300 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-bold text-neutral-700">Slide is Active</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-neutral-200 text-neutral-700 text-xs sm:text-sm font-semibold hover:bg-neutral-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || uploading}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {uploading ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Uploading Media...</span>
+                    </>
+                  ) : saving ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    "Save Slide"
+                  )}
+                </button>
               </div>
             </form>
           </div>
-
-          {/* Right Side: List */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-neutral-200 p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-neutral-800">Promo Strips List</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-neutral-600">Rows per page:</span>
-                <select
-                  value={rowsPerPage}
-                  onChange={(e) => {
-                    setRowsPerPage(parseInt(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="px-2 py-1 border border-neutral-300 rounded text-sm"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
-            </div>
-
-            {loadingPromoStrips ? (
-              <div className="text-center py-8 text-neutral-500">Loading...</div>
-            ) : displayedPromoStrips.length === 0 ? (
-              <div className="text-center py-8 text-neutral-500">No PromoStrips found</div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-neutral-200">
-                        <th className="text-left py-2 px-3 text-sm font-medium text-neutral-700">Header Category</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-neutral-700">Heading</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-neutral-700">Date Range</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-neutral-700">Status</th>
-                        <th className="text-left py-2 px-3 text-sm font-medium text-neutral-700">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayedPromoStrips.map((promoStrip) => (
-                        <tr key={promoStrip._id} className="border-b border-neutral-100 hover:bg-neutral-50">
-                          <td className="py-2 px-3 text-sm text-neutral-700">{promoStrip.headerCategorySlug}</td>
-                          <td className="py-2 px-3 text-sm text-neutral-700">{promoStrip.heading}</td>
-                          <td className="py-2 px-3 text-sm text-neutral-700">
-                            {new Date(promoStrip.startDate).toLocaleDateString()} - {new Date(promoStrip.endDate).toLocaleDateString()}
-                          </td>
-                          <td className="py-2 px-3 text-sm">
-                            <span
-                              className={`px-2 py-1 rounded text-xs ${
-                                promoStrip.isActive
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-gray-100 text-gray-700"
-                              }`}
-                            >
-                              {promoStrip.isActive ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-sm">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleEdit(promoStrip)}
-                                className="text-blue-600 hover:text-blue-700"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDelete(promoStrip._id)}
-                                className="text-red-600 hover:text-red-700"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex justify-between items-center mt-4">
-                    <div className="text-sm text-neutral-600">
-                      Showing {startIndex + 1} to {Math.min(endIndex, promoStrips.length)} of {promoStrips.length} entries
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="px-3 py-1 border border-neutral-300 rounded text-sm disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="px-3 py-1 border border-neutral-300 rounded text-sm disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
-

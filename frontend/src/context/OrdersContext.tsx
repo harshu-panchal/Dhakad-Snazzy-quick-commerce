@@ -129,7 +129,9 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       };
 
       const response = await createOrder(payload);
-      await fetchOrders();
+      if (order.paymentMethod === "COD") {
+        await fetchOrders();
+      }
 
       // Return the created order ID from response
       if (response && response.data) {
@@ -201,10 +203,11 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       addOrder,
       getOrderById,
       fetchOrderById,
+      fetchOrders,
       updateOrderStatus,
       loading,
     }),
-    [orders, addOrder, getOrderById, fetchOrderById, updateOrderStatus, loading]
+    [orders, addOrder, getOrderById, fetchOrderById, fetchOrders, updateOrderStatus, loading]
   );
 
   return (

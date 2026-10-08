@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import HeaderCategory from "../../../models/HeaderCategory";
+import AppSettings from "../../../models/AppSettings";
 
 // @desc    Get all header categories (Admin)
 // @route   GET /api/v1/header-categories/admin
@@ -24,7 +25,7 @@ export const getAdminHeaderCategories = async (
 // @access  Public
 export const getHeaderCategories = async (_req: Request, res: Response) => {
   try {
-    const categories = await HeaderCategory.find({ status: "Published" }).sort({
+    const categories = await HeaderCategory.find({ status: "Published", isActive: { $ne: false } }).sort({
       order: 1,
       createdAt: -1,
     });
@@ -125,6 +126,36 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
     return res
       .status(500)
       .json({ message: "Server Error", error: error.message });
+  }
+};
+
+// @desc    Toggle isActive for a header category
+// @route   PATCH /api/v1/header-categories/:id/toggle-active
+// @access  Private/Admin
+export const toggleHeaderCategoryActive = async (req: Request, res: Response) => {
+  try {
+    const category = await HeaderCategory.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: "Header category not found" });
+    }
+    category.isActive = !category.isActive;
+    await category.save();
+    return res.json(category);
+  } catch (error) {
+    return res.status(500).json({ message: "Server Error", error });
+  }
+};
+
+// @desc    Get header category row display setting (public)
+// @route   GET /api/v1/header-categories/display-settings
+// @access  Public
+export const getHeaderCategoryDisplaySettings = async (_req: Request, res: Response) => {
+  try {
+    const settings = await AppSettings.findOne().select("features.showHeaderCategoryRow").lean();
+    const showHeaderCategoryRow = settings?.features?.showHeaderCategoryRow !== false;
+    return res.json({ showHeaderCategoryRow });
+  } catch (error) {
+    return res.status(500).json({ message: "Server Error", error });
   }
 };
 

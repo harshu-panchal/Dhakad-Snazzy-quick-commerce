@@ -6,6 +6,7 @@ import {
   Product,
   ProductVariation,
 } from "../../../services/api/productService";
+import MediaThumbnail from "../../../components/ui/MediaThumbnail";
 import {
   getCategories,
   Category as apiCategory,
@@ -621,7 +622,7 @@ export default function SellerProductList() {
                       </td>
                       <td className="p-4 border border-neutral-200">
                         <div className="w-16 h-12 bg-white border border-neutral-200 rounded p-1 flex items-center justify-center mx-auto">
-                          <img
+                          <MediaThumbnail
                             src={variation.productImage}
                             alt={variation.productName}
                             className="max-w-full max-h-full object-contain"

@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { Product } from '../types/domain';
+import MediaThumbnail from './ui/MediaThumbnail';
 
 interface AddToCartAnimationProps {
   /**
@@ -271,7 +272,7 @@ export default function AddToCartAnimation({
           className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white flex-shrink-0 shadow-lg"
         >
           {removedProduct.imageUrl || removedProduct.mainImage ? (
-            <img
+            <MediaThumbnail
               src={removedProduct.imageUrl || removedProduct.mainImage}
               alt={removedProduct.name || removedProduct.productName || 'Product'}
               className="w-full h-full object-cover"
@@ -295,7 +296,7 @@ export default function AddToCartAnimation({
           }}
         >
           {flyingProduct.product.imageUrl || flyingProduct.product.mainImage ? (
-            <img
+            <MediaThumbnail
               src={flyingProduct.product.imageUrl || flyingProduct.product.mainImage}
               alt={flyingProduct.product.name || flyingProduct.product.productName || 'Product'}
               className="w-full h-full object-cover rounded-full"
@@ -348,7 +349,7 @@ export default function AddToCartAnimation({
                     className="w-7 h-7 rounded-full border-2 border-white/90 overflow-hidden bg-white flex-shrink-0 shadow-md"
                   >
                     {item.product.imageUrl || item.product.mainImage ? (
-                      <img
+                      <MediaThumbnail
                         src={item.product.imageUrl || item.product.mainImage}
                         alt={item.product.name || item.product.productName || 'Product'}
                         className="w-full h-full object-cover"

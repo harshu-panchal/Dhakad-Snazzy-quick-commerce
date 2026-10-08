@@ -25,6 +25,7 @@ export default cloudinary;
 export const CLOUDINARY_FOLDERS = {
   PRODUCTS: "dhakadsnazzy/products",
   PRODUCT_GALLERY: "dhakadsnazzy/products/gallery",
+  PRODUCT_VIDEOS: "dhakadsnazzy/products/videos",
   CATEGORIES: "dhakadsnazzy/categories",
   SUBCATEGORIES: "dhakadsnazzy/subcategories",
   COUPONS: "dhakadsnazzy/coupons",

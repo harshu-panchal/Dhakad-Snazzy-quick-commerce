@@ -14,6 +14,7 @@ import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
 
 
 // Load environment variables
+// Server reloaded: Cashfree HTTPS return_url updated
 dotenv.config();
 
 const app: Application = express();
@@ -141,9 +142,11 @@ async function startServer() {
   });
 }
 
+// Reload trigger for lowest-prices-sections
 startServer().catch((err) => {
   console.error("\n\x1b[31m✗ Failed to start server\x1b[0m");
   console.error(err);
   process.exit(1);
 });
+
 

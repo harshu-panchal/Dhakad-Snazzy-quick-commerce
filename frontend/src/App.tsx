@@ -43,6 +43,11 @@ const Login = lazyWithRetry(() => import("./modules/user/Login"), "Login");
 
 const AboutUs = lazyWithRetry(() => import("./modules/user/AboutUs"), "AboutUs");
 const FAQ = lazyWithRetry(() => import("./modules/user/FAQ"), "FAQ");
+const TermsAndConditions = lazyWithRetry(() => import("./modules/user/TermsAndConditions"), "TermsAndConditions");
+const PrivacyPolicy = lazyWithRetry(() => import("./modules/user/PrivacyPolicy"), "PrivacyPolicy");
+const RefundPolicy = lazyWithRetry(() => import("./modules/user/RefundPolicy"), "RefundPolicy");
+const ReturnPolicy = lazyWithRetry(() => import("./modules/user/ReturnPolicy"), "ReturnPolicy");
+const ShippingPolicy = lazyWithRetry(() => import("./modules/user/ShippingPolicy"), "ShippingPolicy");
 const Wishlist = lazyWithRetry(() => import("./modules/user/Wishlist"), "Wishlist");
 const Addresses = lazyWithRetry(() => import("./modules/user/Addresses"), "Addresses");
 const AddressBook = lazyWithRetry(() => import("./modules/user/AddressBook"), "AddressBook");
@@ -893,6 +898,26 @@ function App() {
                                       element={<AboutUs />}
                                     />
                                     <Route path="/faq" element={<FAQ />} />
+                                    <Route
+                                      path="/terms-and-conditions"
+                                      element={<TermsAndConditions />}
+                                    />
+                                    <Route
+                                      path="/privacy-policy"
+                                      element={<PrivacyPolicy />}
+                                    />
+                                    <Route
+                                      path="/refund-policy"
+                                      element={<RefundPolicy />}
+                                    />
+                                    <Route
+                                      path="/return-policy"
+                                      element={<ReturnPolicy />}
+                                    />
+                                    <Route
+                                      path="/shipping-policy"
+                                      element={<ShippingPolicy />}
+                                    />
                                     <Route
                                       path="/wishlist"
                                       element={<Wishlist />}

@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import ProductCard from "./components/ProductCard";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,6 +8,8 @@ import {
   Category as ApiCategory,
 } from "../../services/api/customerProductService";
 import { useLocation as useLocationContext } from "../../hooks/useLocation";
+
+const PAGE_SIZE = 30;
 import { getOptimizedImageUrl } from "../../utils/cloudinary";
 
 // Pure lookup, no component state involved - lives at module scope so it can
@@ -87,6 +89,12 @@ export default function CategoryPage() {
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Pagination & Infinite Scroll State
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Common Types Definition for reusable filtering logic (Grocery + Fashion)
   const commonTypes = useMemo(() => [
@@ -195,52 +203,116 @@ export default function CategoryPage() {
     }
   }, [id, searchParams]);
 
-  // Fetch Products when category or subcategory changes
+  // Fetch Page 1 Products when category or subcategory changes
   useEffect(() => {
+    let ignore = false;
+
     const fetchProducts = async () => {
       setLoading(true);
       setError(null);
       try {
-        // If the ID in the URL is actually for a subcategory, we should use the parent category ID
-        // which we fetch in the other useEffect and store in 'category'.
-        // However, for fetching products, the backend getProducts handles 'category' (parent)
-        // and 'subcategory' separately.
-
-        const params: any = { category: category?._id || id, limit: 1000 };
+        const params: any = { category: category?._id || id, limit: PAGE_SIZE, page: 1 };
         if (selectedSubcategory !== "all") {
           params.subcategory = selectedSubcategory;
         }
-        // Include user location for seller service radius filtering
         if (userLocation?.latitude && userLocation?.longitude) {
           params.latitude = userLocation.latitude;
           params.longitude = userLocation.longitude;
         }
 
         const response = await getProducts(params);
+        if (ignore) return;
         if (response.success) {
-          // Ensure products have default tags/name array for filtering logic if missing
           const safeProducts = response.data.map((p: any) => ({
             ...p,
             tags: Array.isArray(p.tags) ? p.tags : [],
             nameParts: p.name ? p.name.toLowerCase().split(" ") : [],
-            price: p.salePrice || p.price || 0, // Ensure price is available for sorting
+            price: p.salePrice || p.price || 0,
           }));
           setProducts(safeProducts);
+          setPage(1);
+          setHasMore(
+            response.pagination
+              ? response.pagination.page < response.pagination.pages
+              : response.data.length === PAGE_SIZE
+          );
         } else {
           setError("Failed to fetch products for this category.");
         }
       } catch (error) {
+        if (ignore) return;
         console.error("Error fetching products:", error);
         setError("Network error while loading products.");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     };
 
     if (id) {
       fetchProducts();
     }
+
+    return () => {
+      ignore = true;
+    };
   }, [id, selectedSubcategory, category?._id, userLocation]);
+
+  // Load next page and append to current results (Infinite Scroll)
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const params: any = { category: category?._id || id, limit: PAGE_SIZE, page: nextPage };
+      if (selectedSubcategory !== "all") {
+        params.subcategory = selectedSubcategory;
+      }
+      if (userLocation?.latitude && userLocation?.longitude) {
+        params.latitude = userLocation.latitude;
+        params.longitude = userLocation.longitude;
+      }
+
+      const response = await getProducts(params);
+      if (response.success && response.data) {
+        const safeProducts = response.data.map((p: any) => ({
+          ...p,
+          tags: Array.isArray(p.tags) ? p.tags : [],
+          nameParts: p.name ? p.name.toLowerCase().split(" ") : [],
+          price: p.salePrice || p.price || 0,
+        }));
+        setProducts((prev) => [...prev, ...safeProducts]);
+        setPage(nextPage);
+        setHasMore(
+          response.pagination
+            ? response.pagination.page < response.pagination.pages
+            : response.data.length === PAGE_SIZE
+        );
+      }
+    } catch (error) {
+      console.error("Error loading more products:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [id, category?._id, selectedSubcategory, userLocation, page, loading, loadingMore, hasMore]);
+
+  // Observer to trigger loadMore when user scrolls near sentinel element
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: "400px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   // Client-side filtering removed in favor of backend subcategory filtering
   // Sync selectedFilters with appliedFilters when modal opens
@@ -606,9 +678,9 @@ export default function CategoryPage() {
           {categoryProducts.length > 0 ? (
             <div className="px-3 md:px-6 lg:px-8 py-4 md:py-6">
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-4">
-                {categoryProducts.map((product) => (
+                {categoryProducts.map((product, idx) => (
                   <ProductCard
-                    key={product.id}
+                    key={product.id || product._id || idx}
                     product={product}
                     showHeartIcon={false}
                     showStockInfo={false}
@@ -618,6 +690,13 @@ export default function CategoryPage() {
                   />
                 ))}
               </div>
+              {/* Sentinel element for infinite scrolling */}
+              <div ref={sentinelRef} className="h-4 w-full" />
+              {loadingMore && (
+                <div className="flex justify-center py-6">
+                  <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-green-600"></div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="px-4 md:px-6 lg:px-8 py-8 md:py-12 text-center">

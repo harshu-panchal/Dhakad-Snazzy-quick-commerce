@@ -78,8 +78,51 @@ export const getDeliveryCommissions = async () => {
   }
 };
 
+// =============================================================================
+// CASHFREE Admin Payout (PRIMARY gateway)
+// =============================================================================
+
 /**
- * Create Razorpay order for admin payout
+ * Create Cashfree order for admin payout (PRIMARY)
+ */
+export const createAdminPayoutOrderCashfree = async (amount: number) => {
+  try {
+    const response = await api.post("/delivery/wallet/admin-payout/cashfree/create", {
+      amount,
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error("[Cashfree] Error creating admin payout order:", error);
+    throw error;
+  }
+};
+
+/**
+ * Verify Cashfree admin payout payment (PRIMARY)
+ */
+export const verifyAdminPayoutCashfree = async (paymentData: {
+  cfOrderId: string;
+  cfPaymentId?: string;
+  amount: number;
+}) => {
+  try {
+    const response = await api.post(
+      "/delivery/wallet/admin-payout/cashfree/verify",
+      paymentData,
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error("[Cashfree] Error verifying admin payout:", error);
+    throw error;
+  }
+};
+
+// =============================================================================
+// RAZORPAY Admin Payout (SECONDARY / fallback gateway)
+// =============================================================================
+
+/**
+ * Create Razorpay order for admin payout (FALLBACK)
  */
 export const createAdminPayoutOrder = async (amount: number) => {
   try {
@@ -94,7 +137,7 @@ export const createAdminPayoutOrder = async (amount: number) => {
 };
 
 /**
- * Verify admin payout payment
+ * Verify admin payout payment via Razorpay (FALLBACK)
  */
 export const verifyAdminPayout = async (paymentData: {
   razorpayOrderId: string;

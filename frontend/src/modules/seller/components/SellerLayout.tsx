@@ -120,7 +120,7 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
     }
   }, []);
 
-  useSellerSocket(handleNotificationReceived);
+  useSellerSocket(handleNotificationReceived, rehydratePendingAlerts);
 
   useEffect(() => {
     if (hasRehydratedRef.current) {
@@ -128,6 +128,25 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
     }
     hasRehydratedRef.current = true;
     rehydratePendingAlerts();
+  }, [rehydratePendingAlerts]);
+
+  // Belt-and-suspenders catch-up: mobile browsers can suspend a backgrounded tab's
+  // socket without cleanly firing 'disconnect', so it can look connected yet be dead.
+  // Whenever the tab becomes visible again, re-fetch pending alerts immediately rather
+  // than relying solely on the socket to notice by itself.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      rehydratePendingAlerts();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
   }, [rehydratePendingAlerts]);
 
   const toggleSidebar = () => {

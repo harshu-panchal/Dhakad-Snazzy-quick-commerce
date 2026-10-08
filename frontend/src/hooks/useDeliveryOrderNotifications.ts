@@ -13,8 +13,8 @@ interface NotificationState {
     error: string | null;
 }
 
-const MAX_RECONNECT_ATTEMPTS = 5;
-const INITIAL_RECONNECT_DELAY = 2000;
+const RECONNECTION_DELAY = 2000;
+const RECONNECTION_DELAY_MAX = 10000;
 const STORAGE_KEY_PREFIX = 'delivery_order_notifications_';
 
 function getInitialNotificationState(userId?: string): {
@@ -95,8 +95,6 @@ export const useDeliveryOrderNotifications = () => {
     });
 
     const socketRef = useRef<Socket | null>(null);
-    const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const reconnectAttemptsRef = useRef(0);
     const hasRehydratedRef = useRef(false);
 
     // Sync state with localStorage whenever notification state or user changes
@@ -173,22 +171,20 @@ export const useDeliveryOrderNotifications = () => {
             return;
         }
 
-        // Clear any existing reconnect timeout
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-
         const token = localStorage.getItem('authToken');
         const socket = io(getSocketBaseURL(), {
             auth: {
                 token,
             },
             transports: ['websocket', 'polling'],
+            // Reconnect indefinitely (socket.io default is Infinity) — a capped attempt
+            // count used to give up permanently after ~1 minute of connectivity loss
+            // (screen lock, backgrounded app, dead zone), silently killing live order
+            // alerts until the user manually refreshed the page.
             reconnection: true,
-            reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-            reconnectionDelay: INITIAL_RECONNECT_DELAY,
-            reconnectionDelayMax: 10000,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: RECONNECTION_DELAY,
+            reconnectionDelayMax: RECONNECTION_DELAY_MAX,
             timeout: 20000,
         });
 
@@ -196,7 +192,6 @@ export const useDeliveryOrderNotifications = () => {
 
         socket.on('connect', () => {
             console.log('🔌 Delivery notification socket connected');
-            reconnectAttemptsRef.current = 0;
             setState(prev => ({
                 ...prev,
                 isConnected: true,
@@ -306,28 +301,6 @@ export const useDeliveryOrderNotifications = () => {
             });
         });
 
-        socket.on('disconnect', (reason: any) => {
-            console.log('❌ Delivery notification socket disconnected:', reason);
-            setState(prev => ({ ...prev, isConnected: false }));
-
-            if (reason === 'io server disconnect' || reason === 'io client disconnect') {
-                return;
-            }
-
-            attemptReconnect();
-        });
-
-        socket.on('connect_error', (error: any) => {
-            console.error('Socket connection error:', error);
-            setState(prev => ({
-                ...prev,
-                isConnected: false,
-                error: 'Failed to connect to notification server',
-            }));
-
-            attemptReconnect();
-        });
-
         socket.on('error', (error: any) => {
             console.error('Socket error:', error);
             setState(prev => ({
@@ -339,33 +312,7 @@ export const useDeliveryOrderNotifications = () => {
         return socket;
     }, [isAuthenticated, user, rehydratePendingAlerts]);
 
-    const attemptReconnect = useCallback(() => {
-        reconnectAttemptsRef.current += 1;
-
-        if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
-            console.log('❌ Max reconnection attempts reached');
-            setState(prev => ({
-                ...prev,
-                error: 'Unable to connect. Please refresh the page.',
-            }));
-            return;
-        }
-
-        const delay = INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1);
-        console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
-
-        reconnectTimeoutRef.current = setTimeout(() => {
-            disconnectSocket();
-            connectSocket();
-        }, delay);
-    }, [connectSocket]);
-
     const disconnectSocket = useCallback(() => {
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-            reconnectTimeoutRef.current = null;
-        }
-
         if (socketRef.current) {
             socketRef.current.disconnect();
             socketRef.current = null;
@@ -456,15 +403,42 @@ export const useDeliveryOrderNotifications = () => {
             rehydratePendingAlerts();
         }
 
-        const socket = connectSocket();
+        connectSocket();
 
         return () => {
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-            }
             disconnectSocket();
         };
     }, [isAuthenticated, user, connectSocket, disconnectSocket, rehydratePendingAlerts]);
+
+    // Belt-and-suspenders catch-up: mobile browsers can suspend a backgrounded tab's
+    // network activity (screen lock, app switch) without cleanly firing 'disconnect',
+    // so the socket can look connected yet be dead. Whenever the tab becomes visible
+    // again, re-fetch pending alerts immediately and nudge a reconnect if needed,
+    // rather than relying solely on the socket to notice by itself.
+    useEffect(() => {
+        if (!isAuthenticated || user?.userType !== 'Delivery' || !user?.id) {
+            return;
+        }
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState !== 'visible') return;
+
+            rehydratePendingAlerts();
+
+            const socket = socketRef.current;
+            if (socket && !socket.connected) {
+                socket.connect();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleVisibilityChange);
+        };
+    }, [isAuthenticated, user, rehydratePendingAlerts]);
 
     return {
         currentNotification: state.currentNotification,

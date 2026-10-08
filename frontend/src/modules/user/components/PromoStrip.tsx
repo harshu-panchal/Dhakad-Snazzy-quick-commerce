@@ -1,913 +1,630 @@
-import { useLayoutEffect, useRef, useState, useEffect, useCallback } from "react";
-import { gsap } from "gsap";
-import { Link, useNavigate } from "react-router-dom";
-import { getTheme } from "../../../utils/themes";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { getHomeContent } from "../../../services/api/customerHomeService";
-import { getSubcategories } from "../../../services/api/categoryService";
-import { apiCache } from "../../../utils/apiCache";
-import { useLocation } from "../../../hooks/useLocation";
-import { calculateProductPrice } from "../../../utils/priceUtils";
+import { getTheme } from "../../../utils/themes";
+import { resolveMediaUrl } from "../../../utils/media";
 
-interface PromoCard {
-  id: string;
-  badge: string;
-  title: string;
-  imageUrl?: string;
-  categoryId?: string;
-  slug?: string;
-  bgColor?: string;
-  subcategoryImages?: string[]; // Array of subcategory image URLs
+export interface MediaSlide {
+  id?: string | number;
+  _id?: string;
+  type: "image" | "video";
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  title?: string;
+  subtitle?: string;
+  badge?: string;
+  link?: string;
+  buttonText?: string;
+  order?: number;
+  isActive?: boolean;
 }
-
-// Icon mappings for each category
-const getCategoryIcons = (categoryId: string) => {
-  const iconMap: Record<string, string[]> = {
-    "personal-care": ["🧴", "💧", "🧼", "💄"],
-    "breakfast-instant": ["🍜", "☕", "🥛", "🍞"],
-    "atta-rice": ["🌾", "🍚", "🫘", "🫒"],
-    household: ["🧹", "🧽", "🧼", "🧴"],
-    "home-office": ["🏠", "💼", "📦", "🎁"],
-    fashion: ["👕", "👗", "👠", "👜"],
-    electronics: ["📱", "💻", "⌚", "🎧"],
-    "fruits-veg": ["🥬", "🥕", "🍅", "🥒"],
-    "dairy-breakfast": ["🥛", "🧀", "🍞", "🥚"],
-    snacks: ["🍿", "🍪", "🥨", "🍫"],
-    sports: ["⚽", "🏀", "🏋️", "🎾"],
-  };
-  return iconMap[categoryId] || ["📦", "📦", "📦", "📦"];
-};
 
 interface PromoStripProps {
   activeTab?: string;
 }
 
+// Curated high quality default category banners and videos
+const DEFAULT_CATEGORY_SLIDES: Record<string, MediaSlide[]> = {
+  all: [
+    {
+      id: "all-1",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1400&q=80",
+      title: "Mega Supermarket Savings",
+      subtitle: "Up to 50% Off on Daily Essentials & Groceries",
+      badge: "⚡ MEGA SALE",
+      link: "/category/all",
+      buttonText: "Shop Now",
+    },
+    {
+      id: "all-2",
+      type: "video",
+      mediaUrl: "/assets/login/loginvideo.mp4",
+      title: "Lightning 10-Minute Delivery",
+      subtitle: "Instant Delivery Right to Your Doorstep",
+      badge: "🚀 FAST DELIVERY",
+      link: "/category/all",
+      buttonText: "Order Now",
+    },
+    {
+      id: "all-3",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&w=1400&q=80",
+      title: "Exclusive Weekend Flash Deals",
+      subtitle: "Extra Discounts on Best-Selling Brands",
+      badge: "🔥 LIMITED TIME",
+      link: "/category/all",
+      buttonText: "Explore Deals",
+    },
+  ],
+  fashion: [
+    {
+      id: "fashion-1",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1400&q=80",
+      title: "Trending Fashion & Style 2026",
+      subtitle: "Curated Ethnic, Western & Streetwear Collections",
+      badge: "✨ NEW ARRIVALS",
+      link: "/category/fashion",
+      buttonText: "Discover Fashion",
+    },
+    {
+      id: "fashion-2",
+      type: "video",
+      mediaUrl: "/assets/login/loginvideo.mp4",
+      title: "Step Out in Confidence",
+      subtitle: "Flat 60% Off on Premium Women & Men Apparel",
+      badge: "👗 HOT TRENDS",
+      link: "/category/fashion",
+      buttonText: "Shop Styles",
+    },
+    {
+      id: "fashion-3",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1400&q=80",
+      title: "Footwear & Accessories Carnival",
+      subtitle: "Complete Your Look with Designer Handbags & Shoes",
+      badge: "👜 FLAT 50% OFF",
+      link: "/category/fashion",
+      buttonText: "View Collection",
+    },
+  ],
+  grocery: [
+    {
+      id: "grocery-1",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1400&q=80",
+      title: "Farm-Fresh Fruits & Vegetables",
+      subtitle: "Handpicked Organic Produce Delivered Fresh Everyday",
+      badge: "🥦 100% FRESH",
+      link: "/category/grocery",
+      buttonText: "Shop Fresh",
+    },
+    {
+      id: "grocery-2",
+      type: "video",
+      mediaUrl: "/assets/login/loginvideo.mp4",
+      title: "Kitchen Staples & Pantry Bash",
+      subtitle: "Atta, Rice, Pure Ghee & Spices at Wholesale Prices",
+      badge: "🌾 PANTRY SAVER",
+      link: "/category/grocery",
+      buttonText: "Stock Up",
+    },
+    {
+      id: "grocery-3",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&w=1400&q=80",
+      title: "Dairy, Breads & Quick Breakfast",
+      subtitle: "Start Every Morning with Pure Delight",
+      badge: "🥛 MORNING ESSENTIALS",
+      link: "/category/grocery",
+      buttonText: "Order Now",
+    },
+  ],
+  electronics: [
+    {
+      id: "electronics-1",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1400&q=80",
+      title: "Next-Gen Audio & Smart Gadgets",
+      subtitle: "Wireless Earbuds, Smartwatches & Premium Sound",
+      badge: "🎧 BEST OF TECH",
+      link: "/category/electronics",
+      buttonText: "Explore Tech",
+    },
+    {
+      id: "electronics-2",
+      type: "video",
+      mediaUrl: "/assets/login/loginvideo.mp4",
+      title: "Smart Accessories & Fast Chargers",
+      subtitle: "Unbeatable Deals on Mobile & Home Tech",
+      badge: "⚡ TOP GADGETS",
+      link: "/category/electronics",
+      buttonText: "Shop Gadgets",
+    },
+  ],
+  beauty: [
+    {
+      id: "beauty-1",
+      type: "image",
+      mediaUrl: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=1400&q=80",
+      title: "Glow & Glamour Beauty Fest",
+      subtitle: "Luxury Makeup, Skincare Serums & Fragrances",
+      badge: "💄 BEAUTY DEALS",
+      link: "/category/beauty",
+      buttonText: "Explore Glow",
+    },
+    {
+      id: "beauty-2",
+      type: "video",
+      mediaUrl: "/assets/login/loginvideo.mp4",
+      title: "Self-Care & Daily Wellness",
+      subtitle: "Gentle Bath, Haircare & Herbal Solutions",
+      badge: "🌿 NATURAL CARE",
+      link: "/category/beauty",
+      buttonText: "Shop Beauty",
+    },
+  ],
+};
+
 export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
-  const { location } = useLocation();
-  const theme = getTheme(activeTab);
   const navigate = useNavigate();
-  const [categoryCards, setCategoryCards] = useState<PromoCard[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
-  const [headingText, setHeadingText] = useState(theme.bannerText);
-  const [saleTextValue, setSaleTextValue] = useState(theme.saleText);
-  const [dateRange, setDateRange] = useState("");
-  const [crazyDealsTitle, setCrazyDealsTitle] = useState("CRAZY DEALS");
-  const [subcategoryImagesMap, setSubcategoryImagesMap] = useState<Record<string, string[]>>({});
-  const containerRef = useRef<HTMLDivElement>(null);
-  const snowflakesRef = useRef<HTMLDivElement>(null);
-  const housefullRef = useRef<HTMLDivElement>(null);
-  const saleRef = useRef<HTMLDivElement>(null);
-  const dateRef = useRef<HTMLDivElement>(null);
-  const [currentProductIndex, setCurrentProductIndex] = useState(0);
-  const priceContainerRef = useRef<HTMLDivElement>(null);
-  const productNameRef = useRef<HTMLDivElement>(null);
-  const productImageRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [hasData, setHasData] = useState(false);
+  const theme = getTheme(activeTab);
 
-  // Fetch subcategory images for category cards - DEFERRED for faster initial load
-  const fetchSubcategoryImages = useCallback(async (cards: PromoCard[]) => {
-    // Defer subcategory image fetching to not block initial render
-    // Load them after a short delay to prioritize main content
-    setTimeout(async () => {
-      const imagesMap: Record<string, string[]> = {};
+  const [slides, setSlides] = useState<MediaSlide[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const [videoProgress, setVideoProgress] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
 
-      // Fetch images in batches to avoid overwhelming the network
-      const batchSize = 2;
-      for (let i = 0; i < cards.length; i += batchSize) {
-        const batch = cards.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (card) => {
-            const categoryId = card.categoryId;
-            if (!categoryId) return;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchEndXRef = useRef<number | null>(null);
 
-            try {
-              const response = await getSubcategories(categoryId, { limit: 4 });
-              if (response.success && response.data) {
-                const images = response.data
-                  .filter((subcat) => subcat.subcategoryImage)
-                  .map((subcat) => subcat.subcategoryImage!)
-                  .slice(0, 4);
+  // Fetch or resolve category banners/videos
+  useEffect(() => {
+    let isMounted = true;
 
-                if (images.length > 0) {
-                  imagesMap[card.id] = images;
-                }
-              }
-            } catch (error) {
-              // Silently fail - emoji fallback will be used
-              console.error(`Error fetching subcategories for category ${categoryId}:`, error);
-            }
-          })
-        );
-        // Small delay between batches to prevent network congestion
-        if (i + batchSize < cards.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+    const loadCategoryMedia = async () => {
+      try {
+        const response = await getHomeContent(activeTab, undefined, undefined, false);
+        if (!isMounted) return;
+
+        let dbBanners: MediaSlide[] = [];
+        if (response.success && response.data) {
+          // Check promoStrip banners first
+          if (response.data.promoStrip?.banners && Array.isArray(response.data.promoStrip.banners) && response.data.promoStrip.banners.length > 0) {
+            dbBanners = response.data.promoStrip.banners.filter((b: MediaSlide) => b.isActive !== false);
+          } else if (response.data.promoBanners && Array.isArray(response.data.promoBanners) && response.data.promoBanners.length > 0) {
+            dbBanners = response.data.promoBanners.filter((b: MediaSlide) => b.isActive !== false);
+          } else if (response.data.banners && Array.isArray(response.data.banners) && response.data.banners.length > 0) {
+            dbBanners = response.data.banners.filter((b: MediaSlide) => b.isActive !== false);
+          }
         }
-      }
 
-      setSubcategoryImagesMap(imagesMap);
-    }, 300); // 300ms delay - allows main content to render first
+        if (dbBanners.length > 0) {
+          // Sort by order if available
+          dbBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setSlides(dbBanners);
+        } else {
+          // Fallback to high quality curated defaults for this header category
+          const defaultList = DEFAULT_CATEGORY_SLIDES[activeTab.toLowerCase()] || DEFAULT_CATEGORY_SLIDES.all;
+          setSlides(defaultList);
+        }
+        setCurrentIndex(0);
+      } catch (err) {
+        console.error("Failed to load header category media carousel:", err);
+        const defaultList = DEFAULT_CATEGORY_SLIDES[activeTab.toLowerCase()] || DEFAULT_CATEGORY_SLIDES.all;
+        setSlides(defaultList);
+        setCurrentIndex(0);
+      }
+    };
+
+    loadCategoryMedia();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
+
+  // Current active slide
+  const currentSlide = slides[currentIndex] || slides[0];
+
+  // Navigation handlers
+  const goToNext = useCallback(() => {
+    setSlides((prev) => {
+      if (prev.length === 0) return prev;
+      setCurrentIndex((curr) => (curr + 1) % prev.length);
+      return prev;
+    });
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      // Check cache first before showing loading state
-      const cacheKey = `home-content-${activeTab || 'all'}`;
-      const cachedData = apiCache.getSync(cacheKey);
-
-      // Only show loading if data is not cached
-      if (!cachedData) {
-        setLoading(true);
-      }
-
-      try {
-        // Pass activeTab (header category slug) and location to filter categories
-        // Use cache with 5 minute TTL for faster loading
-        const response = await getHomeContent(
-          activeTab,
-          location?.latitude,
-          location?.longitude,
-          true,
-          5 * 60 * 1000
-        );
-
-        // Reset current product index when fetching new data
-        setCurrentProductIndex(0);
-
-        let fetchedCards: PromoCard[] = [];
-        let fetchedProducts: any[] = [];
-        let newHeadingText = theme.bannerText;
-        let newSaleTextValue = theme.saleText;
-        let newDateRange = "";
-
-        if (response.success && response.data) {
-          // 1. Check for PromoStrip data from backend (highest priority)
-          if (response.data.promoStrip && response.data.promoStrip.isActive) {
-            const promoStrip = response.data.promoStrip;
-            newHeadingText = promoStrip.heading || newHeadingText;
-            newSaleTextValue = promoStrip.saleText || newSaleTextValue;
-            // Set CRAZY DEALS title from PromoStrip
-            if (promoStrip.crazyDealsTitle) {
-              setCrazyDealsTitle(promoStrip.crazyDealsTitle);
-            } else {
-              setCrazyDealsTitle("CRAZY DEALS");
-            }
-
-            // Format date range
-            if (promoStrip.startDate && promoStrip.endDate) {
-              const start = new Date(promoStrip.startDate);
-              const end = new Date(promoStrip.endDate);
-              newDateRange = `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}`;
-            }
-
-            // Map category cards from PromoStrip
-            if (promoStrip.categoryCards && promoStrip.categoryCards.length > 0) {
-              fetchedCards = promoStrip.categoryCards
-                .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-                .map((card: any) => {
-                  const category = typeof card.categoryId === 'object' ? card.categoryId : null;
-                  return {
-                    id: card._id || card.categoryId?._id || card.categoryId,
-                    badge: card.badge || `Up to ${card.discountPercentage || 0}% OFF`,
-                    title: card.title || category?.name || "",
-                    categoryId: category?._id || card.categoryId, // Use _id for fetching subcategories
-                    slug: category?.slug || card.categoryId, // Use slug for navigation
-                    imageUrl: category?.image,
-                    bgColor: "bg-yellow-50",
-                  };
-                });
-            }
-
-            // Map featured products from PromoStrip
-            if (promoStrip.featuredProducts && promoStrip.featuredProducts.length > 0) {
-              fetchedProducts = promoStrip.featuredProducts.map((p: any) => {
-                const product = typeof p === 'object' ? p : null;
-                const price = Number(product?.price) || 0;
-                const mrp = Number(product?.mrp) || Number(product?.compareAtPrice) || 0;
-                const originalPrice = mrp > 0 ? mrp : (price > 0 ? Math.round(price * 1.2) : 999);
-                const discountedPrice = price > 0 ? price : 499;
-
-                // Try multiple image field names and fallbacks
-                const imageUrl =
-                  product?.mainImage ||
-                  product?.mainImageUrl ||
-                  product?.image ||
-                  product?.imageUrl ||
-                  (product?.galleryImageUrls && product.galleryImageUrls.length > 0 ? product.galleryImageUrls[0] : null) ||
-                  (product?.galleryImages && product.galleryImages.length > 0 ? product.galleryImages[0] : null) ||
-                  null;
-
-                // Always prioritize productName to avoid showing category names
-                const productName = product?.productName || product?.name || "Product";
-
-                return {
-                  id: product?._id || p,
-                  _id: product?._id || p,
-                  name: productName,
-                  productName: productName, // Always use productName, never category name
-                  price: price,
-                  mrp: mrp,
-                  originalPrice: isNaN(originalPrice) ? 999 : originalPrice,
-                  discountedPrice: isNaN(discountedPrice) ? 499 : discountedPrice,
-                  imageUrl: imageUrl,
-                };
-              });
-            }
-          }
-          // 2. Fallback to promoCards if no PromoStrip
-          else if (response.data.promoCards && response.data.promoCards.length > 0) {
-            fetchedCards = response.data.promoCards;
-          }
-          // 3. Fallback to categories if no promo cards
-          else if (
-            response.data.categories &&
-            response.data.categories.length > 0
-          ) {
-            fetchedCards = response.data.categories
-              .slice(0, 4)
-              .map((c: any) => ({
-                id: c._id || c.id,
-                badge: "Up to 50% OFF",
-                title: c.name,
-                categoryId: c.slug || c._id,
-                bgColor: c.color || "bg-yellow-50",
-              }));
-          }
-
-
-        }
-
-        setCategoryCards(fetchedCards);
-        setFeaturedProducts(fetchedProducts);
-        setHeadingText(newHeadingText);
-        setSaleTextValue(newSaleTextValue);
-        setDateRange(newDateRange);
-        // Reset CRAZY DEALS title if no PromoStrip data
-        if (!response.data?.promoStrip || !response.data.promoStrip.isActive) {
-          setCrazyDealsTitle("CRAZY DEALS");
-        }
-        setHasData(fetchedCards.length > 0 || fetchedProducts.length > 0);
-
-        // Fetch subcategory images AFTER setting hasData to true
-        // This allows the main content to render immediately
-        if (fetchedCards.length > 0) {
-          fetchSubcategoryImages(fetchedCards);
-        }
-      } catch (error) {
-        console.error("Error fetching home content for PromoStrip:", error);
-        setCategoryCards([]);
-        setFeaturedProducts([]);
-        setHasData(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-
-    // REMOVED: Polling every 30 seconds causes unnecessary re-renders and API calls
-    // If real-time updates are needed, consider using WebSockets or Server-Sent Events
-    // For now, data will only refresh when activeTab changes
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, theme.bannerText, theme.saleText]);
-
-  // Reset product index when activeTab changes or featuredProducts change
-  useEffect(() => {
-    setCurrentProductIndex(0);
-  }, [activeTab, featuredProducts.length]);
-
-  useLayoutEffect(() => {
-    if (!hasData) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    let ctx: gsap.Context | null = null;
-
-    // Defer card animation to prioritize content rendering
-    const timeoutId = setTimeout(() => {
-      ctx = gsap.context(() => {
-        const cards = container.querySelectorAll(".promo-card");
-        if (cards.length > 0) {
-          gsap.fromTo(
-            cards,
-            { y: 20, opacity: 0 },
-            {
-              y: 0,
-              opacity: 1,
-              duration: 0.4, // Reduced duration
-              stagger: 0.05, // Reduced stagger
-              ease: "power2.out", // Simpler easing
-            }
-          );
-        }
-      }, container);
-    }, 100); // Start animation 100ms after render
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (ctx) {
-        ctx.revert();
-      }
-    };
-  }, [hasData]);
-
-  // Snowflake animation - DEFERRED for faster initial load
-  useLayoutEffect(() => {
-    if (!hasData) return;
-    const snowflakesContainer = snowflakesRef.current;
-    if (!snowflakesContainer) return;
-
-    // Defer animation start to prioritize content rendering
-    const timeoutId = setTimeout(() => {
-      const snowflakes = snowflakesContainer.querySelectorAll(".snowflake");
-
-      snowflakes.forEach((snowflake, index) => {
-        const delay = index * 0.3;
-        const duration = 3 + Math.random() * 2; // 3-5 seconds
-        const xOffset = (Math.random() - 0.5) * 40; // Random horizontal drift
-
-        gsap.set(snowflake, {
-          y: -20,
-          x: xOffset,
-          opacity: 0.8 + Math.random() * 0.2, // 0.8-1.0 opacity for better visibility
-          scale: 0.6 + Math.random() * 0.4, // 0.6-1.0 scale for better visibility
-        });
-
-        gsap.to(snowflake, {
-          y: "+=200",
-          x: `+=${xOffset}`,
-          duration: duration,
-          delay: delay,
-          ease: "none",
-          repeat: -1,
-        });
-      });
-    }, 200); // Start animation 200ms after render
-
-    return () => {
-      clearTimeout(timeoutId);
-      const snowflakes = snowflakesContainer.querySelectorAll(".snowflake");
-      snowflakes.forEach((snowflake) => {
-        gsap.killTweensOf(snowflake);
-      });
-    };
-  }, [hasData]);
-
-  // HOUSEFULL SALE animation - SIMPLIFIED and DEFERRED for faster load
-  useLayoutEffect(() => {
-    if (!hasData) return;
-    const housefullContainer = housefullRef.current;
-    const saleText = saleRef.current;
-    const dateText = dateRef.current;
-    if (!housefullContainer) return;
-
-    // Defer animation start to prioritize content rendering
-    const timeoutId = setTimeout(() => {
-      const letters = housefullContainer.querySelectorAll(".housefull-letter");
-
-      // Simplified animation - single entrance animation instead of loop
-      gsap.set([housefullContainer, saleText, dateText], {
-        scale: 0.8,
-        opacity: 0,
-      });
-
-      gsap.to([housefullContainer, saleText, dateText], {
-        scale: 1,
-        opacity: 1,
-        duration: 0.5,
-        ease: "back.out(1.7)",
-      });
-
-      // Simplified letter animation - only run once
-      gsap.to(letters, {
-        y: -10,
-        duration: 0.15,
-        stagger: 0.04,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1,
-      });
-    }, 150); // Start animation 150ms after render
-
-    return () => {
-      clearTimeout(timeoutId);
-      const letters = housefullContainer.querySelectorAll(".housefull-letter");
-      gsap.killTweensOf([housefullContainer, saleText, dateText, letters]);
-    };
-  }, [hasData]);
-
-  // Product rotation animation
-  useEffect(() => {
-    if (featuredProducts.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentProductIndex((prev) => (prev + 1) % featuredProducts.length);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [featuredProducts.length]);
-
-  // Reset product index when featuredProducts change
-  useEffect(() => {
-    if (featuredProducts.length > 0 && currentProductIndex >= featuredProducts.length) {
-      setCurrentProductIndex(0);
-    }
-  }, [featuredProducts.length, currentProductIndex]);
-
-  // Animate product change
-  useEffect(() => {
-    const elements = [
-      priceContainerRef.current,
-      productNameRef.current,
-      productImageRef.current,
-    ];
-    if (elements.some((el) => !el)) return;
-
-    const tween = gsap.to(elements, {
-      opacity: 0,
-      x: -30,
-      duration: 0.3,
-      ease: "power2.in",
-      onComplete: () => {
-        const currentElements = [
-          priceContainerRef.current,
-          productNameRef.current,
-          productImageRef.current,
-        ];
-        if (currentElements.some((el) => !el)) return;
-
-        gsap.set(currentElements, {
-          x: 30,
-          opacity: 0,
-        });
-
-        gsap.to(currentElements, {
-          opacity: 1,
-          x: 0,
-          duration: 0.4,
-          ease: "power2.out",
-        });
-      },
+  const goToPrev = useCallback(() => {
+    setSlides((prev) => {
+      if (prev.length === 0) return prev;
+      setCurrentIndex((curr) => (curr - 1 + prev.length) % prev.length);
+      return prev;
     });
+  }, []);
 
-    return () => {
-      tween.kill();
-    };
-  }, [currentProductIndex]);
-
-  const currentProduct = featuredProducts.length > 0 ? featuredProducts[currentProductIndex] : null;
-
-  // Show minimal loading state - render faster
-  if (loading) {
-    return (
-      <div
-        className="relative"
-        style={{
-          background: `linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]}, ${theme.primary[3]}, ${theme.primary[3]})`,
-          paddingTop: "12px",
-          paddingBottom: "0px",
-          marginTop: 0,
-          minHeight: "200px"
-        }}>
-        <div className="h-[200px] w-full bg-transparent animate-pulse rounded-lg mx-0 mt-4" />
-      </div>
-    );
-  }
-
-  // Show "No active promotions" only if there are no cards AND no products
-  if (!hasData || (categoryCards.length === 0 && featuredProducts.length === 0)) {
-    return (
-      <div className="text-center py-6 text-neutral-400 text-sm">
-        No active promotions
-      </div>
-    );
-  }
-
-  // If no featured products but we have category cards, use a fallback product
-  const displayProduct = currentProduct || {
-    id: 'fallback',
-    name: 'Special Offers',
-    originalPrice: 999,
-    discountedPrice: 499,
-    imageUrl: undefined,
+  const goToSlide = (idx: number) => {
+    setCurrentIndex(idx);
   };
 
-  // Calculate prices from actual product data using utility
-  const { displayPrice, mrp } = calculateProductPrice(displayProduct);
+  // Autoplay timer
+  useEffect(() => {
+    if (slides.length <= 1 || isPaused) {
+      if (autoPlayTimerRef.current) clearInterval(autoPlayTimerRef.current);
+      return;
+    }
 
-  // Fallback prices if product data is incomplete
-  const finalDiscountedPrice = displayPrice > 0 ? displayPrice : (Number.isFinite(displayProduct.discountedPrice) ? displayProduct.discountedPrice : 499);
-  const finalOriginalPrice = mrp > 0 ? mrp : (Number.isFinite(displayProduct.originalPrice) ? displayProduct.originalPrice : 999);
+    // Give video slides slightly more time (8s) vs image slides (5s)
+    const duration = currentSlide?.type === "video" ? 8000 : 5000;
 
-  // Ensure prices are valid numbers
-  const safeOriginalPrice = Number.isFinite(finalOriginalPrice) ? Math.round(finalOriginalPrice) : 999;
-  const safeDiscountedPrice = Number.isFinite(finalDiscountedPrice) ? Math.round(finalDiscountedPrice) : 499;
+    autoPlayTimerRef.current = setTimeout(() => {
+      goToNext();
+    }, duration);
 
-  // Helper function to handle product navigation
-  const handleProductClick = (e: React.MouseEvent) => {
+    return () => {
+      if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    };
+  }, [slides.length, currentIndex, isPaused, currentSlide?.type, goToNext]);
+
+  // Video progress and lifecycle management
+  useEffect(() => {
+    setVideoProgress(0);
+    setIsPlaying(true);
+
+    if (currentSlide?.type === "video" && videoRef.current) {
+      videoRef.current.currentTime = 0;
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay policy fallback: ensure muted and try again
+          if (videoRef.current) {
+            videoRef.current.muted = true;
+            setIsMuted(true);
+            videoRef.current.play().catch(() => {});
+          }
+        });
+      }
+    }
+  }, [currentIndex, currentSlide?.type]);
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      const current = videoRef.current.currentTime;
+      const total = videoRef.current.duration || 1;
+      setVideoProgress((current / total) * 100);
+    }
+  };
+
+  const toggleVideoPlayback = (e: React.MouseEvent) => {
     e.stopPropagation();
-    e.preventDefault();
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  };
 
-    // Get product ID - handle both string and ObjectId formats
-    const productId = displayProduct?.id || displayProduct?._id;
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoRef.current) return;
+    videoRef.current.muted = !videoRef.current.muted;
+    setIsMuted(videoRef.current.muted);
+  };
 
-    if (productId && productId !== 'fallback') {
-      // Convert to string if it's an object
-      const idString = typeof productId === 'string' ? productId : String(productId);
-      if (idString && idString !== 'fallback' && idString.length > 0) {
-        navigate(`/product/${idString}`);
+  const handleSlideClick = (slide: MediaSlide) => {
+    if (slide.link) {
+      if (slide.link.startsWith("http://") || slide.link.startsWith("https://")) {
+        window.open(slide.link, "_blank");
+      } else {
+        navigate(slide.link);
       }
     }
   };
+
+  // Touch Swipe Handlers
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.targetTouches[0].clientX;
+    setIsPaused(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndXRef.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartXRef.current || !touchEndXRef.current) {
+      setIsPaused(false);
+      return;
+    }
+    const distance = touchStartXRef.current - touchEndXRef.current;
+    const isLeftSwipe = distance > 45;
+    const isRightSwipe = distance < -45;
+
+    if (isLeftSwipe) {
+      goToNext();
+    } else if (isRightSwipe) {
+      goToPrev();
+    }
+
+    touchStartXRef.current = null;
+    touchEndXRef.current = null;
+    setTimeout(() => setIsPaused(false), 800);
+  };
+
+  if (!slides || slides.length === 0) {
+    return null;
+  }
+
+  // Display name of category for banner tag
+  const categoryDisplayName =
+    activeTab === "all"
+      ? "All Specials"
+      : activeTab.charAt(0).toUpperCase() + activeTab.slice(1);
 
   return (
     <div
-      className="relative"
+      className="relative w-full overflow-hidden transition-colors duration-500"
       style={{
-        background: `linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]}, ${theme.primary[3]}, ${theme.primary[3]})`,
-        paddingTop: "12px",
-        paddingBottom: "0px",
-        marginTop: 0,
-      }}>
-      {/* HOUSEFULL SALE Banner */}
-      <div
-        className="px-4 mb-3 text-center relative"
-        style={{ minHeight: "80px" }}>
-        {/* Snowflakes Container */}
+        background: `linear-gradient(to bottom, #ffffff 0%, ${theme.primary[1]} 60%, ${theme.primary[2]} 100%)`,
+        paddingTop: "6px",
+        paddingBottom: "8px",
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
+        {/* Main Unified Media Carousel Container */}
         <div
-          ref={snowflakesRef}
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-          style={{ top: 0, bottom: "auto", height: "100px" }}>
-          {/* Left side snowflakes */}
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={`left-${i}`}
-              className="snowflake absolute"
-              style={{
-                left: `${5 + (i % 4) * 12}%`,
-                top: `${Math.floor(i / 4) * 30}px`,
-              }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))",
-                }}>
-                <path
-                  d="M12 1V5M12 19V23M3 12H1M23 12H21M20.5 20.5L18.5 18.5M20.5 3.5L18.5 5.5M3.5 20.5L5.5 18.5M3.5 3.5L5.5 5.5M18.5 18.5L16.5 16.5M18.5 5.5L16.5 7.5M5.5 18.5L7.5 16.5M5.5 5.5L7.5 7.5"
-                  stroke="rgba(255, 255, 255, 1)"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <circle cx="12" cy="12" r="1.8" fill="rgba(255, 255, 255, 1)" />
-              </svg>
-            </div>
-          ))}
-          {/* Right side snowflakes */}
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={`right-${i}`}
-              className="snowflake absolute"
-              style={{
-                right: `${5 + (i % 4) * 12}%`,
-                top: `${Math.floor(i / 4) * 30}px`,
-              }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))",
-                }}>
-                <path
-                  d="M12 1V5M12 19V23M3 12H1M23 12H21M20.5 20.5L18.5 18.5M20.5 3.5L18.5 5.5M3.5 20.5L5.5 18.5M3.5 3.5L5.5 5.5M18.5 18.5L16.5 16.5M18.5 5.5L16.5 7.5M5.5 18.5L7.5 16.5M5.5 5.5L7.5 7.5"
-                  stroke="rgba(255, 255, 255, 1)"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <circle cx="12" cy="12" r="1.8" fill="rgba(255, 255, 255, 1)" />
-              </svg>
-            </div>
-          ))}
-        </div>
+          className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-lg border border-black/5 group"
+          style={{
+            height: "clamp(180px, 32vw, 360px)",
+            backgroundColor: "#0f172a",
+          }}
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Animated Slide Transition */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide?.id || currentSlide?._id || currentIndex}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.02 }}
+              transition={{ duration: 0.45, ease: "easeOut" }}
+              className="absolute inset-0 w-full h-full cursor-pointer select-none"
+              onClick={() => handleSlideClick(currentSlide)}
+            >
+              {/* VIDEO SLIDE */}
+              {currentSlide?.type === "video" ? (
+                <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
+                  <video
+                    ref={videoRef}
+                    src={resolveMediaUrl(currentSlide.mediaUrl)}
+                    poster={resolveMediaUrl(currentSlide.thumbnailUrl)}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    muted={isMuted}
+                    loop
+                    playsInline
+                    onTimeUpdate={handleTimeUpdate}
+                    onEnded={goToNext}
+                  />
 
-        <div className="relative z-10">
-          <div className="flex items-center justify-center gap-3 mb-0">
-            {/* Left Lightning Bolt */}
-            <svg
-              width="28"
-              height="36"
-              viewBox="0 0 24 30"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="flex-shrink-0">
-              <path
-                d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
-                fill="#FFD700"
-                stroke="#FFA500"
-                strokeWidth="0.5"
-              />
-            </svg>
-
-            {/* HOUSEFULL Text */}
-            <h1
-              ref={housefullRef}
-              className="text-3xl font-black text-white"
-              style={
-                {
-                  fontFamily: '"Poppins", sans-serif',
-                  letterSpacing: "1.5px",
-                  lineHeight: "1.1",
-                  textShadow:
-                    `-2px -2px 0 ${theme.accentColor}, 2px -2px 0 ${theme.accentColor}, -2px 2px 0 ${theme.accentColor}, 2px 2px 0 ${theme.accentColor}, ` +
-                    `-2px 0px 0 ${theme.accentColor}, 2px 0px 0 ${theme.accentColor}, 0px -2px 0 ${theme.accentColor}, 0px 2px 0 ${theme.accentColor}, ` +
-                    `-1px -1px 0 ${theme.accentColor}, 1px -1px 0 ${theme.accentColor}, -1px 1px 0 ${theme.accentColor}, 1px 1px 0 ${theme.accentColor}, ` +
-                    "0px 2px 0px rgba(0, 0, 0, 0.8), 0px 4px 0px rgba(0, 0, 0, 0.6), " +
-                    "0px 6px 0px rgba(0, 0, 0, 0.4), 0px 8px 8px rgba(0, 0, 0, 0.3), " +
-                    "2px 2px 2px rgba(0, 0, 0, 0.5)",
-                } as React.CSSProperties
-              }>
-              {headingText.split("").map((letter, index) => (
-                <span key={index} className="housefull-letter inline-block">
-                  {letter}
-                </span>
-              ))}
-            </h1>
-
-            {/* Right Lightning Bolt */}
-            <svg
-              width="28"
-              height="36"
-              viewBox="0 0 24 30"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="flex-shrink-0"
-              style={{ transform: "scaleX(-1)" }}>
-              <path
-                d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
-                fill="#FFD700"
-                stroke="#FFA500"
-                strokeWidth="0.5"
-              />
-            </svg>
-          </div>
-
-          {/* SALE Text */}
-          <div
-            className="flex justify-center mb-0.5"
-            style={{ marginTop: "-3px" }}>
-            <h2
-              ref={saleRef}
-              className="text-xl font-black text-white"
-              style={
-                {
-                  fontFamily: '"Poppins", sans-serif',
-                  letterSpacing: "1.5px",
-                  textShadow:
-                    `-1.5px -1.5px 0 ${theme.accentColor}, 1.5px -1.5px 0 ${theme.accentColor}, -1.5px 1.5px 0 ${theme.accentColor}, 1.5px 1.5px 0 ${theme.accentColor}, ` +
-                    `-1.5px 0px 0 ${theme.accentColor}, 1.5px 0px 0 ${theme.accentColor}, 0px -1.5px 0 ${theme.accentColor}, 0px 1.5px 0 ${theme.accentColor}, ` +
-                    `-1px -1px 0 ${theme.accentColor}, 1px -1px 0 ${theme.accentColor}, -1px 1px 0 ${theme.accentColor}, 1px 1px 0 ${theme.accentColor}, ` +
-                    "0px 2px 0px rgba(0, 0, 0, 0.8), 0px 4px 0px rgba(0, 0, 0, 0.6), " +
-                    "0px 6px 0px rgba(0, 0, 0, 0.4), 0px 8px 8px rgba(0, 0, 0, 0.3), " +
-                    "2px 2px 2px rgba(0, 0, 0, 0.5)",
-                } as React.CSSProperties
-              }>
-              {saleTextValue}
-            </h2>
-          </div>
-
-          {/* Dates */}
-          {dateRange && (
-            <div
-              ref={dateRef}
-              className="font-bold text-xs text-center mt-1"
-              style={{ color: theme.textColor }}>
-              {dateRange}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main Content: Crazy Deals + Category Cards */}
-      <div className="px-4 mt-2">
-        <div ref={containerRef} className="flex gap-2">
-          {/* Crazy Deals Section - Left */}
-          <div className="flex-shrink-0 w-[100px] promo-card">
-            <div
-              className="h-full rounded-lg p-1 flex flex-col items-center justify-between relative overflow-hidden"
-              style={{
-                background: `radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 60%), linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]})`,
-                minHeight: "110px",
-              }}>
-              {/* CRAZY DEALS - Two lines, bigger */}
-              <div className="text-center mb-1.5" style={{ marginTop: "4px" }}>
-                <div
-                  className="text-white font-black leading-tight"
-                  style={{
-                    fontSize: "13px",
-                    fontFamily: "sans-serif",
-                    textShadow:
-                      "2px 2px 4px rgba(0, 0, 0, 0.8), 1px 1px 2px rgba(0, 0, 0, 0.9)",
-                    letterSpacing: "0.5px",
-                  }}>
-                  {crazyDealsTitle.split(" ").map((word, idx) => (
-                    <div key={idx}>{word}</div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Price Banners - Compact */}
-              <div
-                ref={priceContainerRef}
-                className="flex flex-col items-center mb-0.5 relative">
-                {/* Original Price - Darker Gray, Smaller Banner */}
-                <div
-                  className="bg-neutral-600 rounded px-1.5 inline-block relative z-10"
-                  style={{
-                    height: "fit-content",
-                    lineHeight: "1",
-                    paddingTop: "2px",
-                    paddingBottom: "2px",
-                  }}>
-                  <span className="text-white text-[8px] font-medium line-through leading-none">
-                    ₹{safeOriginalPrice}
-                  </span>
-                </div>
-                {/* Discounted Price - Bright Green Banner */}
-                <div
-                  className="bg-green-500 rounded px-2 inline-block relative -mt-0.5 z-20"
-                  style={{
-                    height: "fit-content",
-                    lineHeight: "1",
-                    paddingTop: "2px",
-                    paddingBottom: "2px",
-                  }}>
-                  <span className="text-white text-[9px] font-bold leading-none">
-                    ₹{safeDiscountedPrice}
-                  </span>
-                </div>
-              </div>
-
-              {/* Product Name - Compact - Clickable */}
-              <div
-                ref={productNameRef}
-                onClick={handleProductClick}
-                className="text-neutral-900 font-black text-[9px] text-center mb-0.5 cursor-pointer hover:underline line-clamp-2"
-                title={displayProduct.productName || displayProduct.name}>
-                {displayProduct.productName || displayProduct.name}
-              </div>
-
-              {/* Product Thumbnail - Bottom Center, sized to container */}
-              <div
-                ref={productImageRef}
-                className="flex-1 flex items-end justify-center w-full"
-                style={{ minHeight: "50px", maxHeight: "65px" }}>
-                <div
-                  onClick={handleProductClick}
-                  className="w-12 h-16 rounded flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                  style={{ background: "transparent" }}>
-                  {displayProduct.imageUrl ? (
-                    <img
-                      src={displayProduct.imageUrl}
-                      alt={displayProduct.name}
-                      className="w-full h-full object-contain"
-                      loading="lazy"
-                      decoding="async"
-                      style={{
-                        mixBlendMode: "normal",
-                        backgroundColor: "transparent",
-                      }}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        // Hide broken image and show fallback
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent && !parent.querySelector('.product-fallback')) {
-                          const fallback = document.createElement('div');
-                          fallback.className = 'product-fallback w-full h-full bg-gradient-to-b from-yellow-100 to-yellow-50 flex items-center justify-center';
-                          const icon = document.createElement('div');
-                          icon.className = 'w-7 h-9 bg-yellow-200 rounded-sm relative';
-                          icon.innerHTML = `
-                            <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-blue-400 rounded-full"></div>
-                            <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-white/80"></div>
-                          `;
-                          fallback.appendChild(icon);
-                          parent.appendChild(fallback);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-b from-yellow-100 to-yellow-50 flex items-center justify-center">
-                      <div className="w-7 h-9 bg-yellow-200 rounded-sm relative">
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-blue-400 rounded-full"></div>
-                        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-white/80"></div>
+                  {/* Video Play/Pause Overlay Indicator on click */}
+                  <div
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    style={{ background: isPlaying ? "transparent" : "rgba(0,0,0,0.3)" }}
+                  >
+                    {!isPlaying && (
+                      <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Video Floating Controls */}
+                  <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+                    {/* Play / Pause Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={toggleVideoPlayback}
+                      className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/80 transition-all shadow-md active:scale-90"
+                      title={isPlaying ? "Pause Video" : "Play Video"}
+                    >
+                      {isPlaying ? (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="6" y="4" width="4" height="16" />
+                          <rect x="14" y="4" width="4" height="16" />
+                        </svg>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      )}
+                    </button>
+
+                    {/* Mute / Unmute Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={toggleMute}
+                      className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white flex items-center justify-center hover:bg-black/80 transition-all shadow-md active:scale-90"
+                      title={isMuted ? "Unmute Audio" : "Mute Audio"}
+                    >
+                      {isMuted ? (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="1" y1="1" x2="23" y2="23" />
+                          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                          <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                          <line x1="12" y1="19" x2="12" y2="23" />
+                          <line x1="8" y1="23" x2="16" y2="23" />
+                        </svg>
+                      ) : (
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Video Playback Progress Bar */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 z-20 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 transition-all duration-200"
+                      style={{ width: `${videoProgress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                /* IMAGE BANNER SLIDE */
+                <div className="relative w-full h-full overflow-hidden bg-neutral-900">
+                  <img
+                    src={resolveMediaUrl(currentSlide.mediaUrl)}
+                    alt={currentSlide.title || "Banner"}
+                    className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700 ease-out"
+                    loading="eager"
+                  />
+                </div>
+              )}
+
+              {/* Dynamic Gradient Readability Scrim Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10 pointer-events-none z-10" />
+
+              {/* Top-Left Category Badge */}
+              <div className="absolute top-3 left-3 z-20">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider text-white bg-black/40 backdrop-blur-md border border-white/20 shadow-md">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  {categoryDisplayName}
+                </span>
+              </div>
+
+              {/* Slide Content Overlay (Title, Subtitle, CTA) */}
+              <div className="absolute bottom-4 sm:bottom-6 left-3 sm:left-6 right-3 sm:right-6 z-20 text-white flex flex-col sm:flex-row sm:items-end justify-between gap-3 pointer-events-none">
+                <div className="max-w-xl">
+                  {/* Badge / Offer Tag */}
+                  {(currentSlide.badge || currentSlide.subtitle) && (
+                    <div className="inline-block mb-1 sm:mb-1.5">
+                      <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] sm:text-[11px] font-extrabold uppercase px-2 py-0.5 rounded shadow">
+                        {currentSlide.badge || "SPECIAL OFFER"}
+                      </span>
                     </div>
                   )}
+
+                  {/* Title */}
+                  {currentSlide.title && (
+                    <h3 className="text-base sm:text-2xl md:text-3xl font-black text-white leading-tight drop-shadow-md tracking-tight line-clamp-1">
+                      {currentSlide.title}
+                    </h3>
+                  )}
+
+                  {/* Subtitle */}
+                  {currentSlide.subtitle && (
+                    <p className="text-[11px] sm:text-sm text-neutral-200 line-clamp-1 mt-0.5 drop-shadow font-medium">
+                      {currentSlide.subtitle}
+                    </p>
+                  )}
+                </div>
+
+                {/* Call-to-action Button */}
+                <div className="self-start sm:self-end flex-shrink-0 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSlideClick(currentSlide);
+                    }}
+                    className="inline-flex items-center gap-1.5 bg-white hover:bg-neutral-100 text-neutral-900 text-xs sm:text-sm font-bold px-3.5 sm:px-5 py-1.5 sm:py-2 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+                  >
+                    <span>{currentSlide.buttonText || "Shop Now"}</span>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-emerald-600"
+                    >
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </button>
                 </div>
               </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Navigation Arrows (Visible on Desktop Hover) */}
+          {slides.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToPrev();
+                }}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/40 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-xl active:scale-90 hidden sm:flex"
+                aria-label="Previous slide"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goToNext();
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 z-30 w-9 h-9 rounded-full bg-black/40 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 shadow-xl active:scale-90 hidden sm:flex"
+                aria-label="Next slide"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </>
+          )}
+
+          {/* Pagination Indicators */}
+          {slides.length > 1 && (
+            <div className="absolute bottom-2.5 sm:bottom-3 left-0 right-0 z-30 flex items-center justify-center gap-1.5 pointer-events-auto">
+              {slides.map((s, idx) => {
+                const isActive = idx === currentIndex;
+                return (
+                  <button
+                    key={s.id || s._id || idx}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToSlide(idx);
+                    }}
+                    className={`transition-all duration-300 rounded-full h-1.5 sm:h-2 ${
+                      isActive
+                        ? "w-6 sm:w-8 bg-white shadow-md"
+                        : "w-2 sm:w-2.5 bg-white/45 hover:bg-white/70"
+                    }`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                );
+              })}
             </div>
-          </div>
-
-          {/* Category Cards Grid - Right */}
-          <div className="flex-1 grid grid-cols-2 gap-2">
-            {categoryCards.map((card) => {
-              // Use subcategory images from the map if available, otherwise check card.subcategoryImages, then fallback to emoji icons
-              const subcategoryImages = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
-              const hasSubcategoryImages = subcategoryImages.length > 0;
-              const categoryIcons = getCategoryIcons(card.categoryId || "");
-
-              return (
-                <div key={card.id} className="promo-card">
-                  <Link
-                    to={card.slug || card.categoryId ? `/category/${card.slug || card.categoryId}` : "#"}
-                    className="group rounded-lg transition-all duration-300 hover:shadow-md active:scale-[0.98] h-full flex flex-col overflow-hidden relative"
-                    style={{
-                      minHeight: "90px",
-                      background: "rgba(255, 247, 237, 0.9)", // Very light orange
-                    }}>
-                    {/* Green Discount Banner - Only around text, centered at top */}
-                    <div
-                      className="w-full flex justify-center"
-                      style={{ paddingTop: "0", paddingBottom: "2px" }}>
-                      <div className="bg-green-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded tracking-tight text-center inline-block">
-                        {card.badge}
-                      </div>
-                    </div>
-
-                    <div
-                      className="px-1 pb-1 flex flex-col flex-1 justify-between"
-                      style={{ paddingTop: "2px" }}>
-                      {/* Category Title */}
-                      <div
-                        className="text-neutral-900 font-bold text-center"
-                        style={{
-                          fontSize: "13px",
-                          lineHeight: "1.2",
-                          marginBottom: "6px",
-                        }}>
-                        {card.title}
-                      </div>
-
-                      {/* Subcategory Images or Emoji Icons - Horizontal Layout */}
-                      <div
-                        className="flex items-center justify-center gap-1 overflow-hidden"
-                        style={{ marginTop: "auto" }}>
-                        {hasSubcategoryImages
-                          ? // Display subcategory images as small icons
-                          subcategoryImages.slice(0, 4).map((imageUrl, idx) => (
-                            <div
-                              key={idx}
-                              className="flex-shrink-0 bg-white rounded flex items-center justify-center overflow-hidden border border-neutral-200"
-                              style={{ width: "24px", height: "24px" }}>
-                              <img
-                                src={imageUrl}
-                                alt={`Subcategory ${idx + 1}`}
-                                className="w-full h-full object-cover"
-                                loading="lazy"
-                                decoding="async"
-                                onError={(e) => {
-                                  // Fallback to emoji if image fails to load
-                                  const target =
-                                    e.target as HTMLImageElement;
-                                  target.style.display = "none";
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML =
-                                      categoryIcons[idx] || "📦";
-                                    parent.style.fontSize = "18px";
-                                    parent.style.display = "flex";
-                                    parent.style.alignItems = "center";
-                                    parent.style.justifyContent = "center";
-                                  }
-                                }}
-                              />
-                            </div>
-                          ))
-                          : // Fallback to emoji icons if no subcategory images
-                          categoryIcons.slice(0, 4).map((icon, idx) => (
-                            <div
-                              key={idx}
-                              className="flex-shrink-0 bg-transparent rounded flex items-center justify-center overflow-hidden"
-                              style={{
-                                width: "24px",
-                                height: "24px",
-                                fontSize: "18px",
-                              }}>
-                              {icon}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
       </div>
     </div>

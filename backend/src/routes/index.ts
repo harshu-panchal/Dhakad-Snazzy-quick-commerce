@@ -34,6 +34,7 @@ import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
 import fcmTokenRoutes from "./fcmTokenRoutes";
 import paymentRoutes from "./paymentRoutes";
+import cashfreePaymentRoutes from "./cashfreePaymentRoutes";
 import sellerWalletRoutes from "./sellerWalletRoutes";
 import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
@@ -46,6 +47,7 @@ import {
   getMyOrders,
   getOrderById,
   cancelOrder,
+  cancelPendingOrder,
   updateOrderNotes,
 } from "../modules/customer/controllers/customerOrderController";
 
@@ -83,20 +85,16 @@ router.use(
   deliveryTrackingRoutes
 );
 
-// Seller notifications (protected)
+// Seller notifications (protected inside sellerNotificationRoutes)
 router.use(
   "/seller",
-  authenticate,
-  requireUserType("Seller"),
   sellerNotificationRoutes
 );
 
-// Customer notifications (protected)
+// Customer notifications (protected inside customerNotificationRoutes)
 // Must be registered before general /customer routes.
 router.use(
   "/customer",
-  authenticate,
-  requireUserType("Customer"),
   customerNotificationRoutes
 );
 
@@ -123,6 +121,7 @@ router.post(
 router.get("/customer/orders", authenticate, requireUserType("Customer"), getMyOrders);
 router.get("/customer/orders/:id", authenticate, requireUserType("Customer"), getOrderById);
 router.post("/customer/orders/:id/cancel", authenticate, requireUserType("Customer"), cancelOrder);
+router.post("/customer/orders/:id/cancel-pending", authenticate, requireUserType("Customer"), cancelPendingOrder);
 router.patch("/customer/orders/:id/notes", authenticate, requireUserType("Customer"), updateOrderNotes);
 
 router.use("/customer/coupons", customerCouponRoutes);
@@ -175,8 +174,11 @@ router.use("/seller/wallet", walletRoutes);
 // Tax routes (protected, seller/admin)
 router.use("/seller/taxes", taxRoutes);
 
-// Payment routes (Razorpay integration)
+// Payment routes (Razorpay integration - secondary/fallback)
 router.use("/payment", paymentRoutes);
+
+// Payment routes (Cashfree integration - primary)
+router.use("/payment/cashfree", cashfreePaymentRoutes);
 
 // Seller wallet routes (protected, seller only)
 router.use("/seller/wallet-new", authenticate, requireUserType("Seller"), sellerWalletRoutes);

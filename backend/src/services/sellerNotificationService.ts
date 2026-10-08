@@ -17,6 +17,11 @@ export async function notifySellersOfOrderUpdate(
             return;
         }
 
+        if (order.status === 'Pending') {
+            console.log(`⏸️ Skipping seller notification for pending order ${order.orderNumber}`);
+            return;
+        }
+
         // Get all unique seller IDs from order items
         // If items are populated, we can get them directly, otherwise we need to query
         let orderItems = order.items;
@@ -49,6 +54,7 @@ export async function notifySellersOfOrderUpdate(
                 deliveryOption: order.deliveryOption || 'Standard',
                 items: sellerSpecificItems.map((item: any) => ({
                     productName: item.productName,
+                    productImage: item.productImage || item.product?.mainImage || (item.product?.galleryImages && item.product?.galleryImages[0]),
                     quantity: item.quantity,
                     price: item.unitPrice,
                     total: item.total,

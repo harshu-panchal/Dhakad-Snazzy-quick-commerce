@@ -70,6 +70,7 @@ export const createProduct = asyncHandler(
       brand: productData.brandId,
       mainImage: productData.mainImageUrl, // Map mainImageUrl to mainImage
       galleryImages: productData.galleryImageUrls,
+      mainVideo: productData.mainVideoUrl, // Map mainVideoUrl to mainVideo
     };
 
     // Map variations: Ensure 'title' from frontend is mapped to 'value' (or name) expected by Schema
@@ -351,6 +352,10 @@ export const updateProduct = asyncHandler(
     if (updateData.galleryImageUrls) {
       updateData.galleryImages = updateData.galleryImageUrls;
       delete updateData.galleryImageUrls;
+    }
+    if (updateData.mainVideoUrl !== undefined) {
+      updateData.mainVideo = updateData.mainVideoUrl;
+      delete updateData.mainVideoUrl;
     }
 
     // Validate variations if provided

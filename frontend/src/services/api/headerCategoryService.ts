@@ -9,6 +9,7 @@ export interface HeaderCategory {
     slug: string; // Maps to theme key
     relatedCategory?: string;
     status: 'Published' | 'Unpublished';
+    isActive?: boolean;
     order?: number;
 }
 
@@ -36,5 +37,15 @@ export const updateHeaderCategory = async (id: string, data: Partial<HeaderCateg
 
 export const deleteHeaderCategory = async (id: string): Promise<{ message: string }> => {
     const response = await api.delete<{ message: string }>(`/header-categories/${id}`);
+    return response.data;
+};
+
+export const toggleHeaderCategoryActive = async (id: string): Promise<HeaderCategory> => {
+    const response = await api.patch<HeaderCategory>(`/header-categories/${id}/toggle-active`);
+    return response.data;
+};
+
+export const getHeaderCategoryDisplaySettings = async (): Promise<{ showHeaderCategoryRow: boolean }> => {
+    const response = await api.get<{ showHeaderCategoryRow: boolean }>('/header-categories/display-settings');
     return response.data;
 };

@@ -22,6 +22,7 @@ import {
 } from '../../services/api/customerReviewService';
 
 import { calculateProductPrice } from '../../utils/priceUtils';
+import { isVideoUrl } from '../../utils/media';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -80,10 +81,12 @@ export default function ProductDetail() {
           // Set location availability flag
           setIsAvailableAtLocation(productData.isAvailableAtLocation !== false);
 
-          // Get all images (main + gallery)
+          // Get all images (main + gallery), with the product video (if any) appended
+          // as a trailing slide in the same gallery array.
           const allImages = [
             productData.mainImage || productData.imageUrl || "",
             ...(productData.galleryImages || productData.galleryImageUrls || []),
+            productData.mainVideo || productData.mainVideoUrl || "",
           ].filter(Boolean);
 
           setProduct({
@@ -426,7 +429,15 @@ export default function ProductDetail() {
                   className="w-full h-full flex-shrink-0 flex items-center justify-center relative"
                   style={{ minWidth: '100%' }}
                 >
-                  {image ? (
+                  {image && isVideoUrl(image) ? (
+                    <video
+                      src={image}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : image ? (
                     <img
                       src={image}
                       alt={`${product.name} - Image ${index + 1}`}
@@ -447,7 +458,16 @@ export default function ProductDetail() {
 
             {/* Desktop: Single image display */}
             <div className="hidden md:flex w-full h-full items-center justify-center">
-              {currentImage ? (
+              {currentImage && isVideoUrl(currentImage) ? (
+                <video
+                  key={currentImage}
+                  src={currentImage}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-cover"
+                />
+              ) : currentImage ? (
                 <img
                   src={currentImage}
                   alt={product.name}
@@ -561,16 +581,33 @@ export default function ProductDetail() {
                       setSelectedImageIndex(index);
                       setTimeout(() => setIsTransitioning(false), 300);
                     }}
-                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${index === selectedImageIndex
+                    className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all relative ${index === selectedImageIndex
                       ? "border-green-600 ring-2 ring-green-200"
                       : "border-neutral-200 hover:border-neutral-300"
                       }`}>
-                    <img
-                      src={image}
-                      alt={`${product.name} - Image ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                    {isVideoUrl(image) ? (
+                      <>
+                        <video
+                          src={image}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </span>
+                      </>
+                    ) : (
+                      <img
+                        src={image}
+                        alt={`${product.name} - Image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
                   </button>
                 ))}
               </div>

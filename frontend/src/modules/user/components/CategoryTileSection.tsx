@@ -19,7 +19,7 @@ interface CategoryTile {
 interface CategoryTileSectionProps {
   title: string;
   tiles: CategoryTile[];
-  columns?: 2 | 3 | 4 | 6 | 8; // Support all column options
+  columns?: 1 | 2 | 3 | 4 | 6 | 8; // Support all column options
   showProductCount?: boolean; // Show product count only for bestsellers
   onTileClick?: (tile: CategoryTile) => void; // Custom click handler
 }
@@ -77,6 +77,8 @@ export default function CategoryTileSection({
   // Dynamic grid classes based on column count
   const getGridCols = () => {
     switch (columns) {
+      case 1:
+        return "grid-cols-1";
       case 2:
         return "grid-cols-2";
       case 3:
@@ -101,7 +103,7 @@ export default function CategoryTileSection({
         {title}
       </h2>
       <div className="px-4 md:px-6 lg:px-8 overflow-visible">
-        <div className={`grid ${gridCols} ${gapClass} overflow-visible auto-rows-fr`}>
+        <div className={`grid ${gridCols} ${gapClass} overflow-visible auto-rows-fr ${columns === 1 ? "max-w-2xl mx-auto" : ""}`}>
           {tiles.map((tile) => {
             const images =
               tile.productImages || (tile.image ? [tile.image] : []);

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
 import jsPDF from 'jspdf';
+import MediaThumbnail from '../../../components/ui/MediaThumbnail';
 
 export default function SellerOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -603,7 +604,29 @@ export default function SellerOrderDetail() {
                 {orderDetail.items.map((item) => (
                   <tr key={item.srNo}>
                     <td className="px-4 py-3 text-sm text-neutral-900">{item.srNo}</td>
-                    <td className="px-4 py-3 text-sm text-neutral-900">{item.product}</td>
+                    <td className="px-4 py-3 text-sm text-neutral-900">
+                      <div className="flex items-center gap-3">
+                        {item.productImage ? (
+                          <MediaThumbnail
+                            src={item.productImage}
+                            alt={item.product}
+                            className="w-10 h-10 object-cover rounded-md border border-neutral-200 flex-shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 bg-neutral-100 rounded-md flex items-center justify-center text-neutral-400 flex-shrink-0">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                              <circle cx="8.5" cy="8.5" r="1.5" />
+                              <polyline points="21 15 16 10 5 21" />
+                            </svg>
+                          </div>
+                        )}
+                        <span className="font-medium">{item.product}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm text-neutral-900">{formatUnit(item.unit, item.qty)}</td>
                     <td className="px-4 py-3 text-sm text-neutral-900">₹{item.price.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-neutral-600">

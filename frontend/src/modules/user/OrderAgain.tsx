@@ -7,6 +7,7 @@ import { useCart } from '../../context/CartContext';
 import { getProducts } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import MediaThumbnail from '../../components/ui/MediaThumbnail';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -153,7 +154,7 @@ export default function OrderAgain() {
                               style={{ marginLeft: idx > 0 ? '-4px' : '0' }}
                             >
                               {item.product.imageUrl ? (
-                                <img
+                                <MediaThumbnail
                                   src={item.product.imageUrl}
                                   alt={item.product.name}
                                   className="w-full h-full object-contain"
@@ -226,7 +227,7 @@ export default function OrderAgain() {
                   >
                     <div className="w-full h-28 bg-neutral-100 flex items-center justify-center overflow-hidden relative">
                       {product.imageUrl ? (
-                        <img
+                        <MediaThumbnail
                           src={product.imageUrl}
                           alt={product.name}
                           className="w-full h-full object-contain"

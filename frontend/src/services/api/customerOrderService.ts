@@ -104,3 +104,12 @@ export const updateOrderNotes = async (id: string, data: { deliveryInstructions?
     const response = await api.patch<OrderResponse>(`/customer/orders/${id}/notes`, data);
     return response.data;
 };
+
+/**
+ * Cancel a pending order (e.g. user cancelled or closed checkout modal before payment)
+ */
+export const cancelPendingOrder = async (id: string, reason?: string): Promise<OrderResponse> => {
+    const response = await api.post<OrderResponse>(`/customer/orders/${id}/cancel-pending`, { reason });
+    return response.data;
+};
+

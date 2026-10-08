@@ -9,6 +9,10 @@ import {
   verifyDeliveryOtp,
 } from "../../../services/deliveryOtpService";
 import { processOrderStatusTransition } from "../../../services/orderService";
+import {
+  normalizeOrderStatus,
+  canSendDeliveryOtp,
+} from "../../../utils/orderStatus";
 import { getDeliveryPendingOrderAlerts } from "../../../services/orderAlertService";
 
 /**
@@ -171,16 +175,18 @@ export const getPendingOrders = asyncHandler(
   async (req: Request, res: Response) => {
     const deliveryId = req.user?.userId;
 
-    // Pending statuses: Ready for pickup, Out for delivery, Picked Up, Assigned, In Transit
+    // Pending statuses: Ready for pickup, Out for Delivery, Picked up, Assigned, In Transit
     const orders = await Order.find({
       deliveryBoy: deliveryId,
       status: {
         $in: [
           "Ready for pickup",
           "Out for Delivery",
-          "Picked Up",
+          "Picked up",
+          "Picked Up", // legacy variant still present in some DB records
           "Assigned",
           "In Transit",
+          "On the way", // legacy variant
         ],
       },
     })
@@ -282,12 +288,17 @@ export const updateOrderStatus = asyncHandler(
     // Save previous status before updating
     const previousStatus = order.status;
 
-    // Status transition logic
-    if (status) order.status = status;
+    // Status transition logic — normalize any variant string
+    // ("Out For Delivery", "On the way", etc.) to the canonical value
+    const normalizedStatus = status ? normalizeOrderStatus(status) : undefined;
+    if (normalizedStatus) order.status = normalizedStatus as any;
 
-    if (status === "Picked up" || status === "Out for Delivery") {
+    if (
+      normalizedStatus === "Picked up" ||
+      normalizedStatus === "Out for Delivery"
+    ) {
       order.deliveryBoyStatus = "Picked Up";
-    } else if (status === "Delivered") {
+    } else if (normalizedStatus === "Delivered") {
       order.deliveryBoyStatus = "Delivered";
       order.deliveredAt = new Date();
       order.paymentStatus = "Paid"; // Assume paid on delivery (or already paid)
@@ -326,7 +337,10 @@ export const updateOrderStatus = asyncHandler(
     // Emit socket events for status changes
     const io = (req.app as any).get("io");
     if (io) {
-      if (status === "Picked up" && previousStatus !== "Picked up") {
+      if (
+        normalizedStatus === "Picked up" &&
+        previousStatus !== "Picked up"
+      ) {
         // Emit order-taken event
         io.to(`order-${id}`).emit("order-taken", {
           orderId: id,
@@ -334,7 +348,10 @@ export const updateOrderStatus = asyncHandler(
         });
       }
 
-      if (status === "Delivered" && previousStatus !== "Delivered") {
+      if (
+        normalizedStatus === "Delivered" &&
+        previousStatus !== "Delivered"
+      ) {
         // Emit order-delivered event to all relevant parties
         io.to(`order-${id}`).emit("order-delivered", {
           orderId: id,
@@ -351,7 +368,10 @@ export const updateOrderStatus = asyncHandler(
       }
 
       // Trigger notification to sellers for payment status change or specific transitions
-      if (order.paymentStatus === "Paid" || status === "Delivered") {
+      if (
+        order.paymentStatus === "Paid" ||
+        normalizedStatus === "Delivered"
+      ) {
         notifySellersOfOrderUpdate(io, order, "STATUS_UPDATE");
       }
     }
@@ -479,13 +499,12 @@ export const sendDeliveryOtp = asyncHandler(
         .json({ success: false, message: "Order is already delivered" });
     }
 
-    if (order.status !== "Picked up" && order.status !== "Out for Delivery") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Order must be picked up before sending delivery OTP",
-        });
+    if (!canSendDeliveryOtp(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Order must be picked up before sending delivery OTP",
+        currentStatus: order.status, // Helps diagnose status string drift
+      });
     }
 
     try {

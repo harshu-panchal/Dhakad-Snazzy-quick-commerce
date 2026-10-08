@@ -7,11 +7,13 @@ export interface HomeContentResponse {
     categories: any[];
     shops: any[];
     promoBanners: any[];
+    banners?: any[];
     trending: any[];
     cookingIdeas: any[];
     promoCards?: any[];
     promoStrip?: any; // PromoStrip data from backend
     lowestPrices?: any[];
+    lowestPricesSections?: any[];
     homeSections?: any[];
   };
 }
@@ -19,6 +21,9 @@ export interface HomeContentResponse {
 /**
  * Get home page content with caching
  * @param headerCategorySlug - Optional header category slug to filter categories (e.g., 'winter', 'wedding')
+ * @param latitude - User's latitude
+ * @param longitude - User's longitude
+ * @param city - Optional city / location name
  * @param useCache - Whether to use cache (default: true)
  * @param cacheTTL - Cache TTL in milliseconds (default: 5 minutes)
  */
@@ -28,15 +33,19 @@ export const getHomeContent = async (
   longitude?: number,
   useCache: boolean = true,
   cacheTTL: number = 5 * 60 * 1000, // 5 minutes
-  skipLoader: boolean = false
+  skipLoader: boolean = false,
+  city?: string
 ): Promise<HomeContentResponse> => {
-  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}`;
+  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}-${city || 'all'}`;
 
   const fetchFn = async () => {
     const params: any = headerCategorySlug ? { headerCategorySlug } : {};
     if (latitude !== undefined && longitude !== undefined) {
       params.latitude = latitude;
       params.longitude = longitude;
+    }
+    if (city) {
+      params.city = city;
     }
     const response = await api.get<HomeContentResponse>("/customer/home", {
       params,

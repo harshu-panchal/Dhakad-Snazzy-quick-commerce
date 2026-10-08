@@ -26,21 +26,6 @@ export interface OrderNotificationState {
 export const notificationStates = new Map<string, OrderNotificationState>();
 
 /**
- * Loosely compare two city strings. Profiles/orders often store city as a
- * longer free-text value (e.g. "Biaora Rajgarh Madhya Pradesh") while the
- * other side stores just "Biaora", so an exact match would wrongly exclude
- * otherwise-matching delivery boys. A bidirectional substring check handles
- * both directions.
- */
-function citiesMatch(cityA?: string | null, cityB?: string | null): boolean {
-    if (!cityA || !cityB) return false;
-    const a = cityA.trim().toLowerCase();
-    const b = cityB.trim().toLowerCase();
-    if (!a || !b) return false;
-    return a.includes(b) || b.includes(a);
-}
-
-/**
  * Calculate distance between two coordinates using Haversine formula
  * Returns distance in kilometers
  */
@@ -64,24 +49,22 @@ function calculateDistance(
 }
 
 /**
- * Find all available delivery boys (online and active)
+ * Find all available delivery boys (online and active), regardless of location.
+ * Used only as a last-resort fallback when nobody's live location falls within
+ * any seller's service radius.
  */
-export async function findAvailableDeliveryBoys(city?: string): Promise<mongoose.Types.ObjectId[]> {
+export async function findAvailableDeliveryBoys(): Promise<mongoose.Types.ObjectId[]> {
     try {
-        console.log(`📝 [DEBUG] Searching for all online and active delivery boys${city ? ` in city: ${city}` : ''}...`);
+        console.log(`📝 [DEBUG] Searching for all online and active delivery boys...`);
         const query: any = {
             isOnline: true,
             status: 'Active',
         };
-        let deliveryBoys = await Delivery.find(query);
-
-        if (city) {
-            deliveryBoys = deliveryBoys.filter(db => citiesMatch(city, db.city));
-        }
+        const deliveryBoys = await Delivery.find(query);
 
         console.log(`📝 [DEBUG] Found ${deliveryBoys.length} eligible delivery boys:`);
         deliveryBoys.forEach(db => {
-            console.log(`   - ${db.name} (ID: ${db._id}, status: ${db.status}, isOnline: ${db.isOnline}, city: ${db.city})`);
+            console.log(`   - ${db.name} (ID: ${db._id}, status: ${db.status}, isOnline: ${db.isOnline})`);
         });
 
         return deliveryBoys.map(db => db._id as mongoose.Types.ObjectId);
@@ -99,8 +82,7 @@ export async function findAvailableDeliveryBoys(city?: string): Promise<mongoose
 export async function findDeliveryBoysNearLocation(
     latitude: number,
     longitude: number,
-    radiusKm: number = 10,
-    city?: string
+    radiusKm: number = 10
 ): Promise<{ deliveryBoyId: mongoose.Types.ObjectId; distance: number }[]> {
     try {
         // 1. Try to find delivery boys using the new GeoJSON location field in Delivery model
@@ -120,10 +102,7 @@ export async function findDeliveryBoysNearLocation(
             }
         };
 
-        let deliveryBoysWithLocation = await Delivery.find(geoQuery).select('_id location name mobile isOnline status city');
-        if (city) {
-            deliveryBoysWithLocation = deliveryBoysWithLocation.filter(db => citiesMatch(city, db.city));
-        }
+        const deliveryBoysWithLocation = await Delivery.find(geoQuery).select('_id location name mobile isOnline status');
 
         if (deliveryBoysWithLocation.length > 0) {
             console.log(`📍 [NEAR] Found ${deliveryBoysWithLocation.length} delivery boys using GeoJSON near [${longitude}, ${latitude}]:`);
@@ -155,10 +134,7 @@ export async function findDeliveryBoysNearLocation(
             location: { $exists: true }
         };
 
-        let onlineDeliveryBoys = await Delivery.find(manualQuery).select('_id location name city');
-        if (city) {
-            onlineDeliveryBoys = onlineDeliveryBoys.filter(db => citiesMatch(city, db.city));
-        }
+        const onlineDeliveryBoys = await Delivery.find(manualQuery).select('_id location name');
 
         for (const db of onlineDeliveryBoys) {
             if (db.location && db.location.coordinates) {
@@ -189,10 +165,7 @@ export async function findDeliveryBoysNearLocation(
             status: 'Active',
         };
 
-        let allDeliveryBoys = await Delivery.find(fallbackQuery).select('_id city');
-        if (city) {
-            allDeliveryBoys = allDeliveryBoys.filter(db => citiesMatch(city, db.city));
-        }
+        const allDeliveryBoys = await Delivery.find(fallbackQuery).select('_id');
 
         if (allDeliveryBoys.length === 0) {
             return [];
@@ -273,7 +246,6 @@ export async function findDeliveryBoysNearLocation(
 export async function findDeliveryBoysNearSellerLocations(
     order: any
 ): Promise<mongoose.Types.ObjectId[]> {
-    const orderCity = order?.deliveryAddress?.city;
     try {
         console.log(`🔍 [FIND] Searching for delivery boys near sellers for order items...`);
         // Get unique seller IDs from order items
@@ -288,7 +260,7 @@ export async function findDeliveryBoysNearSellerLocations(
 
         if (sellerIds.length === 0) {
             console.log('⚠️ [FIND] No sellers found in order, falling back to all available delivery boys');
-            return findAvailableDeliveryBoys(orderCity);
+            return findAvailableDeliveryBoys();
         }
 
         console.log(`📍 [FIND] Found ${sellerIds.length} unique sellers in order: ${sellerIds.join(', ')}`);
@@ -300,7 +272,7 @@ export async function findDeliveryBoysNearSellerLocations(
 
         if (sellers.length === 0) {
             console.log('No seller data found, falling back to all available delivery boys');
-            return findAvailableDeliveryBoys(orderCity);
+            return findAvailableDeliveryBoys();
         }
 
         // Find delivery boys near each seller location
@@ -326,7 +298,7 @@ export async function findDeliveryBoysNearSellerLocations(
             }
 
             const radius = seller.serviceRadiusKm || 10; // Default 10km
-            const nearbyBoys = await findDeliveryBoysNearLocation(lat, lng, radius, orderCity);
+            const nearbyBoys = await findDeliveryBoysNearLocation(lat, lng, radius);
 
             for (const boy of nearbyBoys) {
                 const boyId = boy.deliveryBoyId.toString();
@@ -339,7 +311,7 @@ export async function findDeliveryBoysNearSellerLocations(
 
         if (nearbyDeliveryBoyMap.size === 0) {
             console.log('No delivery boys found near seller locations, falling back to all available');
-            return findAvailableDeliveryBoys(orderCity);
+            return findAvailableDeliveryBoys();
         }
 
         // Sort by distance and return IDs
@@ -351,7 +323,7 @@ export async function findDeliveryBoysNearSellerLocations(
         return sortedBoys;
     } catch (error) {
         console.error('Error finding delivery boys near seller locations:', error);
-        return findAvailableDeliveryBoys(orderCity);
+        return findAvailableDeliveryBoys();
     }
 }
 
@@ -367,24 +339,11 @@ export async function notifyDeliveryBoysOfNewOrder(
         console.log(`\n🚀 [NOTIFICATION] Starting broadcast for Order: ${order.orderNumber} (ID: ${order._id})`);
         console.log(`📍 [NOTIFICATION] Delivery Option: ${order.deliveryOption}`);
 
-        let nearbyDeliveryBoyIds: mongoose.Types.ObjectId[] = [];
-        const orderCity = order.deliveryAddress?.city;
-
-        // STRATEGY: For "Instant" orders, we want to maximize acceptance speed.
-        // The user requested: "sare avaliable delivery boy ko notification jana chahiye" (All available delivery boys should get notification)
-        if (order.deliveryOption === 'Instant') {
-            console.log(`⚡ [INSTANT] Order detected. Broadcasting to ALL ONLINE & ACTIVE delivery boys in city: ${orderCity || 'All'} immediately.`);
-            nearbyDeliveryBoyIds = await findAvailableDeliveryBoys(orderCity);
-        } else {
-            // For Standard/other orders, stick to radius logic
-            nearbyDeliveryBoyIds = await findDeliveryBoysNearSellerLocations(order);
-
-            // Fallback for Standard orders if nobody nearby
-            if (nearbyDeliveryBoyIds.length === 0) {
-                console.log(`⚠️ [NOTIFICATION] No nearby delivery boys found. Falling back to ALL ONLINE drivers in city: ${orderCity || 'All'}.`);
-                nearbyDeliveryBoyIds = await findAvailableDeliveryBoys(orderCity);
-            }
-        }
+        // Every order — Instant included — is targeted purely by each delivery boy's last
+        // known live location falling within a seller's service radius. City is not a factor.
+        // findDeliveryBoysNearSellerLocations already falls back to every online & active
+        // delivery boy if nobody currently qualifies, so the order never gets stuck unassigned.
+        let nearbyDeliveryBoyIds = await findDeliveryBoysNearSellerLocations(order);
 
         if (nearbyDeliveryBoyIds.length === 0) {
             console.log('⚠️ [NOTIFICATION] No available delivery boys found to notify.');
@@ -397,13 +356,22 @@ export async function notifyDeliveryBoysOfNewOrder(
         potentialBoys.forEach(pb => console.log(`   - ${pb.name} (${pb._id})`));
 
         // --- FILTER BUSY DELIVERY BOYS ---
-        // For Instant orders, we might want to skip this check if urgency > capacity, 
+        // For Instant orders, we might want to skip this check if urgency > capacity,
         // but generally we shouldn't spam busy drivers unless configured otherwise.
         // Leaving filter intact for now to prevent over-assignment.
+        // Only orders assigned recently count as "busy" — a delivery that never got marked
+        // Delivered/Cancelled (app crash, dropped connection, abandoned order) would otherwise
+        // block that driver from every future order indefinitely.
+        const BUSY_STALE_CUTOFF_HOURS = 4;
+        const busyStaleCutoff = new Date(Date.now() - BUSY_STALE_CUTOFF_HOURS * 60 * 60 * 1000);
         const activeOrders = await Order.find({
             deliveryBoy: { $in: nearbyDeliveryBoyIds },
             deliveryBoyStatus: { $in: ['Assigned', 'Picked Up', 'In Transit'] },
-            status: { $nin: ['Delivered', 'Cancelled', 'Rejected', 'Returned'] }
+            status: { $nin: ['Delivered', 'Cancelled', 'Rejected', 'Returned'] },
+            $or: [
+                { assignedAt: { $gte: busyStaleCutoff } },
+                { assignedAt: { $exists: false }, createdAt: { $gte: busyStaleCutoff } },
+            ],
         }).select('deliveryBoy orderNumber');
 
         if (activeOrders.length > 0) {

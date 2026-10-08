@@ -10,11 +10,13 @@ export const getPaymentMethods = asyncHandler(
         const { status } = req.query;
 
         const query: any = {
-            // Only show COD and Razorpay payment methods
+            // Only show COD, Razorpay, and Cashfree payment methods
             $or: [
                 { type: "COD" },
                 { provider: { $regex: /razorpay/i } },
-                { name: { $regex: /razorpay/i } }
+                { name: { $regex: /razorpay/i } },
+                { provider: { $regex: /cashfree/i } },
+                { name: { $regex: /cashfree/i } },
             ]
         };
         if (status) {

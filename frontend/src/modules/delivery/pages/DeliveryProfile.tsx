@@ -15,6 +15,7 @@ export default function DeliveryProfile() {
     phone: '',
     email: '',
     address: '',
+    city: '',
     vehicleNumber: '',
     vehicleType: 'Bike',
     joinDate: '',
@@ -36,6 +37,7 @@ export default function DeliveryProfile() {
           phone: data.mobile,
           email: data.email,
           address: data.address,
+          city: data.city || '',
           vehicleNumber: data.vehicleNumber || '',
           vehicleType: data.vehicleType || 'Bike',
           joinDate: new Date(data.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -69,6 +71,7 @@ export default function DeliveryProfile() {
         name: profileData.name,
         email: profileData.email,
         address: profileData.address,
+        city: profileData.city,
         vehicleNumber: profileData.vehicleNumber,
         vehicleType: profileData.vehicleType,
         accountName: profileData.accountName,
@@ -185,6 +188,25 @@ export default function DeliveryProfile() {
                 />
               ) : (
                 <p className="text-neutral-900 text-sm">{profileData.address}</p>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="text-neutral-500 text-xs mb-1">City</p>
+              {isEditing ? (
+                <>
+                  <input
+                    type="text"
+                    value={profileData.city}
+                    onChange={(e) => handleInputChange('city', e.target.value)}
+                    className="w-full text-neutral-900 text-sm px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="e.g. Indore"
+                  />
+                  <p className="text-neutral-500 text-xs mt-1">
+                    This is used to match you with nearby orders. Keep it updated if you move to a new area.
+                  </p>
+                </>
+              ) : (
+                <p className="text-neutral-900 text-sm">{profileData.city || 'Not Set'}</p>
               )}
             </div>
             <div className="p-4">

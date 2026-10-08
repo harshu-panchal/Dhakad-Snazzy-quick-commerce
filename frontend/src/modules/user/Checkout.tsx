@@ -10,6 +10,7 @@ import { useAuth } from "../../context/AuthContext";
 // import { products } from '../../data/products'; // Removed
 import { OrderAddress, Order } from "../../types/order";
 import PartyPopper from "./components/PartyPopper";
+import MediaThumbnail from "../../components/ui/MediaThumbnail";
 import {
   Sheet,
   SheetContent,
@@ -34,7 +35,9 @@ import { getProducts } from "../../services/api/customerProductService";
 import { addToWishlist } from "../../services/api/customerWishlistService";
 import { updateProfile } from "../../services/api/customerService";
 import { calculateProductPrice } from "../../utils/priceUtils";
+import { cancelPendingOrder } from "../../services/api/customerOrderService";
 import RazorpayCheckout from "../../components/RazorpayCheckout";
+import CashfreeCheckout from "../../components/CashfreeCheckout";
 
 // const STORAGE_KEY = 'saved_address'; // Removed
 
@@ -50,7 +53,7 @@ export default function Checkout() {
     refreshCart,
     loading: cartLoading,
   } = useCart();
-  const { addOrder } = useOrders();
+  const { addOrder, fetchOrders } = useOrders();
   const { location: userLocation } = useLocationContext();
   const { showToast: showGlobalToast } = useToast();
   const { user, updateUser } = useAuth();
@@ -143,15 +146,17 @@ export default function Checkout() {
   const [isMapSelected, setIsMapSelected] = useState(false);
 
   // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState<"Online" | "COD">(
-    "Online",
+  const [paymentMethod, setPaymentMethod] = useState<"Cashfree" | "Razorpay">(
+    "Cashfree",
   );
 
   // Order Processing State
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
 
-  // Razorpay Payment State
+  // Payment Gateway State
+  // Cashfree = PRIMARY gateway, Razorpay = SECONDARY (fallback)
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const [showCashfreeCheckout, setShowCashfreeCheckout] = useState(false);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
 
   // Check if user has placeholder data (needs profile completion)
@@ -617,7 +622,7 @@ export default function Checkout() {
       totalAmount: grandTotal,
       address: addressWithLocation,
       paymentMethod: paymentMethod,
-      status: paymentMethod === "COD" ? "Received" : "Pending", // COD orders start as 'Received'
+      status: "Pending",
       createdAt: new Date().toISOString(),
       tipAmount: finalTipAmount,
       gstin: gstin || undefined,
@@ -631,19 +636,13 @@ export default function Checkout() {
       // Create the order
       const placedId = await addOrder(order);
       if (placedId) {
-        if (paymentMethod === "COD") {
-          // For COD, proceed directly to success
-          setPlacedOrderId(placedId);
-          clearCart();
-          setShowOrderSuccess(true);
-          showGlobalToast("Order placed successfully!", "success");
-        } else {
-          // For Online, trigger Razorpay payment
+        if (paymentMethod === "Cashfree") {
+          setPendingOrderId(placedId);
+          setShowCashfreeCheckout(true);
+        } else if (paymentMethod === "Razorpay") {
           setPendingOrderId(placedId);
           setShowRazorpayCheckout(true);
         }
-        // Note: For Online payment, the cart will be cleared and success shown only after successful payment
-        // See the RazorpayCheckout onSuccess handler (lines 1840-1846)
       }
     } catch (error: any) {
       console.error("Order placement failed", error);
@@ -1261,7 +1260,7 @@ export default function Checkout() {
                   {/* Product Image */}
                   <div className="w-12 h-12 bg-neutral-100 rounded-lg flex-shrink-0 overflow-hidden">
                     {item.product?.imageUrl ? (
-                      <img
+                      <MediaThumbnail
                         src={item.product?.imageUrl}
                         alt={item.product?.name}
                         className="w-full h-full object-contain"
@@ -1374,7 +1373,7 @@ export default function Checkout() {
                     className="relative block cursor-pointer">
                     <div className="w-full h-28 bg-neutral-100 flex items-center justify-center overflow-hidden relative">
                       {product.imageUrl || product.mainImage ? (
-                        <img
+                        <MediaThumbnail
                           src={product.imageUrl || product.mainImage}
                           alt={product.name || product.productName || "Product"}
                           className="w-full h-full object-contain"
@@ -1801,64 +1800,122 @@ export default function Checkout() {
 
       {/* Payment Method Selection */}
       <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
-        <h2 className="text-sm font-bold text-neutral-900 mb-3">
-          Select Payment Method
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => setPaymentMethod("Online")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              paymentMethod === "Online"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
-            }`}>
-            <div
-              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "Online" ? "bg-green-600" : "bg-neutral-100"}`}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={paymentMethod === "Online" ? "white" : "currentColor"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                <line x1="1" y1="10" x2="23" y2="10" />
-              </svg>
-            </div>
-            <span className="text-xs font-bold">Online Payment</span>
-            <p className="text-[8px] mt-0.5 opacity-70">
-              (Cards, UPI, NetBanking)
-            </p>
-          </button>
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+            Select Payment Method
+          </h2>
+          <span className="text-[11px] text-green-600 font-semibold flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            100% Secure
+          </span>
+        </div>
 
-          <button
-            onClick={() => setPaymentMethod("COD")}
-            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              paymentMethod === "COD"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+        <div className="space-y-2">
+          {/* Online Payment (Cashfree) */}
+          <div
+            onClick={() => setPaymentMethod("Cashfree")}
+            className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
+              paymentMethod === "Cashfree"
+                ? "border-green-600 bg-green-50/70 shadow-xs"
+                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
             }`}>
-            <div
-              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${paymentMethod === "COD" ? "bg-green-600" : "bg-neutral-100"}`}>
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={paymentMethod === "COD" ? "white" : "currentColor"}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                  paymentMethod === "Cashfree"
+                    ? "bg-green-600 text-white"
+                    : "bg-neutral-100 text-neutral-600"
+                }`}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                  <line x1="1" y1="10" x2="23" y2="10" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-neutral-900">
+                    Online Payment (Cashfree)
+                  </span>
+                  <span className="bg-green-100 text-green-700 text-[9px] font-bold px-1.5 py-0.5 rounded">
+                    Fast & Recommended
+                  </span>
+                </div>
+                <p className="text-[10px] text-neutral-500 truncate">
+                  Cards, UPI (GPay, PhonePe, Paytm), NetBanking
+                </p>
+              </div>
             </div>
-            <span className="text-xs font-bold">Cash on Delivery</span>
-            <p className="text-[8px] mt-0.5 opacity-70">
-              (Pay when you receive)
-            </p>
-          </button>
+            <div
+              className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
+                paymentMethod === "Cashfree"
+                  ? "border-green-600 bg-green-600"
+                  : "border-neutral-300 bg-white"
+              }`}>
+              {paymentMethod === "Cashfree" && (
+                <div className="w-1.5 h-1.5 rounded-full bg-white" />
+              )}
+            </div>
+          </div>
+
+          {/* Online Payment (Razorpay) */}
+          <div
+            onClick={() => setPaymentMethod("Razorpay")}
+            className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
+              paymentMethod === "Razorpay"
+                ? "border-green-600 bg-green-50/70 shadow-xs"
+                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
+            }`}>
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                  paymentMethod === "Razorpay"
+                    ? "bg-green-600 text-white"
+                    : "bg-neutral-100 text-neutral-600"
+                }`}>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                  <line x1="1" y1="10" x2="23" y2="10" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-neutral-900">
+                  Online Payment (Razorpay)
+                </span>
+                <p className="text-[10px] text-neutral-500 truncate">
+                  Secondary Gateway • Cards, UPI, NetBanking
+                </p>
+              </div>
+            </div>
+            <div
+              className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
+                paymentMethod === "Razorpay"
+                  ? "border-green-600 bg-green-600"
+                  : "border-neutral-300 bg-white"
+              }`}>
+              {paymentMethod === "Razorpay" && (
+                <div className="w-1.5 h-1.5 rounded-full bg-white" />
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -2569,7 +2626,7 @@ export default function Checkout() {
               ? "Processing..."
               : !meetsMinimumOrder
                 ? `Add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more`
-                : "Place Order"}
+                : `Pay ₹${grandTotal.toFixed(0)}`}
           </button>
         ) : (
           <button
@@ -2674,7 +2731,60 @@ export default function Checkout() {
         }
       `}</style>
 
-      {/* Razorpay Checkout Modal */}
+      {/* Cashfree Checkout Modal (PRIMARY gateway) */}
+      {showCashfreeCheckout && pendingOrderId && user && (
+        <CashfreeCheckout
+          orderId={pendingOrderId}
+          amount={grandTotal}
+          customerDetails={{
+            name: user.name || "Customer",
+            email: user.email || "",
+            phone: user.phone || "",
+          }}
+          onSuccess={async (paymentId) => {
+            const currentOrderId = pendingOrderId;
+            setShowCashfreeCheckout(false);
+            setPlacedOrderId(currentOrderId);
+            setPendingOrderId(null);
+            clearCart();
+            try {
+              await fetchOrders();
+            } catch (err) {
+              console.error("Failed to refresh orders after payment:", err);
+            }
+            setShowOrderSuccess(true);
+            showGlobalToast("Payment successful! Order placed.", "success");
+          }}
+          onFailure={(error) => {
+            const failedId = pendingOrderId;
+            setShowCashfreeCheckout(false);
+            setPendingOrderId(null);
+            if (failedId) {
+              cancelPendingOrder(failedId, error).catch((err) =>
+                console.error("Failed to cancel pending order:", err),
+              );
+            }
+            if (
+              error.toLowerCase().includes("cancel") ||
+              error.toLowerCase().includes("dismiss") ||
+              error.toLowerCase().includes("dropped")
+            ) {
+              showGlobalToast(
+                "Payment was cancelled. Order was not placed.",
+                "error",
+              );
+            } else {
+              console.error("[Cashfree] Checkout failed:", error);
+              showGlobalToast(
+                error || "Payment failed. Order was not placed.",
+                "error",
+              );
+            }
+          }}
+        />
+      )}
+
+      {/* Razorpay Checkout Modal (SECONDARY / fallback gateway) */}
       {showRazorpayCheckout && pendingOrderId && user && (
         <RazorpayCheckout
           orderId={pendingOrderId}
@@ -2684,19 +2794,31 @@ export default function Checkout() {
             email: user.email || "",
             phone: user.phone || "",
           }}
-          onSuccess={(paymentId) => {
+          onSuccess={async (paymentId) => {
+            const currentOrderId = pendingOrderId;
             setShowRazorpayCheckout(false);
-            setPlacedOrderId(pendingOrderId);
+            setPlacedOrderId(currentOrderId);
             setPendingOrderId(null);
             clearCart();
+            try {
+              await fetchOrders();
+            } catch (err) {
+              console.error("Failed to refresh orders after payment:", err);
+            }
             setShowOrderSuccess(true);
-            showGlobalToast("Payment successful!", "success");
+            showGlobalToast("Payment successful! Order placed.", "success");
           }}
           onFailure={(error) => {
+            const failedId = pendingOrderId;
             setShowRazorpayCheckout(false);
             setPendingOrderId(null);
+            if (failedId) {
+              cancelPendingOrder(failedId, error).catch((err) =>
+                console.error("Failed to cancel pending order:", err),
+              );
+            }
             showGlobalToast(
-              error || "Payment failed. Please try again.",
+              "Payment was cancelled or failed. Order was not placed.",
               "error",
             );
           }}

@@ -805,7 +805,7 @@ const menuSections: MenuSection[] = [
       },
 
       {
-        label: "Promo Strip",
+        label: "Banners & Videos",
         path: "/admin/promo-strip",
         icon: (
           <svg

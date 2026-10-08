@@ -12,21 +12,23 @@ import HeaderCategory from "../../../models/HeaderCategory";
 export const createPromoStrip = asyncHandler(async (req: Request, res: Response) => {
   const {
     headerCategorySlug,
+    banners = [],
     heading,
     saleText,
     startDate,
     endDate,
     categoryCards,
     featuredProducts,
+    crazyDealsTitle,
     isActive = true,
     order = 0,
   } = req.body;
 
   // Validation
-  if (!headerCategorySlug || !heading || !saleText || !startDate || !endDate) {
+  if (!headerCategorySlug) {
     return res.status(400).json({
       success: false,
-      message: "Header category slug, heading, sale text, start date, and end date are required",
+      message: "Header category slug is required",
     });
   }
 
@@ -41,9 +43,9 @@ export const createPromoStrip = asyncHandler(async (req: Request, res: Response)
     }
   }
 
-  // Validate dates
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  // Validate dates if provided
+  const start = startDate ? new Date(startDate) : new Date();
+  const end = endDate ? new Date(endDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
   if (end <= start) {
     return res.status(400).json({
       success: false,
@@ -85,12 +87,14 @@ export const createPromoStrip = asyncHandler(async (req: Request, res: Response)
 
   const promoStrip = await PromoStrip.create({
     headerCategorySlug: headerCategorySlug.toLowerCase(),
-    heading,
-    saleText,
+    banners: banners || [],
+    heading: heading || "SPECIAL DEALS",
+    saleText: saleText || "SALE",
     startDate: start,
     endDate: end,
     categoryCards: categoryCards || [],
     featuredProducts: featuredProducts || [],
+    crazyDealsTitle: crazyDealsTitle || "CRAZY DEALS",
     isActive,
     order,
   });
@@ -176,12 +180,14 @@ export const updatePromoStrip = asyncHandler(async (req: Request, res: Response)
   const { id } = req.params;
   const {
     headerCategorySlug,
+    banners,
     heading,
     saleText,
     startDate,
     endDate,
     categoryCards,
     featuredProducts,
+    crazyDealsTitle,
     isActive,
     order,
   } = req.body;
@@ -208,10 +214,15 @@ export const updatePromoStrip = asyncHandler(async (req: Request, res: Response)
     promoStrip.headerCategorySlug = headerCategorySlug.toLowerCase();
   }
 
+  // Update banners if provided
+  if (banners !== undefined) {
+    promoStrip.banners = banners;
+  }
+
   // Validate dates if provided
   if (startDate || endDate) {
-    const start = startDate ? new Date(startDate) : promoStrip.startDate;
-    const end = endDate ? new Date(endDate) : promoStrip.endDate;
+    const start = startDate ? new Date(startDate) : (promoStrip.startDate || new Date());
+    const end = endDate ? new Date(endDate) : (promoStrip.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
     if (end <= start) {
       return res.status(400).json({
         success: false,
@@ -254,6 +265,7 @@ export const updatePromoStrip = asyncHandler(async (req: Request, res: Response)
 
   if (heading !== undefined) promoStrip.heading = heading;
   if (saleText !== undefined) promoStrip.saleText = saleText;
+  if (crazyDealsTitle !== undefined) promoStrip.crazyDealsTitle = crazyDealsTitle;
   if (isActive !== undefined) promoStrip.isActive = isActive;
   if (order !== undefined) promoStrip.order = order;
 

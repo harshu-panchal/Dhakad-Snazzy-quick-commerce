@@ -322,19 +322,24 @@ const handlePaymentCaptured = async (payload: any, io?: any) => {
             await payment.save();
 
             // Update order
-            const order = await Order.findByIdAndUpdate(payment.order, {
-                paymentStatus: 'Paid',
-                paymentId: razorpayPaymentId,
-            }, { new: true });
+            const order = await Order.findById(payment.order);
+            if (order) {
+                order.paymentStatus = 'Paid';
+                order.paymentId = razorpayPaymentId;
+                if (order.status === 'Pending') {
+                    order.status = 'Received';
+                }
+                await order.save();
 
-            // Only notify sellers if it wasn't already completed (to avoid duplicates if verify was also called)
-            if (!isAlreadyCompleted && io && order) {
-                try {
-                    const { notifySellersOfOrderUpdate } = await import('./sellerNotificationService');
-                    await notifySellersOfOrderUpdate(io, order, 'NEW_ORDER');
-                    console.log(`📢 [Online-Webhook] Seller notification sent for order ${order.orderNumber}`);
-                } catch (notifyError) {
-                    console.error("Failed to notify sellers after webhook capture:", notifyError);
+                // Only notify sellers if it wasn't already completed (to avoid duplicates if verify was also called)
+                if (!isAlreadyCompleted && io) {
+                    try {
+                        const { notifySellersOfOrderUpdate } = await import('./sellerNotificationService');
+                        await notifySellersOfOrderUpdate(io, order, 'NEW_ORDER');
+                        console.log(`📢 [Online-Webhook] Seller notification sent for order ${order.orderNumber}`);
+                    } catch (notifyError) {
+                        console.error("Failed to notify sellers after webhook capture:", notifyError);
+                    }
                 }
             }
         }
@@ -360,9 +365,18 @@ const handlePaymentFailed = async (payload: any) => {
             await payment.save();
 
             // Update order
-            await Order.findByIdAndUpdate(payment.order, {
-                paymentStatus: 'Failed',
-            });
+            const order = await Order.findById(payment.order);
+            if (order && order.status === 'Pending') {
+                const { restoreOrderInventoryAndCoupon } = await import('../modules/customer/controllers/customerOrderController');
+                await restoreOrderInventoryAndCoupon(order._id);
+                order.status = 'Cancelled';
+                order.paymentStatus = 'Failed';
+                order.cancellationReason = payload.error_description || 'Razorpay payment failed';
+                await order.save();
+            } else if (order) {
+                order.paymentStatus = 'Failed';
+                await order.save();
+            }
         }
     } catch (error) {
         console.error('Error handling payment failed:', error);

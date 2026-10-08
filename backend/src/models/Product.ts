@@ -20,6 +20,9 @@ export interface IProduct extends Document {
   mainImage?: string;
   galleryImages: string[];
 
+  // Video (optional product demo/showcase clip)
+  mainVideo?: string;
+
   // Pricing & Inventory
   price: number;
   discPrice?: number;
@@ -154,6 +157,12 @@ const ProductSchema = new Schema<IProduct>(
     galleryImages: {
       type: [String],
       default: [],
+    },
+
+    // Video
+    mainVideo: {
+      type: String,
+      trim: true,
     },
 
     // Pricing & Inventory
@@ -354,6 +363,11 @@ ProductSchema.pre("save", function (next) {
     this.galleryImages = this.galleryImages.map((img) =>
       typeof img === "string" && img.startsWith("/uploads/") ? ensureAbsoluteImageUrl(img) : img
     );
+  }
+
+  // Normalize mainVideo if relative
+  if (this.mainVideo && typeof this.mainVideo === "string" && this.mainVideo.startsWith("/uploads/")) {
+    this.mainVideo = ensureAbsoluteImageUrl(this.mainVideo);
   }
 
   // Sync price and stock from variations if they exist

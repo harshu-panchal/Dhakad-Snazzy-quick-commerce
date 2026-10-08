@@ -23,6 +23,7 @@ export interface SellerNotification {
     };
     items: Array<{
         productName: string;
+        productImage?: string;
         quantity: number;
         price: number;
         total: number;
@@ -33,7 +34,10 @@ export interface SellerNotification {
     timestamp: Date;
 }
 
-export const useSellerSocket = (onNotificationReceived?: (notification: SellerNotification) => void) => {
+export const useSellerSocket = (
+    onNotificationReceived?: (notification: SellerNotification) => void,
+    onConnect?: () => void,
+) => {
     const { user, token, isAuthenticated } = useAuth();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -51,6 +55,11 @@ export const useSellerSocket = (onNotificationReceived?: (notification: SellerNo
         const newSocket = io(socketUrl, {
             auth: { token },
             transports: ['websocket', 'polling'],
+            // Reconnect indefinitely so a screen lock / backgrounded app / dead zone
+            // doesn't permanently kill live order alerts (socket.io default is Infinity
+            // anyway, set explicitly so this doesn't silently regress).
+            reconnection: true,
+            reconnectionAttempts: Infinity,
         });
 
         newSocket.on('connect', () => {
@@ -59,6 +68,11 @@ export const useSellerSocket = (onNotificationReceived?: (notification: SellerNo
 
             // Join seller room
             newSocket.emit('join-seller-room', user.id);
+
+            // Re-fetch pending alerts on every (re)connect — not just the first mount —
+            // so an order that arrived while this socket was disconnected/reconnecting
+            // isn't missed until the page is manually refreshed.
+            onConnect?.();
         });
 
         newSocket.on('joined-seller-room', (data) => {

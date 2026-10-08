@@ -58,10 +58,10 @@ export interface DeliveryOrderAlert {
 
 function isSellerNotifiableOrder(order: any): boolean {
   if (!order) return false;
-  if (["Cancelled", "Rejected", "Returned"].includes(order.status)) return false;
+  if (["Cancelled", "Rejected", "Returned", "Pending"].includes(order.status)) return false;
 
   const isOnlinePayment =
-    order.paymentMethod === "Online" || order.paymentMethod === "razorpay";
+    order.paymentMethod && order.paymentMethod.toUpperCase() !== "COD";
   if (isOnlinePayment && order.paymentStatus !== "Paid") return false;
 
   return true;
@@ -69,6 +69,20 @@ function isSellerNotifiableOrder(order: any): boolean {
 
 /** Only rehydrate NEW_ORDER popups for recent pending orders (not historical backlog). */
 const SELLER_PENDING_ALERT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Delivery order offers expire after this window. Without a TTL, an offer the
+ * driver never acted on stays "pending" forever and gets re-surfaced on every
+ * socket reconnect — causing the same order popup to loop indefinitely.
+ */
+const DELIVERY_OFFER_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * Unread notifications are only rehydrated into alerts if they were created
+ * within this window. Older unread notifications are stale popup residue and
+ * must not resurrect an alert (and previously re-armed a pending offer).
+ */
+const DELIVERY_NOTIFICATION_ALERT_MAX_AGE_MS = 5 * 60 * 1000;
 
 export async function getSellerPendingOrderAlerts(
   sellerId: string,
@@ -118,8 +132,9 @@ export async function getSellerPendingOrderAlerts(
         address: order.deliveryAddress,
       },
       deliveryOption: order.deliveryOption || "Standard",
-      items: sellerItems.map((item) => ({
+      items: sellerItems.map((item: any) => ({
         productName: item.productName,
+        productImage: item.productImage || item.product?.mainImage || (item.product?.galleryImages && item.product?.galleryImages[0]),
         quantity: item.quantity,
         price: item.unitPrice,
         total: item.total,
@@ -139,20 +154,27 @@ export async function getDeliveryPendingOrderAlerts(
   const deliveryObjectId = new mongoose.Types.ObjectId(deliveryBoyId);
   const orderIdSet = new Set<string>();
 
+  const offerCutoff = new Date(Date.now() - DELIVERY_OFFER_TTL_MS);
   const pendingOffers = await DeliveryOrderOffer.find({
     deliveryBoy: deliveryObjectId,
     status: "pending",
+    notifiedAt: { $gte: offerCutoff }, // Expire stale offers — never re-surface old popups
   })
     .sort({ notifiedAt: -1 })
     .lean();
 
   pendingOffers.forEach((offer) => orderIdSet.add(offer.order.toString()));
 
+  const notifCutoff = new Date(Date.now() - DELIVERY_NOTIFICATION_ALERT_MAX_AGE_MS);
+  // Unread notifications whose order actually surfaces as an alert get marked
+  // read below — prevents them re-feeding the alert loop on next reconnect.
+  const surfacedNotificationIds: string[] = [];
   const unreadOrderNotifications = await Notification.find({
     recipientType: "Delivery",
     recipientId: deliveryObjectId,
     type: "Order",
     isRead: false,
+    createdAt: { $gte: notifCutoff }, // Stale unread notifications must not resurrect alerts
     link: { $regex: /^\/delivery\/orders\// },
   })
     .sort({ createdAt: -1 })
@@ -163,6 +185,7 @@ export async function getDeliveryPendingOrderAlerts(
     const match = notification.link?.match(/\/delivery\/orders\/([^/?#]+)/);
     if (match?.[1]) {
       orderIdSet.add(match[1]);
+      surfacedNotificationIds.push(notification._id.toString());
     }
   }
 
@@ -176,7 +199,7 @@ export async function getDeliveryPendingOrderAlerts(
       { deliveryBoy: null },
       { deliveryBoy: deliveryObjectId },
     ],
-    status: { $nin: ["Cancelled", "Rejected", "Returned", "Delivered"] },
+    status: { $nin: ["Cancelled", "Rejected", "Returned", "Delivered", "Pending"] },
   }).lean();
 
   const offerMap = new Map(
@@ -185,6 +208,11 @@ export async function getDeliveryPendingOrderAlerts(
   const alerts: DeliveryOrderAlert[] = [];
 
   for (const order of orders) {
+    const isOnlinePayment = order.paymentMethod && order.paymentMethod.toUpperCase() !== "COD";
+    if (isOnlinePayment && order.paymentStatus !== "Paid") {
+      continue;
+    }
+
     const orderId = order._id.toString();
 
     const rejectedOffer = await DeliveryOrderOffer.findOne({
@@ -197,14 +225,17 @@ export async function getDeliveryPendingOrderAlerts(
       continue;
     }
 
+    // Orders surfaced only via an unread notification (no live pending offer)
+    // are stale — an alert read endpoint must never create new offers.
+    const hasLiveOffer = offerMap.has(orderId);
+    if (!hasLiveOffer) {
+      continue;
+    }
+
     const offer = offerMap.get(orderId);
     const deliveryBoyEarning =
       offer?.deliveryBoyEarning ??
       (await calculateEstimatedDeliveryBoyEarning(order));
-
-    if (!offer) {
-      await upsertDeliveryOrderOffers(orderId, [deliveryBoyId], deliveryBoyEarning);
-    }
 
     alerts.push({
       orderId,
@@ -225,6 +256,18 @@ export async function getDeliveryPendingOrderAlerts(
       createdAt: order.createdAt?.toISOString?.() || new Date().toISOString(),
       type: order.deliveryOption,
     });
+  }
+
+  // Mark surfaced notifications as read so they cannot re-feed the alert
+  // cycle on the next reconnect (unread notifications were one of the
+  // sources that kept resurrecting the same popup).
+  if (surfacedNotificationIds.length > 0) {
+    await Notification.updateMany(
+      { _id: { $in: surfacedNotificationIds.map((id) => new mongoose.Types.ObjectId(id)) } },
+      { $set: { isRead: true, readAt: new Date() } },
+    ).catch((err) =>
+      console.error("Failed to mark surfaced delivery notifications as read:", err.message),
+    );
   }
 
   return alerts;

@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { uploadImage, uploadImages } from "../../../services/api/uploadService";
+import { uploadImage, uploadImages, uploadVideo } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
   compressImage,
 } from "../../../utils/imageUpload";
+import {
+  validateVideoFile,
+  createVideoPreview,
+  revokeVideoPreview,
+} from "../../../utils/videoUpload";
+import { isVideoUrl } from "../../../utils/media";
 import {
   createProduct,
   updateProduct,
@@ -57,6 +63,7 @@ export default function SellerAddProduct() {
     totalAllowedQuantity: "10",
     mainImageUrl: "",
     galleryImageUrls: [] as string[],
+    mainVideoUrl: "",
     isShopByStoreOnly: "No",
     shopId: "",
   });
@@ -72,10 +79,13 @@ export default function SellerAddProduct() {
 
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
+  const [mainImageIsVideo, setMainImageIsVideo] = useState(false);
   const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
   const [galleryImagePreviews, setGalleryImagePreviews] = useState<string[]>(
     []
   );
+  const [mainVideoFile, setMainVideoFile] = useState<File | null>(null);
+  const [mainVideoPreview, setMainVideoPreview] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string>("");
@@ -189,17 +199,23 @@ export default function SellerAddProduct() {
                 product.totalAllowedQuantity?.toString() || "10",
               mainImageUrl: product.mainImageUrl || product.mainImage || "",
               galleryImageUrls: product.galleryImageUrls || [],
+              mainVideoUrl: product.mainVideoUrl || product.mainVideo || "",
               isShopByStoreOnly: (product as any).isShopByStoreOnly ? "Yes" : "No",
               shopId: (product as any).shopId?._id || (product as any).shopId || "",
             });
             setVariations(product.variations);
             if (product.mainImageUrl || product.mainImage) {
-              setMainImagePreview(
-                product.mainImageUrl || product.mainImage || ""
-              );
+              const existingMainImage = product.mainImageUrl || product.mainImage || "";
+              setMainImagePreview(existingMainImage);
+              setMainImageIsVideo(isVideoUrl(existingMainImage));
             }
             if (product.galleryImageUrls) {
               setGalleryImagePreviews(product.galleryImageUrls);
+            }
+            if (product.mainVideoUrl || product.mainVideo) {
+              setMainVideoPreview(
+                product.mainVideoUrl || product.mainVideo || ""
+              );
             }
           }
         } catch (err) {
@@ -302,14 +318,25 @@ export default function SellerAddProduct() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const validation = validateImageFile(file);
+    const isVideo = file.type.startsWith("video/");
+    const validation = isVideo ? validateVideoFile(file) : validateImageFile(file);
     if (!validation.valid) {
-      setUploadError(validation.error || "Invalid image file");
+      setUploadError(validation.error || `Invalid ${isVideo ? "video" : "image"} file`);
       return;
     }
 
+    if (mainImageIsVideo && mainImagePreview) {
+      revokeVideoPreview(mainImagePreview);
+    }
+
     setMainImageFile(file);
+    setMainImageIsVideo(isVideo);
     setUploadError("");
+
+    if (isVideo) {
+      setMainImagePreview(createVideoPreview(file));
+      return;
+    }
 
     try {
       const preview = await createImagePreview(file);
@@ -354,6 +381,36 @@ export default function SellerAddProduct() {
   const removeGalleryImage = (index: number) => {
     setGalleryImageFiles((prev) => prev.filter((_, i) => i !== index));
     setGalleryImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMainVideoChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateVideoFile(file);
+    if (!validation.valid) {
+      setUploadError(validation.error || "Invalid video file");
+      return;
+    }
+
+    if (mainVideoPreview) {
+      revokeVideoPreview(mainVideoPreview);
+    }
+
+    setMainVideoFile(file);
+    setMainVideoPreview(createVideoPreview(file));
+    setUploadError("");
+  };
+
+  const removeMainVideo = () => {
+    if (mainVideoPreview) {
+      revokeVideoPreview(mainVideoPreview);
+    }
+    setMainVideoFile(null);
+    setMainVideoPreview("");
+    setFormData((prev) => ({ ...prev, mainVideoUrl: "" }));
   };
 
   const addVariation = () => {
@@ -423,15 +480,23 @@ export default function SellerAddProduct() {
       let mainImageUrl = formData.mainImageUrl;
       let galleryImageUrls = [...formData.galleryImageUrls];
 
-      // Upload main image if provided
+      // Upload main image (or video) if provided
       if (mainImageFile) {
-        // Compress image before upload to avoid timeouts
-        const compressedMainImage = await compressImage(mainImageFile);
-        const mainImageResult = await uploadImage(
-          compressedMainImage,
-          "dhakadsnazzy/products"
-        );
-        mainImageUrl = mainImageResult.secureUrl;
+        if (mainImageIsVideo) {
+          const mainImageResult = await uploadVideo(
+            mainImageFile,
+            "dhakadsnazzy/products"
+          );
+          mainImageUrl = mainImageResult.secureUrl;
+        } else {
+          // Compress image before upload to avoid timeouts
+          const compressedMainImage = await compressImage(mainImageFile);
+          const mainImageResult = await uploadImage(
+            compressedMainImage,
+            "dhakadsnazzy/products"
+          );
+          mainImageUrl = mainImageResult.secureUrl;
+        }
         setFormData((prev) => ({
           ...prev,
           mainImageUrl,
@@ -450,6 +515,18 @@ export default function SellerAddProduct() {
         );
         galleryImageUrls = galleryResults.map((result) => result.secureUrl);
         setFormData((prev) => ({ ...prev, galleryImageUrls }));
+      }
+
+      let mainVideoUrl = formData.mainVideoUrl;
+
+      // Upload main video if provided
+      if (mainVideoFile) {
+        const videoResult = await uploadVideo(
+          mainVideoFile,
+          "dhakadsnazzy/products/videos"
+        );
+        mainVideoUrl = videoResult.secureUrl;
+        setFormData((prev) => ({ ...prev, mainVideoUrl }));
       }
 
       // Validate variations
@@ -487,6 +564,7 @@ export default function SellerAddProduct() {
         fssaiLicNo: formData.fssaiLicNo || undefined,
         mainImageUrl: mainImageUrl || undefined,
         galleryImageUrls,
+        mainVideoUrl: mainVideoUrl || undefined,
         variations: variations,
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
@@ -533,14 +611,24 @@ export default function SellerAddProduct() {
               totalAllowedQuantity: "10",
               mainImageUrl: "",
               galleryImageUrls: [],
+              mainVideoUrl: "",
               isShopByStoreOnly: "No",
               shopId: "",
             });
             setVariations([]);
+            if (mainImageIsVideo && mainImagePreview) {
+              revokeVideoPreview(mainImagePreview);
+            }
             setMainImageFile(null);
             setMainImagePreview("");
+            setMainImageIsVideo(false);
             setGalleryImageFiles([]);
             setGalleryImagePreviews([]);
+            if (mainVideoPreview) {
+              revokeVideoPreview(mainVideoPreview);
+            }
+            setMainVideoFile(null);
+            setMainVideoPreview("");
           }
           setSuccessMessage("");
           // Navigate to product list
@@ -1108,16 +1196,24 @@ export default function SellerAddProduct() {
               )}
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Product Main Image <span className="text-red-500">*</span>
+                  Product Main Image or Video <span className="text-red-500">*</span>
                 </label>
                 <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
                   {mainImagePreview ? (
-                    <div className="space-y-2">
-                      <img
-                        src={mainImagePreview}
-                        alt="Main product preview"
-                        className="max-h-48 mx-auto rounded-lg object-cover"
-                      />
+                    <div className="space-y-2" onClick={(e) => mainImageIsVideo && e.preventDefault()}>
+                      {mainImageIsVideo ? (
+                        <video
+                          src={mainImagePreview}
+                          controls
+                          className="max-h-48 mx-auto rounded-lg"
+                        />
+                      ) : (
+                        <img
+                          src={mainImagePreview}
+                          alt="Main product preview"
+                          className="max-h-48 mx-auto rounded-lg object-cover"
+                        />
+                      )}
                       <p className="text-sm text-neutral-600">
                         {mainImageFile?.name}
                       </p>
@@ -1125,8 +1221,13 @@ export default function SellerAddProduct() {
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
+                          if (mainImageIsVideo && mainImagePreview) {
+                            revokeVideoPreview(mainImagePreview);
+                          }
                           setMainImageFile(null);
                           setMainImagePreview("");
+                          setMainImageIsVideo(false);
+                          setFormData((prev) => ({ ...prev, mainImageUrl: "" }));
                         }}
                         className="text-sm text-red-600 hover:text-red-700">
                         Remove
@@ -1149,16 +1250,16 @@ export default function SellerAddProduct() {
                         <line x1="12" y1="3" x2="12" y2="15"></line>
                       </svg>
                       <p className="text-sm text-neutral-600 font-medium">
-                        Upload Main Image
+                        Upload Main Image or Video
                       </p>
                       <p className="text-xs text-neutral-500 mt-1">
-                        Max 50MB, JPG/PNG/WEBP
+                        Image: max 50MB, JPG/PNG/WEBP. Video: max 50MB, MP4/WEBM/MOV — plays automatically on product cards.
                       </p>
                     </div>
                   )}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/mp4,video/webm,video/quicktime"
                     onChange={handleMainImageChange}
                     className="hidden"
                     disabled={uploading}
@@ -1262,6 +1363,63 @@ export default function SellerAddProduct() {
                     disabled={uploading}
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Product Video (Optional)
+                </label>
+                <label className="block border-2 border-dashed border-neutral-300 rounded-lg p-8 text-center hover:border-teal-500 transition-colors cursor-pointer">
+                  {mainVideoPreview ? (
+                    <div className="space-y-2" onClick={(e) => e.preventDefault()}>
+                      <video
+                        src={mainVideoPreview}
+                        controls
+                        className="max-h-48 mx-auto rounded-lg"
+                      />
+                      <p className="text-sm text-neutral-600">
+                        {mainVideoFile?.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          removeMainVideo();
+                        }}
+                        className="text-sm text-red-600 hover:text-red-700">
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mx-auto mb-2 text-neutral-400">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
+                      <p className="text-sm text-neutral-600 font-medium">
+                        Upload Product Video
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-1">
+                        Max 50MB, MP4/WEBM/MOV
+                      </p>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    onChange={handleMainVideoChange}
+                    className="hidden"
+                    disabled={uploading}
+                  />
+                </label>
               </div>
             </div>
           </div>

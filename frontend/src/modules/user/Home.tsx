@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHero from "./components/HomeHero";
 import PromoStrip from "./components/PromoStrip";
+import LowestPricesEver from "./components/LowestPricesEver";
 import CategoryTileSection from "./components/CategoryTileSection";
 import FeaturedThisWeek from "./components/FeaturedThisWeek";
 import ProductCard from "./components/ProductCard";
@@ -31,6 +32,8 @@ export default function Home() {
     promoBanners: [],
     trending: [],
     cookingIdeas: [],
+    bestsellers: [],
+    lowestPrices: [],
   });
 
   const [products, setProducts] = useState<any[]>([]);
@@ -60,7 +63,11 @@ export default function Home() {
         const response = await getHomeContent(
           slug,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          true,
+          5 * 60 * 1000,
+          false,
+          location?.city
         );
         if (response.success && response.data) {
           setHomeData(response.data);
@@ -79,7 +86,7 @@ export default function Home() {
 
     fetchData();
 
-  }, [location?.latitude, location?.longitude, activeTab]);
+  }, [location?.latitude, location?.longitude, location?.city, activeTab]);
 
   // Restore scroll position when returning to this page
   useEffect(() => {
@@ -199,6 +206,21 @@ export default function Home() {
       {/* Promo Strip */}
       <PromoStrip activeTab={activeTab} />
 
+      {/* Lowest Prices Ever Section(s) - Location Specific */}
+      {homeData.lowestPricesSections && homeData.lowestPricesSections.length > 0 ? (
+        homeData.lowestPricesSections.map((section: any) => (
+          <LowestPricesEver
+            key={section._id}
+            activeTab={activeTab}
+            products={section.products}
+            title={section.title}
+            city={section.city}
+          />
+        ))
+      ) : (
+        <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
+      )}
+
 
       {/* Main content */}
       <div
@@ -214,6 +236,7 @@ export default function Home() {
               if (section.displayType === "products" && section.data && section.data.length > 0) {
                 // Strict column mapping as requested - applies to ALL screen sizes including mobile
                 const gridClass = {
+                  1: "grid-cols-1",
                   2: "grid-cols-2",
                   3: "grid-cols-3",
                   4: "grid-cols-4",
@@ -233,12 +256,12 @@ export default function Home() {
                       </h2>
                     )}
                     <div className="px-4 md:px-6 lg:px-8">
-                      <div className={`grid ${gridClass} ${gapClass}`}>
+                      <div className={`grid ${gridClass} ${gapClass} ${columnCount === 1 ? "max-w-2xl mx-auto" : ""}`}>
                         {section.data.map((product: any) => (
                           <ProductCard
                             key={product.id || product._id}
                             product={product}
-                            categoryStyle={true}
+                            categoryStyle={columnCount !== 1}
                             showBadge={true}
                             showPackBadge={false}
                             showStockInfo={false}
@@ -256,7 +279,7 @@ export default function Home() {
                   key={section.id}
                   title={section.title}
                   tiles={section.data || []}
-                  columns={columnCount as 2 | 3 | 4 | 6 | 8}
+                  columns={columnCount as 1 | 2 | 3 | 4 | 6 | 8}
                   showProductCount={false}
                 />
               );
@@ -290,7 +313,25 @@ export default function Home() {
 
         {activeTab === "all" && (
           <>
-
+            {/* Bestsellers Section */}
+            {homeData.bestsellers && homeData.bestsellers.length > 0 && (
+              <div className="mt-2 md:mt-4">
+                <CategoryTileSection
+                  title="Bestsellers"
+                  tiles={homeData.bestsellers
+                    .slice(0, 6)
+                    .map((card: any) => ({
+                      id: card.id,
+                      categoryId: card.categoryId,
+                      name: card.name || "Category",
+                      productImages: card.productImages || [],
+                      productCount: card.productCount || 0,
+                    }))}
+                  columns={3}
+                  showProductCount={true}
+                />
+              </div>
+            )}
 
             {/* Featured this week Section */}
             <FeaturedThisWeek />

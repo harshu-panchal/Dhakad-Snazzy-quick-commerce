@@ -8,6 +8,8 @@ import {
   getCommissions,
   createAdminPayoutOrder,
   verifyAdminPayout,
+  createAdminPayoutOrderCashfree,
+  verifyAdminPayoutCashfree,
 } from "../modules/delivery/controllers/deliveryWalletController";
 
 const router = Router();
@@ -28,7 +30,11 @@ router.get("/withdrawals", getWithdrawals);
 // Commission earnings
 router.get("/commissions", getCommissions);
 
-// Admin Payout (COD collected)
+// Admin Payout via Cashfree (PRIMARY gateway)
+router.post("/admin-payout/cashfree/create", createAdminPayoutOrderCashfree);
+router.post("/admin-payout/cashfree/verify", verifyAdminPayoutCashfree);
+
+// Admin Payout via Razorpay (SECONDARY / fallback gateway)
 router.post("/admin-payout/create", createAdminPayoutOrder);
 router.post("/admin-payout/verify", verifyAdminPayout);
 

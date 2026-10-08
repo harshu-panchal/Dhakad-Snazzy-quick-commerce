@@ -418,6 +418,7 @@ export const getOrderById = asyncHandler(
       return {
         srNo: item._id.toString().slice(-4), // Use last 4 chars of ID as srNo
         product: item.productName || "Unknown Product",
+        productImage: item.productImage || (item.product as any)?.mainImage || ((item.product as any)?.galleryImages && (item.product as any)?.galleryImages[0]),
         soldBy: (item.seller as any)?.storeName || "N/A",
         unit: unit,
         price: item.unitPrice || 0,

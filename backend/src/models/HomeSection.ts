@@ -54,7 +54,7 @@ const HomeSectionSchema = new Schema<IHomeSection>(
         columns: {
             type: Number,
             required: [true, "Number of columns is required"],
-            min: [2, "Minimum 2 columns required"],
+            min: [1, "Minimum 1 column required"],
             max: [8, "Maximum 8 columns allowed"],
             default: 4,
         },
