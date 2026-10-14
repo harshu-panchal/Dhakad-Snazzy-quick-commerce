@@ -49,6 +49,7 @@ import {
   cancelOrder,
   cancelPendingOrder,
   updateOrderNotes,
+  getPaymentConfig,
 } from "../modules/customer/controllers/customerOrderController";
 
 const router = Router();
@@ -118,6 +119,7 @@ router.post(
   requireUserType("Customer"),
   createOrder
 );
+router.get("/customer/orders/payment-config", authenticate, requireUserType("Customer"), getPaymentConfig);
 router.get("/customer/orders", authenticate, requireUserType("Customer"), getMyOrders);
 router.get("/customer/orders/:id", authenticate, requireUserType("Customer"), getOrderById);
 router.post("/customer/orders/:id/cancel", authenticate, requireUserType("Customer"), cancelOrder);
