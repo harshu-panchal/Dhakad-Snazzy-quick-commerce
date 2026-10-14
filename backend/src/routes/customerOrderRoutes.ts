@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createOrder, getMyOrders, getOrderById, refreshDeliveryOtp } from "../modules/customer/controllers/customerOrderController";
+import { createOrder, getMyOrders, getOrderById, refreshDeliveryOtp, getPaymentConfig } from "../modules/customer/controllers/customerOrderController";
 import { authenticate } from "../middleware/auth";
 
 const router = Router();
@@ -9,6 +9,7 @@ console.log('customerOrderRoutes is being loaded');
 // Protected routes (must be logged in)
 router.use(authenticate);
 
+router.get("/payment-config", getPaymentConfig);
 router.post("/", createOrder);
 router.get("/", getMyOrders);
 router.get("/:id", getOrderById);

@@ -107,6 +107,18 @@ export const restoreOrderInventoryAndCoupon = async (
   }
 };
 
+// Get which payment methods are currently enabled (used by checkout to show/hide COD)
+export const getPaymentConfig = async (_req: Request, res: Response) => {
+  const settings = await AppSettings.getSettings();
+  return res.status(200).json({
+    success: true,
+    message: "Payment config fetched successfully",
+    data: {
+      codEnabled: settings.paymentMethods?.cod !== false,
+    },
+  });
+};
+
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
   let session: mongoose.ClientSession | null = null;
@@ -265,6 +277,17 @@ export const createOrder = async (req: Request, res: Response) => {
     // Determine if this is Cash on Delivery or Online payment
     const isCod = isPaymentMethodCod(paymentMethod);
 
+    // Pre-fetch settings for various calculations (also used below for COD gating)
+    const settings = await AppSettings.getSettings();
+
+    if (isCod && settings.paymentMethods?.cod === false) {
+      if (session) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Cash on Delivery is currently unavailable. Please choose another payment method.",
+      });
+    }
+
     // Initialize Order first to get an ID
     const newOrder = new Order({
       customer: new mongoose.Types.ObjectId(userId),
@@ -296,9 +319,6 @@ export const createOrder = async (req: Request, res: Response) => {
       sellerConfirmationStatus: "Pending",
       deliveryAssignmentStatus: "NotStarted",
     });
-
-    // Pre-fetch settings for various calculations
-    const settings = await AppSettings.getSettings();
 
     let calculatedSubtotal = 0;
     const orderItemIds: mongoose.Types.ObjectId[] = [];

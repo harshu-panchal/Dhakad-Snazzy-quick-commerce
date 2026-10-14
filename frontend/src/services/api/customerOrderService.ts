@@ -50,6 +50,14 @@ export interface MyOrdersParams {
 }
 
 /**
+ * Get which payment methods are currently enabled (e.g. whether COD is on)
+ */
+export const getPaymentConfig = async (): Promise<{ success: boolean; data: { codEnabled: boolean } }> => {
+    const response = await api.get('/customer/orders/payment-config');
+    return response.data;
+};
+
+/**
  * Create a new order
  */
 export const createOrder = async (data: CreateOrderData): Promise<OrderResponse> => {

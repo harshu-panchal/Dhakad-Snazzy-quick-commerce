@@ -28,6 +28,7 @@ export default function AdminBillingSettings() {
 
     // Feature Flags
     const [showSellerDetails, setShowSellerDetails] = useState<boolean>(true);
+    const [codEnabled, setCodEnabled] = useState<boolean>(true);
 
     useEffect(() => {
         fetchSettings();
@@ -62,6 +63,10 @@ export default function AdminBillingSettings() {
 
                 if (data.features) {
                     setShowSellerDetails(data.features.showSellerDetails ?? true);
+                }
+
+                if (data.paymentMethods) {
+                    setCodEnabled(data.paymentMethods.cod ?? true);
                 }
             }
         } catch (error: any) {
@@ -99,6 +104,15 @@ export default function AdminBillingSettings() {
                         coupons: true,
                     }),
                     showSellerDetails: showSellerDetails
+                },
+                paymentMethods: {
+                    ...(settings?.paymentMethods || {
+                        cod: true,
+                        online: true,
+                        wallet: true,
+                        upi: true,
+                    }),
+                    cod: codEnabled
                 }
             };
 
@@ -402,6 +416,29 @@ export default function AdminBillingSettings() {
                                 type="checkbox" 
                                 checked={showSellerDetails}
                                 onChange={(e) => setShowSellerDetails(e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
+                </div>
+
+                {/* Payment Settings Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Payment Settings</h2>
+                    <p className="text-sm text-gray-500 mb-6">Control which payment options customers can use at checkout.</p>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
+                        <div className="flex-1 pr-4">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Cash on Delivery (COD)</h3>
+                            <p className="text-xs text-gray-500">When enabled, customers can choose to pay with cash when the order is delivered. Turn off to accept only online payments.</p>
+                        </div>
+
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={codEnabled}
+                                onChange={(e) => setCodEnabled(e.target.checked)}
                                 className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>

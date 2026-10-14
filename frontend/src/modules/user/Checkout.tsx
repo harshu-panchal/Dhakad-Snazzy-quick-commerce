@@ -35,7 +35,7 @@ import { getProducts } from "../../services/api/customerProductService";
 import { addToWishlist } from "../../services/api/customerWishlistService";
 import { updateProfile } from "../../services/api/customerService";
 import { calculateProductPrice } from "../../utils/priceUtils";
-import { cancelPendingOrder } from "../../services/api/customerOrderService";
+import { cancelPendingOrder, getPaymentConfig } from "../../services/api/customerOrderService";
 import RazorpayCheckout from "../../components/RazorpayCheckout";
 import CashfreeCheckout from "../../components/CashfreeCheckout";
 
@@ -146,9 +146,23 @@ export default function Checkout() {
   const [isMapSelected, setIsMapSelected] = useState(false);
 
   // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState<"Cashfree" | "Razorpay">(
+  const [paymentMethod, setPaymentMethod] = useState<"Cashfree" | "Razorpay" | "COD">(
     "Cashfree",
   );
+  const [codEnabled, setCodEnabled] = useState(false);
+
+  useEffect(() => {
+    getPaymentConfig()
+      .then((res) => setCodEnabled(!!res?.data?.codEnabled))
+      .catch((err) => console.error("Failed to fetch payment config:", err));
+  }, []);
+
+  // If COD gets disabled by the admin while it's selected, fall back to online payment
+  useEffect(() => {
+    if (!codEnabled && paymentMethod === "COD") {
+      setPaymentMethod("Cashfree");
+    }
+  }, [codEnabled, paymentMethod]);
 
   // Order Processing State
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
@@ -642,6 +656,16 @@ export default function Checkout() {
         } else if (paymentMethod === "Razorpay") {
           setPendingOrderId(placedId);
           setShowRazorpayCheckout(true);
+        } else if (paymentMethod === "COD") {
+          setPlacedOrderId(placedId);
+          clearCart();
+          try {
+            await fetchOrders();
+          } catch (err) {
+            console.error("Failed to refresh orders after placing COD order:", err);
+          }
+          setShowOrderSuccess(true);
+          showGlobalToast("Order placed successfully!", "success");
         }
       }
     } catch (error: any) {
@@ -1915,6 +1939,57 @@ export default function Checkout() {
               )}
             </div>
           </div>
+
+          {/* Cash on Delivery */}
+          {codEnabled && (
+            <div
+              onClick={() => setPaymentMethod("COD")}
+              className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
+                paymentMethod === "COD"
+                  ? "border-green-600 bg-green-50/70 shadow-xs"
+                  : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
+              }`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                    paymentMethod === "COD"
+                      ? "bg-green-600 text-white"
+                      : "bg-neutral-100 text-neutral-600"
+                  }`}>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 3" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-xs font-bold text-neutral-900">
+                    Cash on Delivery
+                  </span>
+                  <p className="text-[10px] text-neutral-500 truncate">
+                    Pay with cash when your order arrives
+                  </p>
+                </div>
+              </div>
+              <div
+                className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
+                  paymentMethod === "COD"
+                    ? "border-green-600 bg-green-600"
+                    : "border-neutral-300 bg-white"
+                }`}>
+                {paymentMethod === "COD" && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
