@@ -23,6 +23,7 @@ export interface Order {
 export interface OrderItem {
   srNo: string;
   product: string;
+  productImage?: string;
   soldBy: string;
   unit: string;
   price: number;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SellerNotification } from '../hooks/useSellerSocket';
 import { updateOrderStatus } from '../../../services/api/orderService';
 import { useNavigate } from 'react-router-dom';
+import MediaThumbnail from '../../../components/ui/MediaThumbnail';
 
 interface SellerNotificationAlertProps {
   notification: SellerNotification | null;
@@ -178,15 +179,33 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
             <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider mb-3">Order Items</h3>
             <div className="space-y-3">
               {notification.items.map((item, index) => (
-                <div key={index} className="flex justify-between items-start py-2 border-b border-neutral-100 last:border-0">
-                  <div className="flex-1">
-                    <p className="font-medium text-neutral-800">{item.productName}</p>
+                <div key={index} className="flex items-center gap-3 py-2 border-b border-neutral-100 last:border-0">
+                  {item.productImage ? (
+                    <MediaThumbnail
+                      src={item.productImage}
+                      alt={item.productName}
+                      className="w-16 h-16 object-cover rounded-lg border border-neutral-200 flex-shrink-0"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-16 h-16 bg-neutral-100 rounded-lg flex items-center justify-center text-neutral-400 flex-shrink-0">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-neutral-800 truncate">{item.productName}</p>
                     <p className="text-sm text-neutral-500">
                       Qty: {item.quantity} × ₹{item.price.toFixed(2)}
                       {item.variation && <span className="ml-2 px-1.5 py-0.5 bg-neutral-100 rounded text-[10px]">{item.variation}</span>}
                     </p>
                   </div>
-                  <p className="font-bold text-neutral-800">₹{item.total.toFixed(2)}</p>
+                  <p className="font-bold text-neutral-800 flex-shrink-0">₹{item.total.toFixed(2)}</p>
                 </div>
               ))}
 

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
     getHomeSections,
     createHomeSection,
@@ -16,7 +16,7 @@ const DISPLAY_TYPE_OPTIONS = [
     { value: "categories", label: "Categories" },
 ];
 
-const COLUMNS_OPTIONS = [2, 3, 4, 6, 8];
+const COLUMNS_OPTIONS = [1, 2, 3, 4, 6, 8];
 
 export default function AdminHomeSection() {
     // Form state
@@ -40,6 +40,7 @@ export default function AdminHomeSection() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
     const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+    const [loadingSubCategories, setLoadingSubCategories] = useState(false);
 
     // UI state
     const [loading, setLoading] = useState(false);
@@ -99,9 +100,9 @@ export default function AdminHomeSection() {
         }
     }, [editingId, displayType, selectedCategories, categories, selectedHeaderCategory]);
 
-    // Fetch subcategories when category changes (only for subcategories display type)
+    // Fetch subcategories when category changes (for subcategories and products display types)
     useEffect(() => {
-        if (displayType === "subcategories" && selectedCategories.length > 0) {
+        if (displayType !== "categories" && selectedCategories.length > 0) {
             fetchSubCategories(selectedCategories);
         } else {
             setSubCategories([]);
@@ -157,6 +158,7 @@ export default function AdminHomeSection() {
 
     const fetchSubCategories = async (categoryIds: string[]) => {
         try {
+            setLoadingSubCategories(true);
             const promises = categoryIds.map((id) => getSubcategories(id));
             const results = await Promise.all(promises);
             const allSubs: SubCategory[] = [];
@@ -173,6 +175,8 @@ export default function AdminHomeSection() {
         } catch (err) {
             console.error("Error fetching subcategories:", err);
             setSubCategories([]);
+        } finally {
+            setLoadingSubCategories(false);
         }
     };
 
@@ -574,6 +578,11 @@ export default function AdminHomeSection() {
                                         }`}>
                                         {selectedCategories.length === 0 ? (
                                             <p className="text-sm text-neutral-400 p-2">Select categories first</p>
+                                        ) : loadingSubCategories ? (
+                                            <p className="text-sm text-neutral-500 p-2 flex items-center gap-2">
+                                                <span className="inline-block animate-spin h-3.5 w-3.5 border-2 border-teal-600 border-t-transparent rounded-full"></span>
+                                                Loading subcategories...
+                                            </p>
                                         ) : subCategories.length === 0 ? (
                                             <p className="text-sm text-neutral-400 p-2">No subcategories available</p>
                                         ) : (
@@ -620,7 +629,7 @@ export default function AdminHomeSection() {
                                 >
                                     {COLUMNS_OPTIONS.map((col) => (
                                         <option key={col} value={col}>
-                                            {col} Columns
+                                            {col} {col === 1 ? "Column" : "Columns"}
                                         </option>
                                     ))}
                                 </select>

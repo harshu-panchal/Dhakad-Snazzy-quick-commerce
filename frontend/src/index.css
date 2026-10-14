@@ -95,3 +95,31 @@ video {
   z-index: 99999 !important;
 }
 
+/* Lowest Prices Ever Infinite Marquee Animation */
+@keyframes marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-100%, 0, 0);
+  }
+}
+
+.animate-marquee-scroll {
+  animation: marquee-scroll var(--marquee-duration, 50s) linear infinite;
+  will-change: transform;
+}
+
+.marquee-wrapper:hover .animate-marquee-scroll,
+.marquee-wrapper:focus-within .animate-marquee-scroll,
+.marquee-wrapper.is-paused .animate-marquee-scroll {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-scroll {
+    animation-play-state: paused !important;
+  }
+}
+
+

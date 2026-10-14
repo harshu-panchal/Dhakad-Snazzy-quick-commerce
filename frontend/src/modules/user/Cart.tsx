@@ -5,6 +5,7 @@ import Button from '../../components/ui/button';
 import { appConfig } from '../../services/configService';
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { getOptimizedImageUrl } from '../../utils/cloudinary';
+import MediaThumbnail from '../../components/ui/MediaThumbnail';
 
 export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
@@ -76,7 +77,7 @@ export default function Cart() {
                 {/* Product Image */}
                 <div className="w-20 h-20 md:w-24 md:h-24 bg-neutral-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   {item.product.imageUrl ? (
-                    <img
+                    <MediaThumbnail
                       src={getOptimizedImageUrl(item.product.imageUrl, { width: 200 })}
                       alt={item.product.name}
                       className="w-full h-full object-cover rounded-lg"

@@ -9,6 +9,7 @@ import StarRating from '../../../components/ui/StarRating';
 
 import { calculateProductPrice } from '../../../utils/priceUtils';
 import { getOptimizedImageUrl } from '../../../utils/cloudinary';
+import { isVideoUrl } from '../../../utils/media';
 
 interface ProductCardProps {
   product: Product;
@@ -207,26 +208,38 @@ function ProductCard({
       >
         <div className={imageContainerClassName}>
           {product.imageUrl || product.mainImage ? (
-            <img
-              ref={imageRef}
-              src={thumbnailUrl}
-              alt={product.name || product.productName || 'Product'}
-              className="w-full h-full object-cover"
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                // Hide broken image and show fallback
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                const parent = target.parentElement;
-                if (parent && !parent.querySelector('.fallback-icon')) {
-                  const fallback = document.createElement('div');
-                  fallback.className = 'w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl fallback-icon';
-                  fallback.textContent = (product.name || product.productName || '?').charAt(0).toUpperCase();
-                  parent.appendChild(fallback);
-                }
-              }}
-            />
+            isVideoUrl(thumbnailUrl) ? (
+              <video
+                src={thumbnailUrl}
+                className="w-full h-full object-cover"
+                autoPlay
+                loop
+                muted
+                playsInline
+                preload="metadata"
+              />
+            ) : (
+              <img
+                ref={imageRef}
+                src={thumbnailUrl}
+                alt={product.name || product.productName || 'Product'}
+                className="w-full h-full object-cover"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  // Hide broken image and show fallback
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent && !parent.querySelector('.fallback-icon')) {
+                    const fallback = document.createElement('div');
+                    fallback.className = 'w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl fallback-icon';
+                    fallback.textContent = (product.name || product.productName || '?').charAt(0).toUpperCase();
+                    parent.appendChild(fallback);
+                  }
+                }}
+              />
+            )
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl">
               {(product.name || product.productName || '?').charAt(0).toUpperCase()}

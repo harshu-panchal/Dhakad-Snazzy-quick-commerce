@@ -26,7 +26,7 @@ export const getProducts = async (req: Request, res: Response) => {
 
     // Cap the page size so a caller (or a misbehaving client) can't force a
     // full-catalog fetch via ?limit=100000.
-    const limit = Math.min(Number(rawLimit) || 20, 100);
+    const limit = Math.min(Number(rawLimit) || 20, 1000);
 
     const query: any = {
       status: "Active",

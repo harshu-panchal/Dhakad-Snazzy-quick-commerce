@@ -52,6 +52,8 @@ export interface Product {
   mainImageUrl?: string;
   mainImage?: string; // Mapped directly from Product model
   galleryImageUrls: string[];
+  mainVideoUrl?: string;
+  mainVideo?: string; // Mapped directly from Product model
   price?: number;
   discPrice?: number;
   compareAtPrice?: number;
@@ -99,6 +101,7 @@ export interface CreateProductData {
   fssaiLicNo?: string;
   mainImageUrl?: string;
   galleryImageUrls?: string[];
+  mainVideoUrl?: string;
   variations: ProductVariation[];
   variationType?: string;
   isShopByStoreOnly?: boolean;

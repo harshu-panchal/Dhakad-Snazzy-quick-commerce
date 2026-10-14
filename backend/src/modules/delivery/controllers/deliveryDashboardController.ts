@@ -61,9 +61,11 @@ export const getDashboardStats = asyncHandler(
                     [
                       "Ready for pickup",
                       "Out for Delivery",
-                      "Picked Up",
+                      "Picked up",
+                      "Picked Up", // legacy variant
                       "Assigned",
                       "In Transit",
+                      "On the way", // legacy variant
                     ],
                   ],
                 },
@@ -203,9 +205,11 @@ export const getDashboardStats = asyncHandler(
         $in: [
           "Ready for pickup",
           "Out for Delivery",
-          "Picked Up",
+          "Picked up",
+          "Picked Up", // legacy variant
           "Assigned",
           "In Transit",
+          "On the way", // legacy variant
         ],
       },
     })

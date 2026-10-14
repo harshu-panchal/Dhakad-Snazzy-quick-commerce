@@ -7,6 +7,8 @@ import HeaderCategory from "../../../models/HeaderCategory";
 import HomeSection from "../../../models/HomeSection";
 import BestsellerCard from "../../../models/BestsellerCard";
 import LowestPricesProduct from "../../../models/LowestPricesProduct";
+import LowestPricesSection from "../../../models/LowestPricesSection";
+import Seller from "../../../models/Seller";
 import PromoStrip from "../../../models/PromoStrip";
 import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
@@ -303,6 +305,12 @@ async function fetchSectionData(
 
     // If displayType is "products", fetch products
     if (displayType === "products") {
+      // Non-serviceable area: user has a known location but no sellers are within range.
+      // Return nothing so the section is hidden entirely rather than showing "Out of Range" cards.
+      if (hasUserLocation && (!nearbySellerIds || nearbySellerIds.length === 0)) {
+        return [];
+      }
+
       const query: any = {
         status: "Active",
         publish: true,
@@ -313,8 +321,7 @@ async function fetchSectionData(
         ],
       };
 
-      // If we have a user location and nearby sellers, filter products by seller service radius.
-      // Otherwise, show all products but mark availability status.
+      // Filter products by seller service radius when location is known.
       if (hasUserLocation && nearbySellerIds && nearbySellerIds.length > 0) {
         query.seller = { $in: nearbySellerIds };
       }
@@ -350,15 +357,15 @@ async function fetchSectionData(
         .lean();
 
       return products.map((p: any) => {
-        // If we filtered by radius above, this should always be true when hasUserLocation is set.
+        // We already filtered by nearbySellerIds above, so every product here is in-range.
+        // The isAvailable flag is true for location-filtered results, false when no location given.
         const sellerIdStr = p.seller ? (typeof p.seller === 'object' ? p.seller._id?.toString() : p.seller.toString()) : null;
         const isAvailable = hasUserLocation
-          ? true
-          : nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+          ? nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
             ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
-            : false;
+            : false
+          : false;
 
-        return mapProductForHomeSection(p, isAvailable);
         return mapProductForHomeSection(p, isAvailable);
       });
 
@@ -402,7 +409,7 @@ async function fetchSectionData(
 
 // Get Home Page Content
 export const getHomeContent = async (req: Request, res: Response) => {
-  const { headerCategorySlug, latitude, longitude } = req.query; // Get header category slug and location from query params
+  const { headerCategorySlug, latitude, longitude, city } = req.query; // Get header category slug, location and city from query params
 
   try {
     // Find sellers within user's location range
@@ -423,13 +430,28 @@ export const getHomeContent = async (req: Request, res: Response) => {
       nearbySellerIds = [];
     }
 
+    // Resolve customer's detected city/location from query or nearby sellers
+    let detectedCities: string[] = [];
+    if (city && typeof city === "string" && city.trim()) {
+      detectedCities.push(city.trim());
+    }
+    if (nearbySellerIds.length > 0) {
+      const sellers = await Seller.find({ _id: { $in: nearbySellerIds } }).select("city").lean();
+      sellers.forEach((s: any) => {
+        if (s.city && typeof s.city === "string" && s.city.trim()) {
+          detectedCities.push(s.city.trim());
+        }
+      });
+    }
+    detectedCities = Array.from(new Set(detectedCities));
+
     // Every block below only depends on nearbySellerIds/hasUserLocation/
     // headerCategorySlug, which are already resolved above - none of them
     // depends on another block's result, so they can all run concurrently
     // instead of as one long chain of sequential round-trips.
     const [
       visibleBestsellers,
-      validLowestPricesProducts,
+      lowestPricesResult,
       categories,
       visibleShops,
       trending,
@@ -481,21 +503,32 @@ export const getHomeContent = async (req: Request, res: Response) => {
               }
             });
 
-            // If we have less than 4 products, try to use gallery images
+            // If we have less than 4 products from nearby sellers, fallback to category's active products
             if (productImages.length < 4) {
-              categoryProducts.forEach((product: any) => {
-                if (
-                  productImages.length < 4 &&
-                  product.galleryImages &&
-                  product.galleryImages.length > 0
-                ) {
-                  productImages.push(product.galleryImages[0]);
+              const fallbackProducts = await Product.find({
+                category: categoryId,
+                status: "Active",
+                publish: true,
+              })
+                .select("productName mainImage galleryImages")
+                .sort({ createdAt: -1 })
+                .limit(4)
+                .lean();
+
+              fallbackProducts.forEach((product: any) => {
+                if (productImages.length < 4 && product.mainImage && !productImages.includes(product.mainImage)) {
+                  productImages.push(product.mainImage);
                 }
               });
             }
 
+            // If category has its own image, use it as fallback
+            if (productImages.length === 0 && card.category?.image) {
+              productImages.push(card.category.image);
+            }
+
             // Ensure we have exactly 4 images (pad with first image if needed)
-            while (productImages.length < 4 && productImages[0]) {
+            while (productImages.length > 0 && productImages.length < 4) {
               productImages.push(productImages[0]);
             }
 
@@ -509,51 +542,172 @@ export const getHomeContent = async (req: Request, res: Response) => {
           })
         );
 
-        return hasUserLocation
-          ? bestsellers.filter((b: any) => Array.isArray(b.productImages) && b.productImages.length > 0)
-          : bestsellers;
+        return bestsellers.filter((b: any) => Array.isArray(b.productImages) && b.productImages.length > 0);
       })(),
 
-      // 2. Lowest Prices Products - Get admin-selected products
-      // We fetch these irrespective of location radius to show preview on home page
+      // 2. Lowest Prices Sections & Products - Query active sections matching customer's location
       (async () => {
-        const lowestPricesProductsQuery: any = {
-          isActive: true,
-        };
-
-        const lowestPricesProducts = await LowestPricesProduct.find(
-          lowestPricesProductsQuery
-        )
+        // Query active LowestPricesSection records with populated products
+        const allSections = await LowestPricesSection.find({ isActive: true })
           .populate({
-            path: "product",
+            path: "products.product",
             select:
-              "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations shopId",
+              "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations",
             populate: [
-              { path: "seller", select: "storeName sellerName" },
-              { path: "shopId", select: "name" },
+              { path: "seller", select: "storeName sellerName viewCustomerDetails" },
             ],
             match: {
               status: "Active",
               publish: true,
-              // Removed location filter to show preview images irrespective of radius
+            },
+          })
+          .sort({ order: 1, createdAt: -1 })
+          .lean();
+
+        if (allSections && allSections.length > 0) {
+          const formatSectionProducts = (sec: any) => {
+            const rawProducts = sec.products || [];
+            return rawProducts
+              .filter((item: any) => item && item.product && item.isActive !== false)
+              .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+              .map((item: any) => {
+                const product = item.product;
+                const sellerIdStr = product.seller
+                  ? typeof product.seller === "object"
+                    ? product.seller._id?.toString()
+                    : product.seller.toString()
+                  : null;
+                const isAvailable = hasUserLocation
+                  ? nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+                    ? nearbySellerIds.some((id) => id.toString() === sellerIdStr)
+                    : false
+                  : true;
+                return { isAvailable, sellerIdStr, product, item };
+              })
+              .filter((entry: any) => !hasUserLocation || entry.isAvailable)
+              .map(({ isAvailable, product, item }: any) => {
+
+                const sellerObj =
+                  typeof product.seller === "object" && product.seller !== null
+                    ? product.seller
+                    : null;
+                const shopObj =
+                  typeof product.shopId === "object" && product.shopId !== null
+                    ? product.shopId
+                    : null;
+                const storeName = sellerObj?.storeName || sellerObj?.sellerName || null;
+                const shopName = shopObj?.name || storeName || null;
+
+                return {
+                  id: product._id.toString(),
+                  _id: product._id.toString(),
+                  productName: product.productName,
+                  name: product.productName,
+                  mainImage: product.mainImage,
+                  imageUrl: product.mainImage,
+                  price: product.price,
+                  discPrice: product.discPrice || 0,
+                  compareAtPrice: product.compareAtPrice || product.mrp || product.price,
+                  mrp: product.mrp || product.compareAtPrice || product.price,
+                  discount:
+                    product.discount ||
+                    (product.mrp && product.price
+                      ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+                      : 0),
+                  variations: product.variations || [],
+                  categoryId: product.category?.toString() || "",
+                  subcategory: product.subcategory?.toString() || "",
+                  status: product.status,
+                  publish: product.publish,
+                  isAvailable,
+                  seller: product.seller,
+                  storeName,
+                  shopName,
+                  order: item.order ?? 0,
+                };
+              });
+          };
+
+          // Filter sections by detected city or fallback to All Cities
+          let matchedSections: any[] = [];
+          if (detectedCities.length > 0) {
+            // Find city-specific sections
+            const citySpecificSections = allSections.filter((sec: any) =>
+              detectedCities.some((c) => sec.city && sec.city.toLowerCase() === c.toLowerCase())
+            );
+
+            // Find All Cities / global sections
+            const allCitiesSections = allSections.filter((sec: any) =>
+              !sec.city || sec.city.toLowerCase() === "all cities" || sec.city.toLowerCase() === "all"
+            );
+
+            if (citySpecificSections.length > 0) {
+              matchedSections = [...citySpecificSections, ...allCitiesSections];
+            } else {
+              matchedSections = allCitiesSections.length > 0 ? allCitiesSections : allSections;
+            }
+          } else {
+            // No location provided: prefer All Cities or return all active sections
+            const allCitiesSections = allSections.filter((sec: any) =>
+              !sec.city || sec.city.toLowerCase() === "all cities" || sec.city.toLowerCase() === "all"
+            );
+            matchedSections = allCitiesSections.length > 0 ? allCitiesSections : allSections;
+          }
+
+          const formattedSections = matchedSections
+            .map((sec: any) => ({
+              _id: sec._id.toString(),
+              title: sec.title || "LOWEST PRICES EVER",
+              city: sec.city || "All Cities",
+              order: sec.order ?? 0,
+              products: formatSectionProducts(sec),
+            }))
+            .filter((sec: any) => sec.products.length > 0);
+
+          const primaryProducts = formattedSections.length > 0 ? formattedSections[0].products : [];
+
+          return {
+            products: primaryProducts,
+            sections: formattedSections,
+          };
+        }
+
+        // Legacy fallback: query LowestPricesProduct
+        const lowestPricesProducts = await LowestPricesProduct.find({ isActive: true })
+          .populate({
+            path: "product",
+            select:
+              "productName mainImage price discPrice compareAtPrice mrp discount status publish category subcategory seller variations",
+            populate: [
+              { path: "seller", select: "storeName sellerName" },
+            ],
+            match: {
+              status: "Active",
+              publish: true,
             },
           })
           .sort({ order: 1 })
           .lean();
 
-        // Filter out any products that were null (due to match condition)
-        return lowestPricesProducts
+        const legacyProducts = lowestPricesProducts
           .filter((item: any) => item.product !== null)
           .map((item: any) => {
             const product = item.product;
-            const sellerIdStr = product.seller ? (typeof product.seller === 'object' ? product.seller._id?.toString() : product.seller.toString()) : null;
-            // Check if the product's seller is within range
-            const isAvailable = nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
-              ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
-              : false;
+            const sellerIdStr = product.seller
+              ? typeof product.seller === "object"
+                ? product.seller._id?.toString()
+                : product.seller.toString()
+              : null;
+            const isAvailable = hasUserLocation
+              ? nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+                ? nearbySellerIds.some((id) => id.toString() === sellerIdStr)
+                : false
+              : true;
 
-            const sellerObj = typeof product.seller === 'object' && product.seller !== null ? product.seller : null;
-            const shopObj = typeof product.shopId === 'object' && product.shopId !== null ? product.shopId : null;
+            const sellerObj =
+              typeof product.seller === "object" && product.seller !== null ? product.seller : null;
+            const shopObj =
+              typeof product.shopId === "object" && product.shopId !== null ? product.shopId : null;
             const storeName = sellerObj?.storeName || sellerObj?.sellerName || null;
             const shopName = shopObj?.name || storeName || null;
 
@@ -568,7 +722,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
               discPrice: product.discPrice || 0,
               compareAtPrice: product.compareAtPrice || product.mrp || product.price,
               mrp: product.mrp || product.compareAtPrice || product.price,
-              discount: product.discount || (product.mrp && product.price ? Math.round(((product.mrp - product.price) / product.mrp) * 100) : 0),
+              discount:
+                product.discount ||
+                (product.mrp && product.price
+                  ? Math.round(((product.mrp - product.price) / product.mrp) * 100)
+                  : 0),
               variations: product.variations || [],
               categoryId: product.category?.toString() || "",
               subcategory: product.subcategory?.toString() || "",
@@ -580,8 +738,20 @@ export const getHomeContent = async (req: Request, res: Response) => {
               shopName,
             };
           })
-          // Strictly hide products from sellers not in range (when location is available).
-          .filter((p: any) => !hasUserLocation || p.isAvailable === true);
+          .filter((p: any) => !hasUserLocation || p.isAvailable);
+
+        return {
+          products: legacyProducts,
+          sections: [
+            {
+              _id: "default",
+              title: "LOWEST PRICES EVER",
+              city: "All Cities",
+              order: 0,
+              products: legacyProducts,
+            },
+          ],
+        };
       })(),
 
       // 3. Categories for Tiles (Grocery, Snacks, etc)
@@ -852,17 +1022,26 @@ export const getHomeContent = async (req: Request, res: Response) => {
         let promoStrip = cache.get(promoStripCacheKey) as any;
 
         if (!promoStrip) {
-          const now = new Date();
-          const promoStripDoc = await PromoStrip.findOne({
+          let promoStripDoc = await PromoStrip.findOne({
             headerCategorySlug: currentHeaderCategorySlug.toLowerCase(),
             isActive: true,
-            startDate: { $lte: now },
-            endDate: { $gte: now },
           })
             .populate("categoryCards.categoryId", "name slug image")
             .populate("featuredProducts", "productName mainImage mainImageUrl galleryImageUrls galleryImages price discPrice mrp compareAtPrice discount rating reviewsCount seller variations")
-            .sort({ order: 1 })
+            .sort({ order: 1, createdAt: -1 })
             .lean();
+
+          // Fallback: If header category is specific and none found, fallback to "all"
+          if (!promoStripDoc && currentHeaderCategorySlug.toLowerCase() !== "all") {
+            promoStripDoc = await PromoStrip.findOne({
+              headerCategorySlug: "all",
+              isActive: true,
+            })
+              .populate("categoryCards.categoryId", "name slug image")
+              .populate("featuredProducts", "productName mainImage mainImageUrl galleryImageUrls galleryImages price discPrice mrp compareAtPrice discount rating reviewsCount seller variations")
+              .sort({ order: 1, createdAt: -1 })
+              .lean();
+          }
 
           promoStrip = promoStripDoc;
 
@@ -870,14 +1049,13 @@ export const getHomeContent = async (req: Request, res: Response) => {
           if (promoStrip && (promoStrip as any).featuredProducts) {
             (promoStrip as any).featuredProducts = (promoStrip as any).featuredProducts
               .map((p: any) => {
+                const sellerIdStr = p.seller ? (typeof p.seller === 'object' ? p.seller._id?.toString() : p.seller.toString()) : null;
                 const isAvailable =
-                  nearbySellerIds && nearbySellerIds.length > 0 && p.seller
-                    ? nearbySellerIds.some(id => id.toString() === p.seller.toString())
-                    : false;
+                  nearbySellerIds && nearbySellerIds.length > 0 && sellerIdStr
+                    ? nearbySellerIds.some(id => id.toString() === sellerIdStr)
+                    : !hasUserLocation;
                 return { ...p, isAvailable };
-              })
-              // Strictly hide products from sellers not in range (when location is available).
-              .filter((p: any) => !hasUserLocation || p.isAvailable === true);
+              });
           }
 
           // Cache for 3 minutes (PromoStrip data doesn't change frequently)
@@ -893,29 +1071,45 @@ export const getHomeContent = async (req: Request, res: Response) => {
       })(),
     ]);
 
+    const resolvedPromoBanners = promoStrip?.banners && promoStrip.banners.length > 0
+      ? promoStrip.banners
+      : [
+          {
+            id: "default-banner-1",
+            type: "image",
+            mediaUrl: "https://img.freepik.com/free-vector/horizontal-banner-template-grocery-sales_23-2149432421.jpg",
+            title: "Super Saver Deals",
+            subtitle: "Up to 50% Off",
+            link: `/category/${headerCategorySlug && headerCategorySlug !== "all" ? headerCategorySlug : "grocery"}`,
+            buttonText: "Shop Now",
+            isActive: true,
+            order: 0,
+          },
+          {
+            id: "default-video-1",
+            type: "video",
+            mediaUrl: "/assets/login/loginvideo.mp4",
+            title: "Lightning Fast Delivery",
+            subtitle: "Delivered in 10 Minutes",
+            link: "/category/all",
+            buttonText: "Order Now",
+            isActive: true,
+            order: 1,
+          },
+        ];
+
     res.status(200).json({
       success: true,
       data: {
         bestsellers: visibleBestsellers,
-        lowestPrices: validLowestPricesProducts, // Admin-selected products for LowestPricesEver section
+        lowestPrices: lowestPricesResult.products, // Admin-selected products for LowestPricesEver section
+        lowestPricesSections: lowestPricesResult.sections, // Multiple location-specific sections
         categories,
         // Dynamic sections created by admin (or auto-generated nearby-seller fallback)
         homeSections: finalHomeSections,
         shops: visibleShops,
-        promoBanners: [
-          {
-            id: 1,
-            image:
-              "https://img.freepik.com/free-vector/horizontal-banner-template-grocery-sales_23-2149432421.jpg",
-            link: "/category/grocery",
-          },
-          {
-            id: 2,
-            image:
-              "https://img.freepik.com/free-vector/flat-supermarket-social-media-cover-template_23-2149363385.jpg",
-            link: "/category/snacks",
-          },
-        ],
+        promoBanners: resolvedPromoBanners,
+        banners: resolvedPromoBanners,
         trending,
         cookingIdeas,
         promoCards: finalPromoCards, // Return dynamic or fallback cards

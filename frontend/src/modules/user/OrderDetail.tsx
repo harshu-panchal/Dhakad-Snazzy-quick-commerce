@@ -13,6 +13,7 @@ import {
   getMyReviewForOrderProduct,
 } from "../../services/api/customerReviewService";
 import StarRating from "../../components/ui/StarRating";
+import MediaThumbnail from "../../components/ui/MediaThumbnail";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -518,13 +519,15 @@ export default function OrderDetail() {
 
       const existingOrder = getOrderById(id);
       if (existingOrder) {
+        // Show cached order immediately as a preview, but always fetch fresh
+        // detail — the list endpoint omits fields like deliveryOtp that only
+        // the detail endpoint provides.
         setOrder(existingOrder);
         setOrderStatus(existingOrder.status);
         setLoading(false);
-        return;
       }
 
-      setLoading(true);
+      setLoading(existingOrder ? false : true);
       const fetchedOrder = await fetchOrderById(id);
       if (fetchedOrder) {
         setOrder(fetchedOrder);
@@ -1305,7 +1308,7 @@ export default function OrderDetail() {
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                         {(item.product?.mainImage || item.productImage) ? (
-                          <img
+                          <MediaThumbnail
                             src={item.product?.mainImage || item.productImage}
                             alt={name}
                             className="w-full h-full object-cover"
@@ -1583,7 +1586,7 @@ export default function OrderDetail() {
                     className="flex gap-3 border-b border-gray-200 pb-4 last:border-0">
                     <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
                       {item.product?.mainImage ? (
-                        <img
+                        <MediaThumbnail
                           src={item.product.mainImage}
                           alt={
                             item.product?.name || item.productName || "Product"

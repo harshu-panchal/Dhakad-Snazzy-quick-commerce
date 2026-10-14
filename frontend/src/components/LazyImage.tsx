@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { getOptimizedImageUrl } from '../utils/cloudinary';
+import { isVideoUrl } from '../utils/media';
 
 interface LazyImageProps {
   src: string;
@@ -27,17 +28,42 @@ export default function LazyImage({
   width,
   ...props
 }: LazyImageProps) {
+  const isVideo = isVideoUrl(src);
   const resolvedSrc = useMemo(
-    () => (width ? getOptimizedImageUrl(src, { width }) || '' : src),
-    [src, width]
+    () => (width && !isVideo ? getOptimizedImageUrl(src, { width }) || '' : src),
+    [src, width, isVideo]
   );
   const [imageSrc, setImageSrc] = useState<string | null>(placeholder || null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!resolvedSrc) return;
+
+    // Video: no Image()-based preload trick (that only works for images) —
+    // just lazily mount the <video> element itself once it's near the viewport.
+    if (isVideo) {
+      const target = videoRef.current;
+      if (!target) return;
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              setImageSrc(resolvedSrc);
+              setIsLoaded(true);
+              observer.disconnect();
+            }
+          });
+        },
+        { rootMargin }
+      );
+
+      observer.observe(target);
+      return () => observer.disconnect();
+    }
 
     // Use Intersection Observer for lazy loading
     const observer = new IntersectionObserver(
@@ -71,7 +97,20 @@ export default function LazyImage({
     return () => {
       observer.disconnect();
     };
-  }, [resolvedSrc, rootMargin, onError]);
+  }, [resolvedSrc, rootMargin, onError, isVideo]);
+
+  if (isVideo) {
+    return (
+      <video
+        ref={videoRef}
+        src={imageSrc || undefined}
+        muted
+        playsInline
+        preload="metadata"
+        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+      />
+    );
+  }
 
   return (
     <img

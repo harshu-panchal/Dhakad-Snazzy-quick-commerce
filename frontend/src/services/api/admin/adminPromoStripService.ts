@@ -1,5 +1,18 @@
 import api from "../config";
 
+export interface BannerMedia {
+  _id?: string;
+  type: "image" | "video";
+  mediaUrl: string;
+  thumbnailUrl?: string;
+  title?: string;
+  subtitle?: string;
+  link?: string;
+  buttonText?: string;
+  order: number;
+  isActive: boolean;
+}
+
 export interface CategoryCard {
   categoryId: string | { _id: string; name?: string; slug?: string; image?: string };
   title: string;
@@ -12,12 +25,13 @@ export interface CategoryCard {
 export interface PromoStrip {
   _id: string;
   headerCategorySlug: string;
-  heading: string;
-  saleText: string;
-  startDate: string;
-  endDate: string;
-  categoryCards: CategoryCard[];
-  featuredProducts: (string | { _id: string; productName?: string; mainImage?: string; price?: number; mrp?: number })[];
+  banners?: BannerMedia[];
+  heading?: string;
+  saleText?: string;
+  startDate?: string;
+  endDate?: string;
+  categoryCards?: CategoryCard[];
+  featuredProducts?: (string | { _id: string; productName?: string; mainImage?: string; price?: number; mrp?: number })[];
   crazyDealsTitle?: string;
   isActive: boolean;
   order: number;
@@ -27,12 +41,13 @@ export interface PromoStrip {
 
 export interface PromoStripFormData {
   headerCategorySlug: string;
-  heading: string;
-  saleText: string;
-  startDate: string;
-  endDate: string;
-  categoryCards: CategoryCard[];
-  featuredProducts: string[];
+  banners?: BannerMedia[];
+  heading?: string;
+  saleText?: string;
+  startDate?: string;
+  endDate?: string;
+  categoryCards?: CategoryCard[];
+  featuredProducts?: string[];
   crazyDealsTitle?: string;
   isActive: boolean;
   order: number;

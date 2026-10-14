@@ -113,6 +113,16 @@ export default function DeliveryOrderDetail() {
         try {
             setLoading(true);
             const data = await getOrderDetails(id);
+            // Normalize legacy status variants ("Picked Up", "On the way", etc.)
+            // so the UI status flow and OTP section behave consistently
+            if (data?.status) {
+                const s = data.status.trim().toLowerCase();
+                if (s === 'picked up' || s === 'pickedup' || s === 'picked-up') {
+                    data.status = 'Picked up';
+                } else if (s === 'out for delivery' || s === 'outfordelivery' || s === 'out-for-delivery' || s === 'on the way' || s === 'in transit') {
+                    data.status = 'Out for Delivery';
+                }
+            }
             setOrder(data);
         } catch (err: any) {
             setError(err.message || 'Failed to load order details');
@@ -120,6 +130,13 @@ export default function DeliveryOrderDetail() {
             setLoading(false);
         }
     };
+
+    // Keep a ref to fetchOrder so socket handlers (registered once) can
+    // always call the latest version without re-subscribing.
+    const fetchOrderRef = useRef(fetchOrder);
+    useEffect(() => {
+        fetchOrderRef.current = fetchOrder;
+    });
 
     useEffect(() => {
         fetchOrder();
@@ -359,6 +376,20 @@ export default function DeliveryOrderDetail() {
                     }
                 });
 
+                // Re-fetch order when its status changes server-side
+                // (keeps UI in sync with DB status — prevents UI/API status drift)
+                const refetchOnStatusEvent = (data: any) => {
+                    if (isMounted && data.orderId === id) {
+                        console.log('Order status event received:', data);
+                        fetchOrderRef.current?.();
+                    }
+                };
+                socket.on('order-status-update', refetchOnStatusEvent);
+                socket.on('seller-pickup-confirmed', refetchOnStatusEvent);
+                socket.on('all-sellers-picked-up', refetchOnStatusEvent);
+                socket.on('order-taken', refetchOnStatusEvent);
+                socket.on('order-delivered', refetchOnStatusEvent);
+
                 socketRef.current = socket;
             } catch (err) {
                 console.error('Failed to initialize socket:', err);
@@ -370,6 +401,11 @@ export default function DeliveryOrderDetail() {
         return () => {
             isMounted = false;
             if (socket) {
+                socket.off('order-status-update');
+                socket.off('seller-pickup-confirmed');
+                socket.off('all-sellers-picked-up');
+                socket.off('order-taken');
+                socket.off('order-delivered');
                 console.log('🔌 Disconnecting delivery socket...');
                 socket.disconnect();
                 socketRef.current = null;

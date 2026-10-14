@@ -14,6 +14,10 @@ import {
   createRazorpayOrder,
   verifyPaymentSignature,
 } from "../../../services/paymentService";
+import {
+  createCashfreePayoutOrder,
+  verifyCashfreePayment,
+} from "../../../services/cashfreeService";
 import WalletTransaction from "../../../models/WalletTransaction";
 
 /**
@@ -215,9 +219,169 @@ export const verifyAdminPayout = async (req: Request, res: Response) => {
 
 
 /**
+ * Create Cashfree order for paying admin (PRIMARY gateway)
+ */
+export const createAdminPayoutOrderCashfree = async (req: Request, res: Response) => {
+  try {
+    const deliveryBoyId = req.user!.userId;
+    const { amount } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid payout amount" });
+    }
+
+    const deliveryBoy = await Delivery.findById(deliveryBoyId);
+    if (!deliveryBoy) {
+      return res.status(404).json({ success: false, message: "Delivery boy not found" });
+    }
+
+    if ((deliveryBoy.pendingAdminPayout || 0) < amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Payout amount exceeds pending amount",
+      });
+    }
+
+    const receiptId = `PAYOUT-ADMIN-${Date.now()}`;
+    const result = await createCashfreePayoutOrder(
+      receiptId,
+      amount,
+      (deliveryBoy as any).phone
+    );
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    console.error("[Cashfree] Error creating admin payout order:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create Cashfree payout order",
+    });
+  }
+};
+
+/**
+ * Verify admin payout payment via Cashfree (PRIMARY gateway)
+ */
+export const verifyAdminPayoutCashfree = async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const deliveryBoyId = req.user!.userId;
+    const { cfOrderId, cfPaymentId } = req.body;
+    const amount = Math.round(Number(req.body.amount) * 100) / 100;
+
+    if (!cfOrderId) {
+      return res.status(400).json({
+        success: false,
+        message: "cfOrderId is required",
+      });
+    }
+
+    // Server-side verification with Cashfree API
+    const verification = await verifyCashfreePayment(cfOrderId);
+    if (!verification.success) {
+      return res.status(400).json({
+        success: false,
+        message: verification.message || "Cashfree payment verification failed",
+      });
+    }
+
+    // Update delivery boy pendingAdminPayout
+    const deliveryBoy = await Delivery.findById(deliveryBoyId).session(session);
+    if (!deliveryBoy) {
+      throw new Error("Delivery boy not found");
+    }
+
+    const currentPending = Math.round((deliveryBoy.pendingAdminPayout || 0) * 100) / 100;
+
+    if (amount > currentPending + 0.01) {
+      throw new Error(
+        `Payment amount (₹${amount}) exceeds pending admin payout (₹${currentPending})`
+      );
+    }
+
+    // Record transaction
+    const resolvedPaymentId = cfPaymentId || verification.paymentId || cfOrderId;
+    const reference = `CFPAYOUT-${resolvedPaymentId}`;
+    const transaction = new WalletTransaction({
+      userId: deliveryBoyId,
+      userType: "DELIVERY_BOY",
+      amount: amount,
+      type: "Debit",
+      description: "Payout to Admin via Cashfree",
+      status: "Completed",
+      reference,
+    });
+    await transaction.save({ session });
+
+    // Update Platform Wallet
+    const PlatformWallet = (await import("../../../models/PlatformWallet")).default;
+    let platformWallet = await PlatformWallet.findOne().session(session);
+
+    if (!platformWallet) {
+      const walletArray = await PlatformWallet.create([{
+        totalPlatformEarning: 0,
+        currentPlatformBalance: 0,
+        totalAdminEarning: 0,
+        pendingFromDeliveryBoy: 0,
+        sellerPendingPayouts: 0,
+        deliveryBoyPendingPayouts: 0,
+      }], { session });
+      platformWallet = walletArray[0];
+    }
+
+    platformWallet.totalPlatformEarning += amount;
+    platformWallet.currentPlatformBalance += amount;
+    platformWallet.pendingFromDeliveryBoy = Math.max(0, platformWallet.pendingFromDeliveryBoy - amount);
+    await platformWallet.save({ session });
+
+    // Distribute funds to sellers
+    const payoutResult = await processPendingCODPayouts(deliveryBoyId, amount, session);
+
+    deliveryBoy.pendingAdminPayout = Math.max(0, currentPending - amount);
+    await deliveryBoy.save({ session });
+
+    await session.commitTransaction();
+
+    console.log(`[Cashfree Pay to Admin] Delivery boy ${deliveryBoyId} paid ${amount}:`, {
+      newPending: deliveryBoy.pendingAdminPayout,
+      processedOrders: payoutResult.processedCount,
+      platformBalance: platformWallet.currentPlatformBalance,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Cashfree payout successful",
+      data: {
+        pendingAdminPayout: deliveryBoy.pendingAdminPayout,
+        amountPaid: amount,
+        platformBalance: platformWallet.currentPlatformBalance,
+      },
+    });
+  } catch (error: any) {
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error("[Cashfree] Error verifying admin payout:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to verify Cashfree payout",
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+/**
  * Get delivery boy wallet transactions
  */
 export const getTransactions = async (req: Request, res: Response) => {
+
   try {
     const deliveryBoyId = req.user!.userId;
     const { page = 1, limit = 20 } = req.query;

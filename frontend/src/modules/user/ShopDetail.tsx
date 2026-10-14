@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useLocation } from '../../hooks/useLocation';
@@ -10,6 +10,11 @@ import {
 import { Product } from '../../services/api/productService';
 import ProductCard from './components/ProductCard';
 
+// Paginate instead of fetching up to 1000 products in one shot - a store with
+// more than that would otherwise have items silently cut off with no way to
+// see the rest.
+const PAGE_SIZE = 30;
+
 export default function ShopDetail() {
   const { sellerId } = useParams<{ sellerId: string }>();
   const navigate = useNavigate();
@@ -17,9 +22,14 @@ export default function ShopDetail() {
 
   const [shop, setShop] = useState<ShopDetailType | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [loadingShop, setLoadingShop] = useState<boolean>(true);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Filters & Search State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -51,7 +61,7 @@ export default function ShopDetail() {
     }
   }, [sellerId, userLocation?.latitude, userLocation?.longitude]);
 
-  // Load shop products
+  // Load page 1 of shop products (reset whenever the store or filters change)
   const fetchProducts = useCallback(async () => {
     if (!sellerId) return;
     setLoadingProducts(true);
@@ -61,21 +71,64 @@ export default function ShopDetail() {
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         search: searchQuery.trim() ? searchQuery.trim() : undefined,
         sort: sortBy !== 'default' ? sortBy : undefined,
-        limit: 1000,
+        page: 1,
+        limit: PAGE_SIZE,
       });
 
       if (res.success && res.data) {
         setProducts(res.data || []);
+        setTotalCount(res.pagination?.total ?? res.data.length);
+        setPage(1);
+        setHasMore(
+          res.pagination
+            ? res.pagination.page < res.pagination.pages
+            : res.data.length === PAGE_SIZE
+        );
       } else {
         setProducts([]);
+        setTotalCount(0);
+        setHasMore(false);
       }
     } catch (err: any) {
       console.error('Error fetching shop products:', err);
       setProducts([]);
+      setTotalCount(0);
+      setHasMore(false);
     } finally {
       setLoadingProducts(false);
     }
   }, [sellerId, selectedCategory, searchQuery, sortBy]);
+
+  // Load next page and append (infinite scroll)
+  const loadMoreProducts = useCallback(async () => {
+    if (!sellerId || loadingProducts || loadingMore || !hasMore) return;
+
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const res = await getShopProducts(sellerId, {
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        search: searchQuery.trim() ? searchQuery.trim() : undefined,
+        sort: sortBy !== 'default' ? sortBy : undefined,
+        page: nextPage,
+        limit: PAGE_SIZE,
+      });
+
+      if (res.success && res.data) {
+        setProducts((prev) => [...prev, ...res.data]);
+        setPage(nextPage);
+        setHasMore(
+          res.pagination
+            ? res.pagination.page < res.pagination.pages
+            : res.data.length === PAGE_SIZE
+        );
+      }
+    } catch (err: any) {
+      console.error('Error loading more shop products:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [sellerId, selectedCategory, searchQuery, sortBy, page, loadingProducts, loadingMore, hasMore]);
 
   useEffect(() => {
     fetchShopInfo();
@@ -84,6 +137,24 @@ export default function ShopDetail() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // Observer to trigger loadMoreProducts when the user scrolls near the sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMoreProducts();
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMoreProducts]);
 
   return (
     <div className="min-h-screen bg-neutral-50 pb-24">
@@ -332,7 +403,7 @@ export default function ShopDetail() {
           {/* Products Grid */}
           <div>
             <h2 className="text-base font-bold text-neutral-900 mb-3 flex items-center justify-between">
-              <span>Products ({products.length})</span>
+              <span>Products ({totalCount || products.length})</span>
               {selectedCategory !== 'all' && (
                 <button
                   onClick={() => setSelectedCategory('all')}
@@ -373,23 +444,32 @@ export default function ShopDetail() {
                 )}
               </div>
             ) : (
-              /* Products Grid View */
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
-                {products.map((prod: any) => (
-                  <ProductCard
-                    key={prod._id || prod.id}
-                    product={{
-                      ...prod,
-                      id: prod._id || prod.id || '',
-                      name: prod.name || prod.productName || '',
-                      pack: prod.pack || prod.variations?.[0]?.value || '',
-                      isAvailable: shop.isShopOpen,
-                    }}
-                    showBadge={true}
-                    categoryStyle={true}
-                  />
-                ))}
-              </div>
+              <>
+                {/* Products Grid View */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
+                  {products.map((prod: any) => (
+                    <ProductCard
+                      key={prod._id || prod.id}
+                      product={{
+                        ...prod,
+                        id: prod._id || prod.id || '',
+                        name: prod.name || prod.productName || '',
+                        pack: prod.pack || prod.variations?.[0]?.value || '',
+                        isAvailable: shop.isShopOpen,
+                      }}
+                      showBadge={true}
+                      categoryStyle={true}
+                    />
+                  ))}
+                </div>
+                {/* Sentinel element for infinite scrolling */}
+                <div ref={sentinelRef} className="h-4 w-full" />
+                {loadingMore && (
+                  <div className="flex justify-center py-6">
+                    <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-emerald-600"></div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

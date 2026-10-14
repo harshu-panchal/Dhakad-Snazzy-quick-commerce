@@ -4,6 +4,7 @@ import { Request } from "express";
 // File size limits (in bytes)
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
 
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = [
@@ -19,6 +20,19 @@ const ALLOWED_DOCUMENT_TYPES = [
   "image/png",
   "image/webp",
   "application/pdf",
+];
+const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
+  "video/m4v",
+  "video/x-matroska",
+  "video/mkv",
+  "video/avi",
+  "video/x-msvideo",
+  "video/ogg",
+  "video/3gpp",
 ];
 
 // Memory storage for multer (files will be stored in memory as buffers)
@@ -36,6 +50,30 @@ const imageFileFilter = (
     cb(
       new Error(
         `Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(", ")}`
+      )
+    );
+  }
+};
+
+// File filter for videos
+const videoFileFilter = (
+  _req: Request,
+  file: any,
+  cb: multer.FileFilterCallback
+) => {
+  const isVideoExt = /\.(mp4|webm|mov|m4v|mkv|avi|ogv|3gp)$/i.test(
+    file.originalname || ""
+  );
+  if (
+    ALLOWED_VIDEO_TYPES.includes(file.mimetype) ||
+    file.mimetype?.startsWith("video/") ||
+    isVideoExt
+  ) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        `Invalid video file type (${file.mimetype || "unknown"}). Allowed formats: MP4, WebM, MOV, MKV, AVI.`
       )
     );
   }
@@ -76,6 +114,15 @@ export const uploadMultipleImages = multer({
   fileFilter: imageFileFilter,
 });
 
+// Multer instance for single video upload
+export const uploadSingleVideo = multer({
+  storage,
+  limits: {
+    fileSize: MAX_VIDEO_SIZE,
+  },
+  fileFilter: videoFileFilter,
+});
+
 // Multer instance for document upload (image or PDF)
 export const uploadDocument = multer({
   storage,
@@ -105,7 +152,7 @@ export const handleUploadError = (
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         success: false,
-        message: "File size exceeds the maximum allowed limit",
+        message: "File size exceeds the maximum allowed limit (Images: 50MB, Videos: 200MB)",
       });
     }
     if (err.code === "LIMIT_FILE_COUNT") {

@@ -6,6 +6,7 @@ import {
   SellerReviewStats,
 } from '../../../services/api/sellerReviewService';
 import StarRating from '../../../components/ui/StarRating';
+import MediaThumbnail from '../../../components/ui/MediaThumbnail';
 
 export default function SellerReviews() {
   const [reviews, setReviews] = useState<SellerReview[]>([]);
@@ -166,7 +167,7 @@ export default function SellerReviews() {
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded bg-neutral-100 overflow-hidden flex-shrink-0">
                             {review.product?.mainImage ? (
-                              <img
+                              <MediaThumbnail
                                 src={review.product.mainImage}
                                 alt={review.product.productName}
                                 className="w-full h-full object-cover"

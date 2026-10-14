@@ -155,7 +155,7 @@ export const createHomeSection = async (req: Request, res: Response) => {
             categories: categories || [],
             subCategories: subCategories || [],
             displayType,
-            columns: columns || 4,
+            columns: columns !== undefined ? Number(columns) : 4,
             limit: limit || 8,
             order: sectionOrder,
             isActive: isActive !== undefined ? isActive : true,

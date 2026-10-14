@@ -32,6 +32,12 @@ export interface IAppSettings extends Document {
       keyId?: string;
       keySecret?: string;
     };
+    cashfree?: {
+      enabled: boolean;
+      appId?: string;
+      secretKey?: string;
+      environment?: 'TEST' | 'PRODUCTION';
+    };
     stripe?: {
       enabled: boolean;
       publishableKey?: string;
@@ -110,6 +116,7 @@ export interface IAppSettings extends Document {
     wallet: boolean;
     coupons: boolean;
     showSellerDetails: boolean;
+    showHeaderCategoryRow: boolean;
   };
 
   // Maintenance Mode
@@ -218,6 +225,12 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         enabled: Boolean,
         keyId: String,
         keySecret: String,
+      },
+      cashfree: {
+        enabled: { type: Boolean, default: true },
+        appId: String,
+        secretKey: String,
+        environment: { type: String, enum: ['TEST', 'PRODUCTION'], default: 'TEST' },
       },
       stripe: {
         enabled: Boolean,
@@ -392,6 +405,10 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         default: true,
       },
       showSellerDetails: {
+        type: Boolean,
+        default: true,
+      },
+      showHeaderCategoryRow: {
         type: Boolean,
         default: true,
       },

@@ -107,6 +107,7 @@ export interface AppSettings {
     wallet: boolean;
     coupons: boolean;
     showSellerDetails: boolean;
+    showHeaderCategoryRow: boolean;
   };
   maintenanceMode: boolean;
   maintenanceMessage?: string;

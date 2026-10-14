@@ -6,6 +6,7 @@ export interface OrdersContextType {
   addOrder: (order: Order) => Promise<string | undefined>;
   getOrderById: (id: string) => Order | undefined;
   fetchOrderById: (id: string) => Promise<Order | undefined>;
+  fetchOrders: () => Promise<void>;
   updateOrderStatus: (id: string, status: Order["status"]) => void;
   loading: boolean;
 }

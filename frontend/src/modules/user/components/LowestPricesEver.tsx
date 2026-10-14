@@ -13,6 +13,8 @@ import { calculateProductPrice } from '../../../utils/priceUtils';
 interface LowestPricesEverProps {
   activeTab?: string;
   products?: Product[]; // Admin-selected products from home data
+  title?: string;
+  city?: string;
 }
 
 // Helper function to truncate text to a maximum length
@@ -79,10 +81,7 @@ const ProductCard = memo(({
 
 
   return (
-    <div
-      className="flex-shrink-0 w-[140px]"
-      style={{ scrollSnapAlign: 'start' }}
-    >
+    <div className="flex-shrink-0 w-[140px]">
       <div
         onClick={() => navigate(`/product/${product.id}`)}
         className="bg-white rounded-lg overflow-hidden flex flex-col relative h-full max-h-full cursor-pointer"
@@ -323,9 +322,15 @@ const ProductCard = memo(({
 
 ProductCard.displayName = 'ProductCard';
 
-export default function LowestPricesEver({ activeTab = 'all', products: adminProducts }: LowestPricesEverProps) {
+export default function LowestPricesEver({
+  activeTab = 'all',
+  products: adminProducts,
+  title = 'LOWEST PRICES EVER',
+  city,
+}: LowestPricesEverProps) {
   const theme = getTheme(activeTab);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isTouchPaused, setIsTouchPaused] = useState(false);
+  const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { cart } = useCart();
   const [fontLoaded, setFontLoaded] = useState(false);
 
@@ -463,6 +468,50 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
 
   const discountedProducts = getFilteredProducts();
 
+  // Ensure enough items to span wide screens seamlessly and infinitely
+  const marqueeProducts = useMemo(() => {
+    if (!discountedProducts || discountedProducts.length === 0) return [];
+    let list = [...discountedProducts];
+    while (list.length < 20) {
+      list = list.concat(discountedProducts);
+    }
+    return list;
+  }, [discountedProducts]);
+
+  // Duration in seconds: each card is 140px + 8px gap = 148px; travel speed is 35px/s
+  const animationDuration = useMemo(() => {
+    if (marqueeProducts.length === 0) return 40;
+    const totalWidth = marqueeProducts.length * 148;
+    const speed = 35; // smooth, steady, comfortable reading speed
+    return Math.max(10, Math.round(totalWidth / speed));
+  }, [marqueeProducts.length]);
+
+  const handleTouchStart = useCallback(() => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current);
+      touchTimeoutRef.current = null;
+    }
+    setIsTouchPaused(true);
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current);
+    }
+    // Briefly hold pause after finger lifts so user can tap buttons without card gliding away
+    touchTimeoutRef.current = setTimeout(() => {
+      setIsTouchPaused(false);
+    }, 1500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (touchTimeoutRef.current) {
+        clearTimeout(touchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Get cart functions once at parent level
   const { addToCart, updateQuantity } = useCart();
 
@@ -535,7 +584,7 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
           <div className="flex-1 h-px bg-neutral-300"></div>
 
           <h2
-            className="font-black text-center whitespace-nowrap"
+            className="font-black text-center whitespace-nowrap uppercase"
             style={{
               fontFamily: '"Poppins", sans-serif',
               fontSize: '28px',
@@ -557,33 +606,69 @@ export default function LowestPricesEver({ activeTab = 'all', products: adminPro
               transformStyle: 'preserve-3d',
             } as React.CSSProperties}
           >
-            LOWEST PRICES EVER
+            {title || 'LOWEST PRICES EVER'}
           </h2>
 
           {/* Right horizontal line */}
           <div className="flex-1 h-px bg-neutral-300"></div>
         </div>
+        {city && city !== "All Cities" && city !== "All" && (
+          <div className="flex justify-center mt-0.5">
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-black/10 backdrop-blur-xs text-neutral-800 border border-black/5 shadow-xs">
+              <svg className="w-3 h-3 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+              </svg>
+              {city}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Horizontal Scrollable Product Cards */}
-      <div
-        ref={scrollContainerRef}
-        className="flex gap-2 overflow-x-auto scrollbar-hide px-4"
-        style={{ scrollSnapType: 'x mandatory' }}
-      >
-        {discountedProducts.map((product) => {
-          const cartQuantity = cartItemsMap.get(product.id) || 0;
-          return (
-            <ProductCard
-              key={product.id}
-              product={product}
-              cartQuantity={cartQuantity}
-              onAddToCart={handleAddToCart}
-              onUpdateQuantity={handleUpdateQuantity}
-            />
-          );
-        })}
-      </div>
+      {/* Continuous Infinite Marquee Product Cards */}
+      {marqueeProducts.length > 0 && (
+        <div
+          className={`marquee-wrapper relative w-full overflow-hidden py-1 ${isTouchPaused ? 'is-paused' : ''}`}
+          style={{
+            ['--marquee-duration' as any]: `${animationDuration}s`,
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="flex w-max">
+            {/* Primary Track */}
+            <div className="flex shrink-0 gap-2 pr-2 animate-marquee-scroll">
+              {marqueeProducts.map((product, idx) => {
+                const cartQuantity = cartItemsMap.get(product.id) || 0;
+                return (
+                  <ProductCard
+                    key={`track1-${product.id}-${idx}`}
+                    product={product}
+                    cartQuantity={cartQuantity}
+                    onAddToCart={handleAddToCart}
+                    onUpdateQuantity={handleUpdateQuantity}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Duplicate Track for Seamless Infinite Loop */}
+            <div className="flex shrink-0 gap-2 pr-2 animate-marquee-scroll" aria-hidden="true">
+              {marqueeProducts.map((product, idx) => {
+                const cartQuantity = cartItemsMap.get(product.id) || 0;
+                return (
+                  <ProductCard
+                    key={`track2-${product.id}-${idx}`}
+                    product={product}
+                    cartQuantity={cartQuantity}
+                    onAddToCart={handleAddToCart}
+                    onUpdateQuantity={handleUpdateQuantity}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

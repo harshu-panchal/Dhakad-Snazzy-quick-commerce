@@ -349,7 +349,19 @@ router.put("/bestseller-cards/:id", bestsellerCardController.updateBestsellerCar
 router.delete("/bestseller-cards/:id", bestsellerCardController.deleteBestsellerCard);
 router.put("/bestseller-cards/reorder", bestsellerCardController.reorderBestsellerCards);
 
-// ==================== Lowest Prices Product Routes ====================
+// ==================== Lowest Prices Section Routes ====================
+router.get("/lowest-prices-sections/cities", lowestPricesController.getServiceableCities);
+router.get("/lowest-prices-sections", lowestPricesController.getLowestPricesSections);
+router.get("/lowest-prices-sections/:id", lowestPricesController.getLowestPricesSectionById);
+router.post("/lowest-prices-sections", lowestPricesController.createLowestPricesSection);
+router.put("/lowest-prices-sections/:id", lowestPricesController.updateLowestPricesSection);
+router.delete("/lowest-prices-sections/:id", lowestPricesController.deleteLowestPricesSection);
+router.post("/lowest-prices-sections/:id/products", lowestPricesController.addProductToSection);
+router.put("/lowest-prices-sections/:id/products/reorder", lowestPricesController.reorderSectionProducts);
+router.put("/lowest-prices-sections/:id/products/:productId", lowestPricesController.updateSectionProduct);
+router.delete("/lowest-prices-sections/:id/products/:productId", lowestPricesController.removeProductFromSection);
+
+// ==================== Lowest Prices Product Routes (Legacy) ====================
 router.get("/lowest-prices-products", lowestPricesController.getLowestPricesProducts);
 router.get("/lowest-prices-products/:id", lowestPricesController.getLowestPricesProductById);
 router.post("/lowest-prices-products", lowestPricesController.createLowestPricesProduct);

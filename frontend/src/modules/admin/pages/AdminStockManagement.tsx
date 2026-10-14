@@ -8,6 +8,7 @@ import {
   type Category,
 } from "../../../services/api/admin/adminProductService";
 import { useAuth } from "../../../context/AuthContext";
+import MediaThumbnail from "../../../components/ui/MediaThumbnail";
 
 interface ProductVariation {
   id: string;
@@ -587,7 +588,7 @@ export default function AdminStockManagement() {
                       <td className="p-4 align-middle">{product.seller}</td>
                       <td className="p-4 align-middle">
                         {product.image ? (
-                          <img
+                          <MediaThumbnail
                             src={product.image}
                             alt={product.name}
                             className="w-12 h-16 object-cover rounded"

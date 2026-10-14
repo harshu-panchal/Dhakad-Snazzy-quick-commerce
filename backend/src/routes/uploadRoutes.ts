@@ -3,12 +3,14 @@ import { authenticate, requireUserType } from "../middleware/auth";
 import {
   uploadSingleImage,
   uploadMultipleImages,
+  uploadSingleVideo,
   uploadDocument,
   uploadMultipleDocuments,
   handleUploadError,
 } from "../middleware/upload";
 import {
   uploadImageFromBuffer,
+  uploadVideoFromBuffer,
   uploadDocumentFromBuffer,
   deleteImage,
 } from "../services/localStorageService";
@@ -40,9 +42,13 @@ router.post(
     }
 
     const folder = (req.body.folder as string) || CLOUDINARY_FOLDERS.PRODUCTS;
-    const result = await uploadImageFromBuffer((req as any).file.buffer, {
+    const file = (req as any).file;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const result = await uploadImageFromBuffer(file.buffer, {
       folder,
       resourceType: "image",
+      baseUrl,
+      originalname: file.originalname,
     });
 
     return res.status(200).json({
@@ -72,11 +78,14 @@ router.post(
 
     const folder = (req.body.folder as string) || CLOUDINARY_FOLDERS.PRODUCTS;
     const files = (req as any).files as any[];
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
 
     const uploadPromises = files.map((file) =>
       uploadImageFromBuffer(file.buffer, {
         folder,
         resourceType: "image",
+        baseUrl,
+        originalname: file.originalname,
       })
     );
 
@@ -85,6 +94,42 @@ router.post(
     return res.status(200).json({
       success: true,
       data: results,
+    });
+  })
+);
+
+/**
+ * POST /api/v1/upload/video
+ * Upload a single video
+ */
+router.post(
+  "/video",
+  authenticate,
+  requireUserType("Admin", "Seller"),
+  uploadSingleVideo.single("video"),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!(req as any).file) {
+      return res.status(400).json({
+        success: false,
+        message: "No video file provided",
+      });
+    }
+
+    const folder =
+      (req.body.folder as string) || CLOUDINARY_FOLDERS.PRODUCT_VIDEOS;
+    const file = (req as any).file;
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const result = await uploadVideoFromBuffer(file.buffer, file.mimetype, {
+      folder,
+      resourceType: "video",
+      baseUrl,
+      originalname: file.originalname,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
     });
   })
 );

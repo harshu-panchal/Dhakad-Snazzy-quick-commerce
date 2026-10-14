@@ -4,14 +4,19 @@ import {
   createHeaderCategory,
   updateHeaderCategory,
   deleteHeaderCategory,
+  toggleHeaderCategoryActive,
+  getHeaderCategoryDisplaySettings,
   HeaderCategory
 } from '../../../services/api/headerCategoryService';
+import { getAppSettings, updateAppSettings } from '../../../services/api/admin/adminSettingsService';
 import { themes } from '../../../utils/themes';
 import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary';
 
 export default function AdminHeaderCategory() {
   const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHeaderCategoryRow, setShowHeaderCategoryRow] = useState(true);
+  const [toggleSaving, setToggleSaving] = useState(false);
 
   // Form states
   const [headerCategoryName, setHeaderCategoryName] = useState('');
@@ -36,6 +41,7 @@ export default function AdminHeaderCategory() {
 
   useEffect(() => {
     fetchCategories();
+    fetchDisplaySettings();
   }, []);
 
   const fetchCategories = async () => {
@@ -48,6 +54,35 @@ export default function AdminHeaderCategory() {
       alert('Failed to fetch categories');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDisplaySettings = async () => {
+    try {
+      const data = await getHeaderCategoryDisplaySettings();
+      setShowHeaderCategoryRow(data.showHeaderCategoryRow);
+    } catch (error) {
+      console.error('Failed to fetch display settings', error);
+    }
+  };
+
+  const handleToggleHeaderCategoryRow = async () => {
+    const newValue = !showHeaderCategoryRow;
+    setToggleSaving(true);
+    try {
+      const current = await getAppSettings();
+      await updateAppSettings({
+        features: {
+          ...(current.data?.features || {}),
+          showHeaderCategoryRow: newValue,
+        },
+      });
+      setShowHeaderCategoryRow(newValue);
+    } catch (error) {
+      console.error('Failed to update display setting', error);
+      alert('Failed to save setting');
+    } finally {
+      setToggleSaving(false);
     }
   };
 
@@ -166,6 +201,18 @@ export default function AdminHeaderCategory() {
     }
   };
 
+  const handleToggleActive = async (id: string) => {
+    try {
+      const updated = await toggleHeaderCategoryActive(id);
+      setHeaderCategories(prev =>
+        prev.map(c => c._id === id ? { ...c, isActive: updated.isActive } : c)
+      );
+    } catch (error) {
+      console.error(error);
+      alert('Failed to update status');
+    }
+  };
+
   const handleCancelEdit = () => {
     resetForm();
   };
@@ -179,6 +226,31 @@ export default function AdminHeaderCategory() {
           <span className="text-blue-500 hover:underline cursor-pointer">Home</span>{' '}
           <span className="text-neutral-400">/</span> Dashboard
         </div>
+      </div>
+
+      {/* Header Category Row Visibility Toggle */}
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 px-5 py-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-neutral-800">Show Header Category Row</p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            When off, the category tab row (All, Beauty, Grocery…) is hidden from the top of the customer app.
+          </p>
+        </div>
+        <button
+          onClick={handleToggleHeaderCategoryRow}
+          disabled={toggleSaving}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+            showHeaderCategoryRow ? 'bg-teal-600' : 'bg-neutral-300'
+          } ${toggleSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
+          role="switch"
+          aria-checked={showHeaderCategoryRow}
+        >
+          <span
+            className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition duration-200 ease-in-out ${
+              showHeaderCategoryRow ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -392,7 +464,7 @@ export default function AdminHeaderCategory() {
             <table className="w-full text-left border-collapse">
               <thead className="bg-neutral-50 sticky top-0 z-10">
                 <tr>
-                  {['Name', 'Icon', 'Theme', 'Status', 'Actions'].map((header) => (
+                  {['Name', 'Icon', 'Theme', 'Status', 'Active', 'Actions'].map((header) => (
                     <th
                       key={header}
                       onClick={() => handleSort(header.toLowerCase())}
@@ -441,6 +513,23 @@ export default function AdminHeaderCategory() {
                           {category.status}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-sm">
+                        <button
+                          onClick={() => handleToggleActive(category._id)}
+                          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            category.isActive !== false ? 'bg-teal-600' : 'bg-neutral-300'
+                          }`}
+                          role="switch"
+                          aria-checked={category.isActive !== false}
+                          title={category.isActive !== false ? 'Active — click to deactivate' : 'Inactive — click to activate'}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition duration-200 ease-in-out ${
+                              category.isActive !== false ? 'translate-x-4' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-sm flex gap-2">
                         <button
                           onClick={() => handleEdit(category)}
@@ -465,7 +554,7 @@ export default function AdminHeaderCategory() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-10 text-center text-neutral-500">
+                    <td colSpan={6} className="px-6 py-10 text-center text-neutral-500">
                       <div className="flex flex-col items-center justify-center">
                         <svg className="w-10 h-10 text-neutral-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

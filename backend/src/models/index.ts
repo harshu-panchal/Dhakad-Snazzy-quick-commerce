@@ -38,6 +38,7 @@ export { default as PaymentMethod } from "./PaymentMethod";
 export { default as CashCollection } from "./CashCollection";
 export { default as FAQ } from "./FAQ";
 export { default as LowestPricesProduct } from "./LowestPricesProduct";
+export { default as LowestPricesSection } from "./LowestPricesSection";
 export { default as Policy } from "./Policy";
 export { default as Role } from "./Role";
 export { default as Shop } from "./Shop";
