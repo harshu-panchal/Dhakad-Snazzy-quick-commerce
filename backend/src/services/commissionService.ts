@@ -662,24 +662,50 @@ export const processPendingCODPayouts = async (
     // Round amount paid for precision
     let remainingAmount = Math.round(amountPaid * 100) / 100;
 
-    // Find all orders delivered by this delivery boy that have pending SELLER commissions
-    const pendingCommissions = await Commission.find({
-      type: "SELLER",
-      status: "Pending",
+    // Narrow to this delivery boy's COD orders FIRST (indexed, small result set) instead of
+    // scanning every pending SELLER commission on the platform and populate-filtering in JS.
+    const candidateOrders = await Order.find({
+      deliveryBoy: deliveryBoyId,
+      paymentMethod: "COD",
     })
-      .populate({
-        path: "order",
-        match: { deliveryBoy: deliveryBoyId, paymentMethod: "COD" },
-      })
-      .session(session || null)
-      .sort({ createdAt: 1 }); // FIFO
-
-    // Filter out commissions where order didn't match the populate criteria
-    const validCommissions = pendingCommissions.filter(
-      (comm) => comm.order !== null,
-    );
+      .select("_id orderNumber total")
+      .session(session || null);
 
     const processedOrders = new Set<string>();
+
+    if (candidateOrders.length === 0) {
+      return {
+        success: true,
+        processedCount: 0,
+        remainingAmount: Math.max(0, remainingAmount),
+      };
+    }
+
+    const orderIds = candidateOrders.map((o) => o._id);
+    const orderById = new Map(
+      candidateOrders.map((o) => [o._id.toString(), o]),
+    );
+
+    // Fetch pending SELLER commissions and DELIVERY_BOY commissions for these orders
+    // in two scoped queries instead of one findOne() per order inside the loop (N+1).
+    const [validCommissions, deliveryCommissions] = await Promise.all([
+      Commission.find({
+        type: "SELLER",
+        status: "Pending",
+        order: { $in: orderIds },
+      })
+        .session(session || null)
+        .sort({ createdAt: 1 }), // FIFO
+      Commission.find({
+        type: "DELIVERY_BOY",
+        order: { $in: orderIds },
+      }).session(session || null),
+    ]);
+
+    const ordersWithDeliveryCommission = new Set(
+      deliveryCommissions.map((c) => c.order!.toString()),
+    );
+
     const PlatformWallet = (await import("../models/PlatformWallet")).default;
     let platformWallet = await PlatformWallet.findOne().session(
       session || null,
@@ -688,15 +714,11 @@ export const processPendingCODPayouts = async (
     for (const comm of validCommissions) {
       if (remainingAmount <= 0.01) break; // Use small epsilon
 
-      const order = comm.order as any;
+      const orderIdStr = comm.order!.toString();
+      if (!ordersWithDeliveryCommission.has(orderIdStr)) continue;
 
-      // Calculate how much this order contributes to the admin payout
-      const deliveryComm = await Commission.findOne({
-        order: order._id,
-        type: "DELIVERY_BOY",
-      }).session(session || null);
-
-      if (!deliveryComm) continue;
+      const order = orderById.get(orderIdStr);
+      if (!order) continue;
 
       // Amount delivery boy owes for this order = Total Amount (since commission is credited to wallet)
       const orderAdminPayoutPart = Math.round(order.total * 100) / 100;
@@ -724,8 +746,6 @@ export const processPendingCODPayouts = async (
           // Update platform wallet counters for this specifically processed order
           if (platformWallet) {
             // How much admin actually earned from this order (Commission + platform fee + admin shipping)
-            const { calculateCODOrderBreakdown } =
-              await import("./commissionService");
             const breakdown = await calculateCODOrderBreakdown(
               order._id.toString(),
             );
