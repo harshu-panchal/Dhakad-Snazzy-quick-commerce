@@ -25,7 +25,7 @@ export const getAdminHeaderCategories = async (
 // @access  Public
 export const getHeaderCategories = async (_req: Request, res: Response) => {
   try {
-    const categories = await HeaderCategory.find({ status: "Published", isActive: { $ne: false } }).sort({
+    const categories = await HeaderCategory.find({ status: "Published" }).sort({
       order: 1,
       createdAt: -1,
     });

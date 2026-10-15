@@ -48,7 +48,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         setShowHeaderCategoryRow(displaySettings.showHeaderCategoryRow);
         if (cats && cats.length > 0) {
           const mapped = cats
-            .filter(c => c.slug !== 'all')
+            .filter(c => c.slug !== 'all' && c.isActive !== false)
             .map(c => ({
               id: c.slug,
               label: c.name,
