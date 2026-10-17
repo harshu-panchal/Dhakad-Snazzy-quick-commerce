@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { sendOTP, verifyOTP } from '../../services/api/auth/customerAuthService';
 import { useAuth } from '../../context/AuthContext';
 import OTPInput from '../../components/OTPInput';
@@ -216,6 +216,18 @@ export default function Login() {
         {/* Privacy Text */}
         <p className="text-[9px] sm:text-[10px] text-neutral-500 text-center max-w-sm leading-tight px-4 relative z-10 pb-1">
           Access your saved addresses from Dhakad Snazzy automatically!
+        </p>
+
+        {/* Terms & Privacy Links */}
+        <p className="text-[9px] sm:text-[10px] text-neutral-500 text-center max-w-sm leading-tight px-4 relative z-10 pb-1">
+          By continuing, you agree to our{' '}
+          <Link to="/terms-and-conditions" className="text-orange-600 font-medium hover:underline">
+            Terms &amp; Conditions
+          </Link>{' '}
+          and{' '}
+          <Link to="/privacy-policy" className="text-orange-600 font-medium hover:underline">
+            Privacy Policy
+          </Link>
         </p>
       </div>
     </div>
