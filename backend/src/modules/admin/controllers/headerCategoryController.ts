@@ -44,6 +44,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      imageUrl,
       slug,
       relatedCategory,
       status,
@@ -61,6 +62,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      imageUrl: imageUrl || undefined,
       slug,
       relatedCategory,
       status,
@@ -85,6 +87,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      imageUrl,
       slug,
       relatedCategory,
       status,
@@ -106,6 +109,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.name = name || category.name;
       category.iconLibrary = iconLibrary || category.iconLibrary;
       category.iconName = iconName || category.iconName;
+      category.imageUrl = imageUrl || undefined; // Allow clearing it (undefined or empty string) to fall back to the icon
       category.slug = slug || category.slug;
       category.relatedCategory = relatedCategory; // Allow clearing it (undefined or null or empty string)
       category.status = status || category.status;
@@ -151,9 +155,14 @@ export const toggleHeaderCategoryActive = async (req: Request, res: Response) =>
 // @access  Public
 export const getHeaderCategoryDisplaySettings = async (_req: Request, res: Response) => {
   try {
-    const settings = await AppSettings.findOne().select("features.showHeaderCategoryRow").lean();
+    const settings = await AppSettings.findOne()
+      .select("features.showHeaderCategoryRow allCategoryImageUrl")
+      .lean();
     const showHeaderCategoryRow = settings?.features?.showHeaderCategoryRow !== false;
-    return res.json({ showHeaderCategoryRow });
+    return res.json({
+      showHeaderCategoryRow,
+      allCategoryImageUrl: settings?.allCategoryImageUrl || undefined,
+    });
   } catch (error) {
     return res.status(500).json({ message: "Server Error", error });
   }

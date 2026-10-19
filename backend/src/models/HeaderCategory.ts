@@ -3,7 +3,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IHeaderCategory extends Document {
     name: string;
     iconLibrary: string;
-    iconName: string;
+    iconName?: string;
+    imageUrl?: string; // Optional custom image uploaded by admin; takes precedence over the icon when set
     slug: string;
     relatedCategory?: string; // Links to a product category
     order: number;
@@ -17,7 +18,8 @@ const HeaderCategorySchema: Schema = new Schema(
     {
         name: { type: String, required: true },
         iconLibrary: { type: String, required: true },
-        iconName: { type: String, required: true },
+        iconName: { type: String, required: false, default: '' },
+        imageUrl: { type: String, required: false },
         slug: { type: String, required: true, unique: true },
         relatedCategory: { type: String, required: false },
         order: { type: Number, default: 0 },

@@ -6,6 +6,7 @@ export interface HeaderCategory {
     name: string;
     iconLibrary: string; // 'IonIcons' | 'MaterialIcons' | 'FontAwesome' | 'Feather'
     iconName: string;
+    imageUrl?: string; // Optional custom image uploaded by admin; shown instead of the icon when set
     slug: string; // Maps to theme key
     relatedCategory?: string;
     status: 'Published' | 'Unpublished';
@@ -45,7 +46,7 @@ export const toggleHeaderCategoryActive = async (id: string): Promise<HeaderCate
     return response.data;
 };
 
-export const getHeaderCategoryDisplaySettings = async (): Promise<{ showHeaderCategoryRow: boolean }> => {
-    const response = await api.get<{ showHeaderCategoryRow: boolean }>('/header-categories/display-settings');
+export const getHeaderCategoryDisplaySettings = async (): Promise<{ showHeaderCategoryRow: boolean; allCategoryImageUrl?: string }> => {
+    const response = await api.get<{ showHeaderCategoryRow: boolean; allCategoryImageUrl?: string }>('/header-categories/display-settings');
     return response.data;
 };

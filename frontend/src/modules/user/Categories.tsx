@@ -125,7 +125,9 @@ export default function Categories() {
               {/* Sticky Header Category Name */}
               <div className="header-category-title-container">
                 <div className="header-category-icon">
-                  {getIconByName(group.iconName)}
+                  {group.imageUrl
+                    ? <img src={group.imageUrl} alt={group.name} className="w-full h-full object-contain rounded-full" />
+                    : getIconByName(group.iconName)}
                 </div>
                 <h2 className="header-category-name">{group.name}</h2>
               </div>

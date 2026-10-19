@@ -108,6 +108,9 @@ export interface IAppSettings extends Document {
     order: number;
   }>;
 
+  // Optional custom image for the "All" header category tab on the customer home page
+  allCategoryImageUrl?: string;
+
   // Feature Flags
   features: {
     sellerRegistration: boolean;
@@ -381,6 +384,12 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         },
       },
     ],
+
+    // Optional custom image for the "All" header category tab on the customer home page
+    allCategoryImageUrl: {
+      type: String,
+      required: false,
+    },
 
     // Feature Flags
     features: {

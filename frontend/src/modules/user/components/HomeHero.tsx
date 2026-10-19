@@ -46,15 +46,22 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
           getHeaderCategoryDisplaySettings(),
         ]);
         setShowHeaderCategoryRow(displaySettings.showHeaderCategoryRow);
+        const allTab: Tab = displaySettings.allCategoryImageUrl
+          ? { ...ALL_TAB, icon: <img src={displaySettings.allCategoryImageUrl} alt="All" className="w-full h-full object-contain rounded-full" /> }
+          : ALL_TAB;
         if (cats && cats.length > 0) {
           const mapped = cats
             .filter(c => c.slug !== 'all' && c.isActive !== false)
             .map(c => ({
               id: c.slug,
               label: c.name,
-              icon: getIconByName(c.iconName)
+              icon: c.imageUrl
+                ? <img src={c.imageUrl} alt={c.name} className="w-full h-full object-contain rounded-full" />
+                : getIconByName(c.iconName)
             }));
-          setTabs([ALL_TAB, ...mapped]);
+          setTabs([allTab, ...mapped]);
+        } else {
+          setTabs([allTab]);
         }
       } catch (error) {
         console.error('Failed to fetch header categories', error);
@@ -278,6 +285,25 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         marginBottom: 0,
       }}
     >
+      <style>{`
+        @keyframes headerTabBounce {
+          0% { transform: scale(0.85); }
+          45% { transform: scale(1.25); }
+          70% { transform: scale(1.02); }
+          100% { transform: scale(1.1); }
+        }
+        .header-tab-icon-active {
+          animation: headerTabBounce 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+          animation-fill-mode: forwards;
+        }
+        @keyframes headerTabPillIn {
+          0% { transform: scale(0.5); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .header-tab-pill-active {
+          animation: headerTabPillIn 0.3s ease-out;
+        }
+      `}</style>
       {/* Top section with delivery info and buttons - NOT sticky */}
       <div>
         <div ref={topSectionRef} className="px-4 md:px-6 lg:px-8 pt-2 md:pt-3 pb-0">
@@ -369,7 +395,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         {showHeaderCategoryRow && <div className="border-b border-neutral-400/40 w-full" style={{ paddingBottom: 0 }}>
           <div
             ref={tabsContainerRef}
-            className="relative flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
+            className="relative flex gap-5 md:gap-6 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
             style={{ paddingBottom: '12px' }}
             data-padding-bottom="md:8px"
           >
@@ -405,20 +431,31 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                     }
                   }}
                   onClick={() => handleTabClick(tab.id)}
-                  className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center min-w-[50px] md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
+                  className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center min-w-[64px] md:min-w-fit md:px-3 py-1.5 md:py-1.5 relative ${tabColor} z-10`}
                   style={{
                     transition: 'color 0.3s ease-out',
                   }}
                   type="button"
                 >
-                  <div className={`mb-0.5 md:hidden w-7 h-7 flex items-center justify-center ${tabColor}`} style={{
-                    transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                  }}>
-                    {tab.icon}
+                  <div className="mb-1 md:hidden relative w-10 h-10 flex items-center justify-center">
+                    {isActive && (
+                      <span
+                        key={`pill-${tab.id}`}
+                        className="header-tab-pill-active absolute inset-0 rounded-full bg-neutral-900/5"
+                      />
+                    )}
+                    <div
+                      key={`icon-${tab.id}-${isActive}`}
+                      className={`relative w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full ${tabColor} ${isActive ? 'header-tab-icon-active' : ''}`}
+                      style={{
+                        transition: 'color 0.3s ease-out',
+                      }}
+                    >
+                      {tab.icon}
+                    </div>
                   </div>
                   <span
-                    className={`text-[10px] md:text-xs md:whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`}
+                    className={`text-[11px] md:text-xs md:whitespace-nowrap ${isActive ? 'font-semibold' : 'font-medium'}`}
                     style={{
                       transition: 'font-weight 0.3s ease-out',
                     }}

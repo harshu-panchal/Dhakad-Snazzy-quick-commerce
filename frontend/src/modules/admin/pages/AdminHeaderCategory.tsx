@@ -9,6 +9,7 @@ import {
   HeaderCategory
 } from '../../../services/api/headerCategoryService';
 import { getAppSettings, updateAppSettings } from '../../../services/api/admin/adminSettingsService';
+import { uploadImage } from '../../../services/api/uploadService';
 import { themes } from '../../../utils/themes';
 import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary';
 
@@ -17,11 +18,15 @@ export default function AdminHeaderCategory() {
   const [loading, setLoading] = useState(true);
   const [showHeaderCategoryRow, setShowHeaderCategoryRow] = useState(true);
   const [toggleSaving, setToggleSaving] = useState(false);
+  const [allCategoryImageUrl, setAllCategoryImageUrl] = useState('');
+  const [uploadingAllCategoryImage, setUploadingAllCategoryImage] = useState(false);
 
   // Form states
   const [headerCategoryName, setHeaderCategoryName] = useState('');
   const [selectedIconLibrary, setSelectedIconLibrary] = useState('Custom'); // Default to Custom for SVG
   const [headerCategoryIcon, setHeaderCategoryIcon] = useState('');
+  const [headerCategoryImageUrl, setHeaderCategoryImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(''); // This maps to relatedCategory
   const [selectedTheme, setSelectedTheme] = useState('all'); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
@@ -61,8 +66,41 @@ export default function AdminHeaderCategory() {
     try {
       const data = await getHeaderCategoryDisplaySettings();
       setShowHeaderCategoryRow(data.showHeaderCategoryRow);
+      setAllCategoryImageUrl(data.allCategoryImageUrl || '');
     } catch (error) {
       console.error('Failed to fetch display settings', error);
+    }
+  };
+
+  const handleAllCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingAllCategoryImage(true);
+      const result = await uploadImage(file, 'dhakadsnazzy/header-categories');
+      const url = result.secureUrl || result.url;
+      await updateAppSettings({ allCategoryImageUrl: url });
+      setAllCategoryImageUrl(url);
+    } catch (error: any) {
+      console.error('Failed to upload "All" category image', error);
+      alert(error.response?.data?.message || error.message || 'Failed to upload image');
+    } finally {
+      setUploadingAllCategoryImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveAllCategoryImage = async () => {
+    try {
+      setUploadingAllCategoryImage(true);
+      await updateAppSettings({ allCategoryImageUrl: '' });
+      setAllCategoryImageUrl('');
+    } catch (error: any) {
+      console.error('Failed to remove "All" category image', error);
+      alert(error.response?.data?.message || error.message || 'Failed to remove image');
+    } finally {
+      setUploadingAllCategoryImage(false);
     }
   };
 
@@ -139,6 +177,7 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryName('');
     setSelectedIconLibrary('Custom');
     setHeaderCategoryIcon('');
+    setHeaderCategoryImageUrl('');
     setSelectedCategory('');
     setSelectedTheme('all');
     setSelectedStatus('Published');
@@ -146,9 +185,28 @@ export default function AdminHeaderCategory() {
     setIconSearchTerm('');
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      const result = await uploadImage(file, 'dhakadsnazzy/header-categories');
+      setHeaderCategoryImageUrl(result.secureUrl || result.url);
+    } catch (error: any) {
+      console.error('Failed to upload image', error);
+      alert(error.response?.data?.message || error.message || 'Failed to upload image');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
   const handleAddOrUpdate = async () => {
     if (!headerCategoryName.trim()) return alert('Please enter a header category name');
-    if (!headerCategoryIcon.trim()) return alert('Please select an icon. If your category is unique, try searching for a generic icon.');
+    if (!headerCategoryIcon.trim() && !headerCategoryImageUrl.trim()) {
+      return alert('Please select an icon or upload a custom image. If your category is unique, try searching for a generic icon.');
+    }
     if (!selectedTheme) return alert('Please select a theme');
 
     try {
@@ -156,6 +214,7 @@ export default function AdminHeaderCategory() {
         name: headerCategoryName,
         iconLibrary: selectedIconLibrary,
         iconName: headerCategoryIcon,
+        imageUrl: headerCategoryImageUrl || undefined,
         slug: selectedTheme, // Use theme as slug for color mapping
         relatedCategory: selectedCategory,
         status: selectedStatus,
@@ -182,6 +241,7 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryName(category.name);
     setSelectedIconLibrary(category.iconLibrary);
     setHeaderCategoryIcon(category.iconName);
+    setHeaderCategoryImageUrl(category.imageUrl || '');
     setSelectedCategory(category.relatedCategory || '');
     setSelectedTheme(category.slug);
     setSelectedStatus(category.status);
@@ -251,6 +311,54 @@ export default function AdminHeaderCategory() {
             }`}
           />
         </button>
+      </div>
+
+      {/* "All" Category Image */}
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 px-5 py-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-neutral-800">"All" Category Image</p>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            Optional custom image for the "All" tab (the first item in the category row). Falls back to the default home icon when not set.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {allCategoryImageUrl ? (
+            <div className="relative w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden border border-neutral-200 bg-neutral-50">
+              <img src={allCategoryImageUrl} alt="All category" className="w-full h-full object-contain" />
+              <button
+                type="button"
+                onClick={handleRemoveAllCategoryImage}
+                disabled={uploadingAllCategoryImage}
+                className="absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center bg-red-600 text-white rounded-full text-[10px] leading-none hover:bg-red-700 disabled:opacity-60"
+                title="Remove image"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <label className="w-14 h-14 flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:border-teal-400 hover:text-teal-500 cursor-pointer transition-colors">
+              {uploadingAllCategoryImage ? (
+                <span className="text-[10px]">Uploading…</span>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span className="text-[9px]">Upload</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAllCategoryImageUpload}
+                disabled={uploadingAllCategoryImage}
+                className="hidden"
+              />
+            </label>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -325,6 +433,53 @@ export default function AdminHeaderCategory() {
               <p className="mt-1 text-xs text-neutral-500">
                 Icons are automatically suggested based on category name.
               </p>
+            </div>
+
+            {/* Custom Image Upload */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Or Upload Custom Image:
+              </label>
+              <div className="flex items-center gap-3">
+                {headerCategoryImageUrl ? (
+                  <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-neutral-200 bg-neutral-50">
+                    <img src={headerCategoryImageUrl} alt="Header category" className="w-full h-full object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => setHeaderCategoryImageUrl('')}
+                      className="absolute top-0.5 right-0.5 w-4 h-4 flex items-center justify-center bg-red-600 text-white rounded-full text-[10px] leading-none hover:bg-red-700"
+                      title="Remove image"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <label className="w-16 h-16 flex-shrink-0 flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:border-teal-400 hover:text-teal-500 cursor-pointer transition-colors">
+                    {uploadingImage ? (
+                      <span className="text-[10px]">Uploading…</span>
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                          <polyline points="17 8 12 3 7 8" />
+                          <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        <span className="text-[9px]">Upload</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+                <p className="text-xs text-neutral-500">
+                  Uploading a custom image will display it instead of the selected icon in the customer app.
+                </p>
+              </div>
             </div>
 
             {/* Theme / Color Selection */}
@@ -484,11 +639,15 @@ export default function AdminHeaderCategory() {
                       </td>
                       <td className="px-4 py-3 text-sm text-neutral-600">
                         <div className="flex items-center gap-2">
-                          <div className="text-teal-600 w-5 h-5 flex items-center justify-center">
-                            {getIconByName(category.iconName)}
+                          <div className="text-teal-600 w-5 h-5 flex items-center justify-center flex-shrink-0">
+                            {category.imageUrl ? (
+                              <img src={category.imageUrl} alt={category.name} className="w-full h-full object-contain rounded" />
+                            ) : (
+                              getIconByName(category.iconName)
+                            )}
                           </div>
                           <span className="text-xs text-neutral-400 font-mono hidden xl:inline">
-                            {category.iconName}
+                            {category.imageUrl ? 'Custom image' : category.iconName}
                           </span>
                         </div>
                       </td>

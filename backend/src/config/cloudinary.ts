@@ -27,6 +27,7 @@ export const CLOUDINARY_FOLDERS = {
   PRODUCT_GALLERY: "dhakadsnazzy/products/gallery",
   PRODUCT_VIDEOS: "dhakadsnazzy/products/videos",
   CATEGORIES: "dhakadsnazzy/categories",
+  HEADER_CATEGORIES: "dhakadsnazzy/header-categories",
   SUBCATEGORIES: "dhakadsnazzy/subcategories",
   COUPONS: "dhakadsnazzy/coupons",
   SELLERS: "dhakadsnazzy/sellers",

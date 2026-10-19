@@ -100,6 +100,7 @@ export interface AppSettings {
     answer: string;
   }>;
   homeSections?: HomeSection[];
+  allCategoryImageUrl?: string;
   features: {
     sellerRegistration: boolean;
     productApproval: boolean;
