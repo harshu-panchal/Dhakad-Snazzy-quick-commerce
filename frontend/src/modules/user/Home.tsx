@@ -206,19 +206,21 @@ export default function Home() {
       {/* Promo Strip */}
       <PromoStrip activeTab={activeTab} />
 
-      {/* Lowest Prices Ever Section(s) - Location Specific */}
-      {homeData.lowestPricesSections && homeData.lowestPricesSections.length > 0 ? (
-        homeData.lowestPricesSections.map((section: any) => (
-          <LowestPricesEver
-            key={section._id}
-            activeTab={activeTab}
-            products={section.products}
-            title={section.title}
-            city={section.city}
-          />
-        ))
-      ) : (
-        <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
+      {/* Lowest Prices Ever Section(s) - Location Specific. Only shown on the "All" tab (home page), not on admin-created header category tabs. */}
+      {activeTab === 'all' && (
+        homeData.lowestPricesSections && homeData.lowestPricesSections.length > 0 ? (
+          homeData.lowestPricesSections.map((section: any) => (
+            <LowestPricesEver
+              key={section._id}
+              activeTab={activeTab}
+              products={section.products}
+              title={section.title}
+              city={section.city}
+            />
+          ))
+        ) : (
+          <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
+        )
       )}
 
 
