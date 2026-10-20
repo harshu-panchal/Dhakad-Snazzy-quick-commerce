@@ -255,6 +255,16 @@ export default function OrderNotificationCard({
                             <div className="absolute inset-0 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75"></div>
                         </div>
                         <h3 className="text-base sm:text-lg font-bold text-neutral-900">New Order!</h3>
+                        {notification.paymentMethod && (
+                            <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-bold ${notification.paymentMethod.toUpperCase() === 'COD'
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-blue-100 text-blue-800 border border-blue-300'
+                                    }`}
+                            >
+                                {notification.paymentMethod.toUpperCase() === 'COD' ? 'COD' : 'Online Paid'}
+                            </span>
+                        )}
                     </div>
                     {(audioError || !hasUserInteracted) && (
                         <div className="text-xs text-neutral-500 bg-neutral-100 px-2 py-1 rounded whitespace-nowrap">
@@ -284,6 +294,14 @@ export default function OrderNotificationCard({
                     <div>
                         <p className="text-xs sm:text-sm text-neutral-600">Order Amount</p>
                         <p className="text-lg sm:text-xl font-bold text-teal-600">₹{notification.total.toFixed(2)}</p>
+                        {notification.paymentMethod && (
+                            <p className={`text-xs sm:text-sm font-semibold mt-1 ${notification.paymentMethod.toUpperCase() === 'COD' ? 'text-amber-700' : 'text-green-700'
+                                }`}>
+                                {notification.paymentMethod.toUpperCase() === 'COD'
+                                    ? `⚠ Collect ₹${notification.total.toFixed(2)} cash from customer`
+                                    : '✓ Already paid online — no cash to collect'}
+                            </p>
+                        )}
                     </div>
 
                     {/* Delivery Boy Earning - Highlighted Section */}

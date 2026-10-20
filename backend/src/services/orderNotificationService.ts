@@ -414,6 +414,7 @@ export async function notifyDeliveryBoysOfNewOrder(
             shipping: order.shipping,
             deliveryBoyEarning: deliveryBoyEarning,
             createdAt: order.createdAt,
+            paymentMethod: order.paymentMethod,
             type: order.deliveryOption // passed to FE to show "Instant" tag
         };
 
@@ -725,6 +726,7 @@ export async function notifyDeliveryBoyOfAssignment(
             shipping: order.shipping,
             deliveryBoyEarning: deliveryBoyEarning,
             createdAt: order.createdAt,
+            paymentMethod: order.paymentMethod,
             isManualAssignment: true // Flag to distinguish from broadcast
         };
 

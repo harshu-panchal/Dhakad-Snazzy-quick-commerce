@@ -53,6 +53,7 @@ export interface DeliveryOrderAlert {
   deliveryBoyEarning: number;
   createdAt: string;
   type?: string;
+  paymentMethod?: string;
   isManualAssignment?: boolean;
 }
 
@@ -255,6 +256,7 @@ export async function getDeliveryPendingOrderAlerts(
       deliveryBoyEarning,
       createdAt: order.createdAt?.toISOString?.() || new Date().toISOString(),
       type: order.deliveryOption,
+      paymentMethod: order.paymentMethod,
     });
   }
 

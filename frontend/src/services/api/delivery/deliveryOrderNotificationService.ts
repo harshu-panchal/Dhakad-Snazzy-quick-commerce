@@ -17,6 +17,7 @@ export interface OrderNotificationData {
     shipping: number;
     deliveryBoyEarning: number; // Estimated earning for the delivery boy
     createdAt: string;
+    paymentMethod?: string; // "COD" or online payment method
 }
 
 export interface AcceptOrderResponse {

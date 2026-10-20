@@ -93,6 +93,7 @@ export const getAllOrdersHistory = asyncHandler(
       address: `${order.deliveryAddress.address}, ${order.deliveryAddress.city}`,
       deliveryAddress: order.deliveryAddress,
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
       deliveryEarning: commissionMap.get(order._id.toString()) || 0, // Add Earning
       items: mapOrderItems(order.items),
       createdAt: order.createdAt,
@@ -150,6 +151,7 @@ export const getTodayOrders = asyncHandler(
       deliveryAddress: order.deliveryAddress,
       items: mapOrderItems(order.items), // Real items
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
       estimatedDeliveryTime: order.estimatedDeliveryDate
         ? new Date(order.estimatedDeliveryDate).toLocaleTimeString([], {
           hour: "2-digit",
@@ -202,6 +204,7 @@ export const getPendingOrders = asyncHandler(
       address: `${order.deliveryAddress?.address || ""}, ${order.deliveryAddress?.city || ""}`,
       items: mapOrderItems(order.items), // Real items
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
       estimatedDeliveryTime: order.estimatedDeliveryDate
         ? new Date(order.estimatedDeliveryDate).toLocaleTimeString([], {
           hour: "2-digit",
@@ -251,6 +254,7 @@ export const getOrderDetails = asyncHandler(
       status: order.status,
       items: mapOrderItems(order.items), // Real populated items
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
       createdAt: order.createdAt,
       distance: null,
       deliveryEarning: commission ? commission.commissionAmount : 0,
@@ -407,6 +411,7 @@ export const getReturnOrders = asyncHandler(
       address: `${order.deliveryAddress?.address || ""}, ${order.deliveryAddress?.city || ""}`,
       items: mapOrderItems(order.items),
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
       createdAt: order.createdAt,
       distance: null,
     }));

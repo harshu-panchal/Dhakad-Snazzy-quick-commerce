@@ -561,7 +561,15 @@ export default function DeliveryOrderDetail() {
                 </button>
                 <span className="ml-2 font-semibold text-lg text-neutral-800">Order Details</span>
 
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-2">
+                    {order.paymentMethod && (
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${order.paymentMethod.toUpperCase() === 'COD'
+                            ? 'bg-amber-100 text-amber-800 border-amber-300'
+                            : 'bg-blue-100 text-blue-800 border-blue-300'
+                            }`}>
+                            {order.paymentMethod.toUpperCase() === 'COD' ? 'COD' : 'Online Paid'}
+                        </span>
+                    )}
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
                         order.status === 'Cancelled' || order.status === 'Returned' ? 'bg-red-100 text-red-700' :
                             order.status === 'Picked up' ? 'bg-indigo-100 text-indigo-700' :
@@ -572,6 +580,37 @@ export default function DeliveryOrderDetail() {
                     </span>
                 </div>
             </div>
+
+            {/* Payment-method callout — critical for delivery partner to know whether to collect cash */}
+            {order.paymentMethod && !isCancelledOrReturned && (
+                <div className={`mx-4 mt-4 p-4 rounded-xl border ${order.paymentMethod.toUpperCase() === 'COD'
+                    ? 'bg-amber-50 border-amber-300'
+                    : 'bg-blue-50 border-blue-200'
+                    }`}>
+                    <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${order.paymentMethod.toUpperCase() === 'COD' ? 'bg-amber-200 text-amber-900' : 'bg-blue-200 text-blue-900'
+                            }`}>
+                            <span className="text-xl font-bold">
+                                {order.paymentMethod.toUpperCase() === 'COD' ? '₹' : '✓'}
+                            </span>
+                        </div>
+                        <div className="flex-1">
+                            <p className={`font-bold text-sm ${order.paymentMethod.toUpperCase() === 'COD' ? 'text-amber-900' : 'text-blue-900'
+                                }`}>
+                                {order.paymentMethod.toUpperCase() === 'COD'
+                                    ? 'Cash on Delivery'
+                                    : 'Online Paid'}
+                            </p>
+                            <p className={`text-xs mt-0.5 ${order.paymentMethod.toUpperCase() === 'COD' ? 'text-amber-800' : 'text-blue-800'
+                                }`}>
+                                {order.paymentMethod.toUpperCase() === 'COD'
+                                    ? `Collect ₹${order.totalAmount} in cash from the customer at delivery.`
+                                    : 'Customer has already paid online. Do NOT collect any cash.'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Order cancelled / returned — no locations shown, delivery boy available for next order */}
             {isCancelledOrReturned && (

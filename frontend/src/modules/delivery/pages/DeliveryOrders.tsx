@@ -81,11 +81,23 @@ export default function DeliveryOrders() {
                     <p className="text-neutral-600 text-xs mb-1">{order.customerName}</p>
                     <p className="text-neutral-500 text-xs">{order.customerPhone}</p>
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}
-                  >
-                    {order.status}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}
+                    >
+                      {order.status}
+                    </span>
+                    {(order as any).paymentMethod && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${(order as any).paymentMethod.toUpperCase() === 'COD'
+                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-300'
+                          }`}
+                      >
+                        {(order as any).paymentMethod.toUpperCase() === 'COD' ? 'COD' : 'Online Paid'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="border-t border-neutral-200 pt-3 mt-3">
                   <p className="text-neutral-600 text-xs mb-2 line-clamp-2">{order.address}</p>
