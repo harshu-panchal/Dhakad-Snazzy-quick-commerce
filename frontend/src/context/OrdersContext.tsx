@@ -8,6 +8,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { Order } from "../types/order";
 import { createOrder, getMyOrders } from "../services/api/customerOrderService";
+import { getReelAttribution, clearReelAttributions } from "../utils/reelAttribution";
 import { OrdersContext } from "./ordersContext.types";
 
 // Type for API response order (with _id from MongoDB)
@@ -111,13 +112,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           longitude: order.address.longitude ?? 0,
         },
         paymentMethod: order.paymentMethod || "COD",
-        items: order.items.map((item) => ({
-          product: {
-            id: item.product.id || (item.product as { _id?: string })._id || '',
-          },
-          quantity: item.quantity,
-          variant: item.variant, // Pass variant if available
-        })),
+        items: order.items.map((item) => {
+          const productId = item.product.id || (item.product as { _id?: string })._id || '';
+          return {
+            product: { id: productId },
+            quantity: item.quantity,
+            variant: item.variant, // Pass variant if available
+            // Reel affiliation: attach the reel this product was bought through
+            reelId: getReelAttribution(productId),
+          };
+        }),
         fees: {
           deliveryFee: order.fees?.deliveryFee || 0,
           platformFee: order.fees?.platformFee || 0,
@@ -129,6 +133,18 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       };
 
       const response = await createOrder(payload);
+
+      // Order placed — consume any reel attributions for these products
+      try {
+        clearReelAttributions(
+          order.items.map(
+            (item) => item.product.id || (item.product as { _id?: string })._id || '',
+          ),
+        );
+      } catch {
+        // non-critical
+      }
+
       if (order.paymentMethod === "COD") {
         await fetchOrders();
       }

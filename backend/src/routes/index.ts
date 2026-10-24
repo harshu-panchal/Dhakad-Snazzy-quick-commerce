@@ -41,6 +41,7 @@ import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
 import sellerNotificationRoutes from "./sellerNotificationRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
+import customerReelRoutes from "./customerReelRoutes";
 
 import {
   createOrder,
@@ -133,6 +134,7 @@ router.use("/customer/cart", customerCartRoutes);
 router.use("/customer/wishlist", wishlistRoutes);
 router.use("/customer/reviews", productReviewRoutes);
 router.use("/customer/shops", customerShopRoutes);
+router.use("/customer/reels", customerReelRoutes);
 // General customer route (must be last to avoid intercepting specific routes)
 router.use("/customer", customerRoutes);
 

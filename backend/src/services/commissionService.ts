@@ -35,6 +35,28 @@ export const getOrderItemCommissionRate = async (
     if (!product) return 0; // No product = no commission
 
     const finalSellerId = sellerId || product.seller.toString();
+    const seller = await Seller.findById(finalSellerId);
+
+    // Fallback rate used when no per-category commission is configured for the
+    // product's header-category: the seller's general commission, else the
+    // global default. This makes the "Commission" value set on a seller (and
+    // the platform-wide default) actually apply to orders — including reel
+    // affiliation payouts, which are capped at the admin's earning on the item.
+    const resolveFallbackRate = async (): Promise<number> => {
+      if (
+        seller &&
+        typeof (seller as any).commission === "number" &&
+        (seller as any).commission > 0
+      ) {
+        return (seller as any).commission;
+      }
+      let settings = _settings;
+      if (!settings) {
+        settings = await AppSettings.findOne();
+      }
+      const globalRate = Number(settings?.globalCommissionRate);
+      return globalRate > 0 ? globalRate : 0;
+    };
 
     // Find the product's headerCategoryId
     let headerCategoryId = product.headerCategoryId;
@@ -50,20 +72,14 @@ export const getOrderItemCommissionRate = async (
       }
     }
 
+    // No header-category to match a per-category rate against → fall back
     if (!headerCategoryId) {
-      console.log(
-        `[Commission] No headerCategoryId for product ${product._id}, returning 0%`,
-      );
-      return 0;
+      return resolveFallbackRate();
     }
 
-    // Look up seller's categoryCommissions for this headerCategory
-    const seller = await Seller.findById(finalSellerId);
+    // No per-category commissions configured for this seller → fall back
     if (!seller || !seller.categoryCommissions || seller.categoryCommissions.length === 0) {
-      console.log(
-        `[Commission] No categoryCommissions for seller ${finalSellerId}, returning 0%`,
-      );
-      return 0;
+      return resolveFallbackRate();
     }
 
     const headerCatIdStr = headerCategoryId.toString();
@@ -71,11 +87,13 @@ export const getOrderItemCommissionRate = async (
       (cc: any) => cc.headerCategory.toString() === headerCatIdStr,
     );
 
-    if (entry && entry.commissionRate > 0) {
-      return entry.commissionRate;
+    // An explicit per-category entry wins (even if intentionally 0%).
+    if (entry) {
+      return entry.commissionRate || 0;
     }
 
-    return 0; // No commission set for this category
+    // No entry for this specific category → fall back
+    return resolveFallbackRate();
   } catch (error) {
     console.error("Error calculating commission rate:", error);
     return 0;

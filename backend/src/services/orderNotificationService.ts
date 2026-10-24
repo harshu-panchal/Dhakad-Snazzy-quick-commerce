@@ -25,6 +25,38 @@ export interface OrderNotificationState {
 
 export const notificationStates = new Map<string, OrderNotificationState>();
 
+// Only orders assigned recently count as "busy" — a delivery that never got marked
+// Delivered/Cancelled (app crash, dropped connection, abandoned order) would otherwise
+// block that driver from every future order indefinitely.
+export const BUSY_STALE_CUTOFF_HOURS = 4;
+
+/**
+ * Whether a delivery boy currently has another active (not yet delivered/cancelled)
+ * order assigned to them, recently enough to still count as "busy".
+ * Used to stop a driver being loaded up with multiple concurrent deliveries,
+ * whether assignment happens automatically or an admin assigns manually.
+ */
+export const isDeliveryBoyBusy = async (
+    deliveryBoyId: string | mongoose.Types.ObjectId,
+    excludeOrderId?: string | mongoose.Types.ObjectId,
+): Promise<{ busy: boolean; orderNumber?: string }> => {
+    const busyStaleCutoff = new Date(Date.now() - BUSY_STALE_CUTOFF_HOURS * 60 * 60 * 1000);
+    const query: any = {
+        deliveryBoy: deliveryBoyId,
+        deliveryBoyStatus: { $in: ['Assigned', 'Picked Up', 'In Transit'] },
+        status: { $nin: ['Delivered', 'Cancelled', 'Rejected', 'Returned'] },
+        $or: [
+            { assignedAt: { $gte: busyStaleCutoff } },
+            { assignedAt: { $exists: false }, createdAt: { $gte: busyStaleCutoff } },
+        ],
+    };
+    if (excludeOrderId) {
+        query._id = { $ne: excludeOrderId };
+    }
+    const activeOrder = await Order.findOne(query).select('orderNumber');
+    return activeOrder ? { busy: true, orderNumber: activeOrder.orderNumber } : { busy: false };
+};
+
 /**
  * Calculate distance between two coordinates using Haversine formula
  * Returns distance in kilometers
@@ -359,10 +391,6 @@ export async function notifyDeliveryBoysOfNewOrder(
         // For Instant orders, we might want to skip this check if urgency > capacity,
         // but generally we shouldn't spam busy drivers unless configured otherwise.
         // Leaving filter intact for now to prevent over-assignment.
-        // Only orders assigned recently count as "busy" — a delivery that never got marked
-        // Delivered/Cancelled (app crash, dropped connection, abandoned order) would otherwise
-        // block that driver from every future order indefinitely.
-        const BUSY_STALE_CUTOFF_HOURS = 4;
         const busyStaleCutoff = new Date(Date.now() - BUSY_STALE_CUTOFF_HOURS * 60 * 60 * 1000);
         const activeOrders = await Order.find({
             deliveryBoy: { $in: nearbyDeliveryBoyIds },

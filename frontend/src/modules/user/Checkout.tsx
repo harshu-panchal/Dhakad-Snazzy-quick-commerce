@@ -150,12 +150,20 @@ export default function Checkout() {
     "Cashfree",
   );
   const [codEnabled, setCodEnabled] = useState(false);
+  const [codBlockedCategories, setCodBlockedCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    getPaymentConfig()
-      .then((res) => setCodEnabled(!!res?.data?.codEnabled))
+    if (cart.items.length === 0) return;
+    const productIds = cart.items
+      .map((item) => item.product?.id || (item.product as any)?._id)
+      .filter(Boolean);
+    getPaymentConfig(productIds)
+      .then((res) => {
+        setCodEnabled(!!res?.data?.codEnabled);
+        setCodBlockedCategories(res?.data?.blockedCategories || []);
+      })
       .catch((err) => console.error("Failed to fetch payment config:", err));
-  }, []);
+  }, [cart.items]);
 
   // If COD gets disabled by the admin while it's selected, fall back to online payment
   useEffect(() => {
@@ -1988,6 +1996,13 @@ export default function Checkout() {
                   <div className="w-1.5 h-1.5 rounded-full bg-white" />
                 )}
               </div>
+            </div>
+          )}
+
+          {!codEnabled && codBlockedCategories.length > 0 && (
+            <div className="px-3.5 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-800">
+              Cash on Delivery isn't available for items in your cart from:{" "}
+              {codBlockedCategories.join(", ")}. Please pay online, or remove these items to use COD.
             </div>
           )}
         </div>

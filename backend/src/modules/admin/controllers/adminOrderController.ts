@@ -7,7 +7,7 @@ import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Return from "../../../models/Return";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { Server as SocketIOServer } from "socket.io";
-import { notifyDeliveryBoyOfAssignment } from "../../../services/orderNotificationService";
+import { notifyDeliveryBoyOfAssignment, isDeliveryBoyBusy } from "../../../services/orderNotificationService";
 import {
   calculateCODOrderBreakdown,
   getOrderEarningBreakdown as getOrderEarningBreakdownService,
@@ -377,6 +377,14 @@ export const updateOrderStatus = asyncHandler(
       } catch (error) {
         console.error("Error distributing commissions:", error);
       }
+      try {
+        const { settleReelCommissionsForOrder } = await import(
+          "../../../services/reelService"
+        );
+        await settleReelCommissionsForOrder(id);
+      } catch (reelError) {
+        console.error("Error settling reel commissions:", reelError);
+      }
     }
 
     return res.status(200).json({
@@ -430,6 +438,16 @@ export const assignDeliveryBoy = asyncHandler(
       return res.status(400).json({
         success: false,
         message: "This order is self-delivery (seller delivers). Cannot assign a delivery boy.",
+      });
+    }
+
+    // Prevent loading one delivery boy with multiple concurrent orders — they must
+    // complete (or the order must be cancelled/returned) before taking another.
+    const busyCheck = await isDeliveryBoyBusy(deliveryBoyId, id);
+    if (busyCheck.busy) {
+      return res.status(400).json({
+        success: false,
+        message: `This delivery boy is already handling order ${busyCheck.orderNumber}. They must complete it before another order can be assigned.`,
       });
     }
 

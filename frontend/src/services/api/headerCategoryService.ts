@@ -12,6 +12,7 @@ export interface HeaderCategory {
     status: 'Published' | 'Unpublished';
     isActive?: boolean;
     order?: number;
+    codEnabled?: boolean; // Whether Cash on Delivery is allowed for products under this header category
 }
 
 export const getHeaderCategoriesPublic = async (skipLoader = false): Promise<HeaderCategory[]> => {
@@ -43,6 +44,11 @@ export const deleteHeaderCategory = async (id: string): Promise<{ message: strin
 
 export const toggleHeaderCategoryActive = async (id: string): Promise<HeaderCategory> => {
     const response = await api.patch<HeaderCategory>(`/header-categories/${id}/toggle-active`);
+    return response.data;
+};
+
+export const toggleHeaderCategoryCod = async (id: string): Promise<HeaderCategory> => {
+    const response = await api.patch<HeaderCategory>(`/header-categories/${id}/toggle-cod`);
     return response.data;
 };
 

@@ -7,6 +7,7 @@ import {
     deleteHeaderCategory,
     getHeaderCategoryDisplaySettings,
     toggleHeaderCategoryActive,
+    toggleHeaderCategoryCod,
 } from '../modules/admin/controllers/headerCategoryController';
 import { authenticate, requireUserType } from '../middleware/auth';
 
@@ -20,6 +21,7 @@ router.get('/display-settings', getHeaderCategoryDisplaySettings);
 router.get('/admin', authenticate, requireUserType('Admin'), getAdminHeaderCategories);
 router.post('/', authenticate, requireUserType('Admin'), createHeaderCategory);
 router.patch('/:id/toggle-active', authenticate, requireUserType('Admin'), toggleHeaderCategoryActive);
+router.patch('/:id/toggle-cod', authenticate, requireUserType('Admin'), toggleHeaderCategoryCod);
 router.put('/:id', authenticate, requireUserType('Admin'), updateHeaderCategory);
 router.delete('/:id', authenticate, requireUserType('Admin'), deleteHeaderCategory);
 

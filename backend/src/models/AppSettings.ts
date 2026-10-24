@@ -57,6 +57,11 @@ export interface IAppSettings extends Document {
   // Commission Settings
   globalCommissionRate?: number;
 
+  // Reel affiliation: global commission % paid to a reel owner (out of admin's
+  // earning) when a customer buys the reel's product directly through the reel.
+  reelCommissionRate?: number;
+  // Max reel upload size in MB (informational; enforced by upload middleware)
+  maxReelSizeMB?: number;
 
   // Delivery Settings
   platformFee?: number;
@@ -272,6 +277,19 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       default: 10,
       min: [0, "Commission rate cannot be negative"],
       max: [100, "Commission rate cannot exceed 100%"],
+    },
+
+    // Reel affiliation commission rate (% of item sale, capped at admin earning)
+    reelCommissionRate: {
+      type: Number,
+      default: 5,
+      min: [0, "Reel commission rate cannot be negative"],
+      max: [100, "Reel commission rate cannot exceed 100%"],
+    },
+    maxReelSizeMB: {
+      type: Number,
+      default: 400,
+      min: [1, "Max reel size must be at least 1MB"],
     },
 
 

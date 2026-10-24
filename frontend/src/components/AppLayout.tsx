@@ -277,6 +277,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <span className="font-medium text-sm">Categories</span>
               </Link>
 
+              {/* Reels */}
+              <Link
+                to="/reels"
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${location.pathname.startsWith('/reels')
+                  ? 'bg-white shadow-md font-semibold'
+                  : 'hover:bg-white/20'
+                  }`}
+                style={{
+                  color: location.pathname.startsWith('/reels') ? currentTheme.accentColor : currentTheme.headerTextColor
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" strokeWidth="2" fill="none" />
+                  <path d="M3 8h18M9 3v5M15 3v5" stroke="currentColor" strokeWidth="2" />
+                  <path d="M10 12l4 2.5-4 2.5V12z" fill="currentColor" />
+                </svg>
+                <span className="font-medium text-sm">Reels</span>
+              </Link>
+
               {/* Profile */}
               <Link
                 to="/account"
@@ -629,6 +648,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </div>
                     <span className={`text-xs mt-0.5 relative z-10 ${(isActive('/categories') || location.pathname.startsWith('/category/')) ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
                       Categories
+                    </span>
+                  </Link>
+                </motion.div>
+
+                {/* Reels */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                  className="flex-1 h-full"
+                >
+                  <Link
+                    to="/reels"
+                    className="flex flex-col items-center justify-center h-full relative"
+                  >
+                    <div className="flex flex-col items-center justify-center relative z-10">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="18" height="18" rx="5" stroke={location.pathname.startsWith('/reels') ? '#22c55e' : '#6b7280'} strokeWidth="2" fill="none" />
+                        <path d="M3 8.5h18M9 3.2v5.3M15 3.2v5.3" stroke={location.pathname.startsWith('/reels') ? '#22c55e' : '#6b7280'} strokeWidth="2" />
+                        <path d="M10 12l4 2.5-4 2.5V12z" fill={location.pathname.startsWith('/reels') ? '#22c55e' : '#6b7280'} />
+                      </svg>
+                    </div>
+                    <span className={`text-xs mt-0.5 relative z-10 ${location.pathname.startsWith('/reels') ? 'font-medium text-neutral-700' : 'font-medium text-neutral-500'}`}>
+                      Reels
                     </span>
                   </Link>
                 </motion.div>

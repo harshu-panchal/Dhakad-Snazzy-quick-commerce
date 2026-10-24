@@ -8,17 +8,75 @@ import mongoose from "mongoose";
 import { calculateDistance, getDeliveryEligibility } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import AppSettings from "../../../models/AppSettings";
+import HeaderCategory from "../../../models/HeaderCategory";
+import Category from "../../../models/Category";
 import { getRoadDistances } from "../../../services/mapService";
 import { Server as SocketIOServer } from "socket.io";
 import { getOrderItemCommissionRate } from "../../../services/commissionService";
 import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Coupon from "../../../models/Coupon";
+import Reel from "../../../models/Reel";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
  */
 export const isPaymentMethodCod = (paymentMethod?: string): boolean => {
   return typeof paymentMethod === "string" && paymentMethod.trim().toUpperCase() === "COD";
+};
+
+/**
+ * Given a list of product ids, find any header categories (resolved from each
+ * product's own headerCategoryId, falling back to its Category's headerCategoryId)
+ * that have Cash on Delivery disabled by the admin.
+ * Returns the blocking header category names, or an empty array if COD is allowed
+ * for every item.
+ */
+export const findCodBlockedHeaderCategories = async (
+  productIds: (string | mongoose.Types.ObjectId)[],
+): Promise<string[]> => {
+  const uniqueIds = Array.from(
+    new Set(productIds.filter(Boolean).map((id) => String(id))),
+  );
+  if (uniqueIds.length === 0) return [];
+
+  const products = await Product.find({ _id: { $in: uniqueIds } })
+    .select("headerCategoryId category")
+    .lean();
+  if (products.length === 0) return [];
+
+  const directHeaderCategoryIds = products
+    .map((p: any) => p.headerCategoryId)
+    .filter(Boolean)
+    .map((id: any) => String(id));
+
+  const productsMissingHeaderCategory = products.filter((p: any) => !p.headerCategoryId && p.category);
+  let fallbackHeaderCategoryIds: string[] = [];
+  if (productsMissingHeaderCategory.length > 0) {
+    const categoryIds = Array.from(
+      new Set(productsMissingHeaderCategory.map((p: any) => String(p.category))),
+    );
+    const categories = await Category.find({ _id: { $in: categoryIds } })
+      .select("headerCategoryId")
+      .lean();
+    fallbackHeaderCategoryIds = categories
+      .map((c: any) => c.headerCategoryId)
+      .filter(Boolean)
+      .map((id: any) => String(id));
+  }
+
+  const headerCategoryIds = Array.from(
+    new Set([...directHeaderCategoryIds, ...fallbackHeaderCategoryIds]),
+  );
+  if (headerCategoryIds.length === 0) return [];
+
+  const blockedHeaderCategories = await HeaderCategory.find({
+    _id: { $in: headerCategoryIds },
+    codEnabled: false,
+  })
+    .select("name")
+    .lean();
+
+  return blockedHeaderCategories.map((c: any) => c.name);
 };
 
 /**
@@ -108,13 +166,28 @@ export const restoreOrderInventoryAndCoupon = async (
 };
 
 // Get which payment methods are currently enabled (used by checkout to show/hide COD)
-export const getPaymentConfig = async (_req: Request, res: Response) => {
+// Accepts an optional ?productIds=id1,id2,... (the cart's items) to also factor in
+// per-header-category COD restrictions set by the admin.
+export const getPaymentConfig = async (req: Request, res: Response) => {
   const settings = await AppSettings.getSettings();
+  const globalCodEnabled = settings.paymentMethods?.cod !== false;
+
+  let blockedCategories: string[] = [];
+  const productIdsParam = req.query.productIds;
+  if (globalCodEnabled && productIdsParam) {
+    const productIds =
+      typeof productIdsParam === "string"
+        ? productIdsParam.split(",").map((id) => id.trim()).filter(Boolean)
+        : [];
+    blockedCategories = await findCodBlockedHeaderCategories(productIds);
+  }
+
   return res.status(200).json({
     success: true,
     message: "Payment config fetched successfully",
     data: {
-      codEnabled: settings.paymentMethods?.cod !== false,
+      codEnabled: globalCodEnabled && blockedCategories.length === 0,
+      blockedCategories,
     },
   });
 };
@@ -286,6 +359,18 @@ export const createOrder = async (req: Request, res: Response) => {
         success: false,
         message: "Cash on Delivery is currently unavailable. Please choose another payment method.",
       });
+    }
+
+    if (isCod) {
+      const itemProductIds = (items as any[]).map((it) => it?.product?.id).filter(Boolean);
+      const blockedCategories = await findCodBlockedHeaderCategories(itemProductIds);
+      if (blockedCategories.length > 0) {
+        if (session) await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: `Cash on Delivery is not available for items in: ${blockedCategories.join(", ")}. Please choose another payment method or remove these items.`,
+        });
+      }
     }
 
     // Initialize Order first to get an ID
@@ -485,6 +570,27 @@ export const createOrder = async (req: Request, res: Response) => {
       );
       const commAmount = (itemTotal * commRate) / 100;
 
+      // Reel affiliation: if this item was bought directly through a reel,
+      // tag it with the reel + owner so commission is settled on delivery.
+      // Only a valid, active reel whose product matches and whose owner is not
+      // the buyer qualifies.
+      let reelRef: mongoose.Types.ObjectId | undefined;
+      let reelOwnerRef: mongoose.Types.ObjectId | undefined;
+      if (item.reelId && mongoose.isValidObjectId(item.reelId)) {
+        const reel = await Reel.findById(item.reelId).select(
+          "product customer status",
+        );
+        if (
+          reel &&
+          reel.status === "Active" &&
+          reel.product?.toString() === product._id.toString() &&
+          reel.customer?.toString() !== userId
+        ) {
+          reelRef = reel._id as mongoose.Types.ObjectId;
+          reelOwnerRef = reel.customer as mongoose.Types.ObjectId;
+        }
+      }
+
       // Create OrderItem
       const newOrderItemData = {
         order: newOrder._id,
@@ -500,6 +606,8 @@ export const createOrder = async (req: Request, res: Response) => {
         commissionAmount: commAmount,
         variation: variationValue,
         status: "Pending",
+        reel: reelRef,
+        reelOwner: reelOwnerRef,
       };
 
       const newOrderItem = new OrderItem(newOrderItemData);

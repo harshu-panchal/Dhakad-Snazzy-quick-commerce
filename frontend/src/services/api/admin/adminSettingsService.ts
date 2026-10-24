@@ -75,6 +75,8 @@ export interface AppSettings {
   defaultCommission: number;
   deliveryCharges: number;
   platformFee?: number;
+  reelCommissionRate?: number;
+  maxReelSizeMB?: number;
   freeDeliveryThreshold?: number;
   minimumOrderValue?: number;
   deliveryConfig?: {

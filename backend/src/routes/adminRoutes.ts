@@ -74,6 +74,9 @@ import * as lowestPricesController from "../modules/admin/controllers/adminLowes
 // PromoStrip Controllers
 import * as promoStripController from "../modules/admin/controllers/adminPromoStripController";
 
+// Reel Controllers
+import * as reelController from "../modules/admin/controllers/adminReelController";
+
 const router = Router();
 
 // All routes require admin authentication
@@ -83,6 +86,12 @@ router.use(requireUserType("Admin"));
 // ==================== Profile Routes ====================
 router.get("/profile", profileController.getProfile);
 router.put("/profile", profileController.updateProfile);
+
+// ==================== Reel Routes ====================
+router.get("/reels/stats", reelController.reelStats);
+router.get("/reels", reelController.listReels);
+router.patch("/reels/:id/status", reelController.updateReelStatus);
+router.delete("/reels/:id", reelController.deleteReel);
 
 // ==================== Dashboard Routes ====================
 router.get("/dashboard/stats", dashboardController.getDashboardStatsController);

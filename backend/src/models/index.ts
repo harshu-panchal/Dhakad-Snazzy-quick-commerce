@@ -49,3 +49,8 @@ export { default as HeaderCategory } from "./HeaderCategory";
 export { default as BestsellerCard } from "./BestsellerCard";
 export { default as WalletTransaction } from "./WalletTransaction";
 export { default as PlatformWallet } from "./PlatformWallet";
+
+// Reels (product-affiliation short videos)
+export { default as Reel } from "./Reel";
+export { default as ReelLike } from "./ReelLike";
+export { default as ReelCommission } from "./ReelCommission";

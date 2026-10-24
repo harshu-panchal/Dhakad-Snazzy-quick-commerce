@@ -28,6 +28,10 @@ export interface IOrderItem extends Document {
   commissionRate: number;
   commissionAmount: number;
 
+  // Reel affiliation (set when this item was bought directly through a reel)
+  reel?: mongoose.Types.ObjectId;
+  reelOwner?: mongoose.Types.ObjectId; // Customer who owns the reel (earns commission)
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -119,6 +123,16 @@ const OrderItemSchema = new Schema<IOrderItem>(
     orderId: {
       type: String,
       trim: true,
+    },
+
+    // Reel affiliation
+    reel: {
+      type: Schema.Types.ObjectId,
+      ref: "Reel",
+    },
+    reelOwner: {
+      type: Schema.Types.ObjectId,
+      ref: "Customer",
     },
   },
   {

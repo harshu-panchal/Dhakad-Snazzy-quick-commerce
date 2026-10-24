@@ -19,6 +19,7 @@ export interface CreateOrderData {
         };
         quantity: number;
         variant?: string;
+        reelId?: string; // Reel affiliation (set when bought through a reel)
     }[];
     address: {
         addressLine?: string;
@@ -50,10 +51,15 @@ export interface MyOrdersParams {
 }
 
 /**
- * Get which payment methods are currently enabled (e.g. whether COD is on)
+ * Get which payment methods are currently enabled (e.g. whether COD is on).
+ * Pass the cart's product ids so per-header-category COD restrictions are factored in.
  */
-export const getPaymentConfig = async (): Promise<{ success: boolean; data: { codEnabled: boolean } }> => {
-    const response = await api.get('/customer/orders/payment-config');
+export const getPaymentConfig = async (
+    productIds?: string[],
+): Promise<{ success: boolean; data: { codEnabled: boolean; blockedCategories?: string[] } }> => {
+    const response = await api.get('/customer/orders/payment-config', {
+        params: productIds && productIds.length > 0 ? { productIds: productIds.join(',') } : undefined,
+    });
     return response.data;
 };
 

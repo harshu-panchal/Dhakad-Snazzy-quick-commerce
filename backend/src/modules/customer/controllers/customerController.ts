@@ -1,6 +1,68 @@
 import { Request, Response } from "express";
 import Customer from "../../../models/Customer";
+import ReelCommission from "../../../models/ReelCommission";
 import { asyncHandler } from "../../../utils/asyncHandler";
+
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+/**
+ * Get the customer's in-app wallet: balance + transaction history.
+ * Today the ledger is driven by reel-affiliation commissions (credits on
+ * delivered orders, debits on reversals); other wallet activity can be added
+ * to this same shape later.
+ */
+export const getWallet = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.userId;
+
+  if (!userId || (req as any).user?.userType !== "Customer") {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized or not a customer",
+    });
+  }
+
+  const customer = await Customer.findById(userId).select("walletAmount");
+  if (!customer) {
+    return res.status(404).json({ success: false, message: "Customer not found" });
+  }
+
+  const rows = await ReelCommission.find({ reelOwner: userId })
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .populate({ path: "product", select: "productName mainImage" })
+    .lean();
+
+  const transactions = rows.map((r: any) => {
+    const isReversal = r.status === "Reversed";
+    const product = r.product?.productName || "a product";
+    return {
+      _id: r._id,
+      type: isReversal ? "Debit" : "Credit",
+      amount: round2(r.commissionAmount),
+      status: isReversal ? "Reversed" : "Completed",
+      description: isReversal
+        ? `Reel commission reversed (return) — ${product}`
+        : `Reel commission — ${product}`,
+      source: "REEL",
+      product: r.product || null,
+      date: isReversal ? r.reversedAt || r.updatedAt : r.paidAt || r.createdAt,
+    };
+  });
+
+  const totalEarned = rows
+    .filter((r: any) => r.status === "Paid")
+    .reduce((s: number, r: any) => s + (r.commissionAmount || 0), 0);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      balance: round2(customer.walletAmount || 0),
+      totalEarned: round2(totalEarned),
+      transactionCount: transactions.length,
+      transactions,
+    },
+  });
+});
 
 /**
  * Get customer profile

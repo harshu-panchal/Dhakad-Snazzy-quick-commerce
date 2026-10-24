@@ -338,6 +338,20 @@ export const updateOrderStatus = asyncHandler(
 
     await order.save();
 
+    // Settle reel affiliation commissions AFTER the order status is persisted
+    // (settlement re-reads the order and requires status === "Delivered").
+    // Idempotent; covers COD + prepaid.
+    if (normalizedStatus === "Delivered") {
+      try {
+        const { settleReelCommissionsForOrder } = await import(
+          "../../../services/reelService"
+        );
+        await settleReelCommissionsForOrder(id);
+      } catch (reelError) {
+        console.error("Error settling reel commissions:", reelError);
+      }
+    }
+
     // Emit socket events for status changes
     const io = (req.app as any).get("io");
     if (io) {
@@ -614,6 +628,16 @@ export const verifyDeliveryOtpController = asyncHandler(
             console.error("Error distributing commissions:", commError);
             // Continue even if commission distribution fails
           }
+        }
+
+        // Settle reel affiliation commissions (idempotent; covers COD + prepaid)
+        try {
+          const { settleReelCommissionsForOrder } = await import(
+            "../../../services/reelService"
+          );
+          await settleReelCommissionsForOrder(id);
+        } catch (reelError) {
+          console.error("Error settling reel commissions:", reelError);
         }
 
         // Emit socket events for real-time status update

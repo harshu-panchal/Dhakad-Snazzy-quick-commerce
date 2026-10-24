@@ -64,6 +64,12 @@ const StorePage = lazyWithRetry(() => import("./modules/user/StorePage"), "Store
 const Shops = lazyWithRetry(() => import("./modules/user/Shops"), "Shops");
 const ShopDetail = lazyWithRetry(() => import("./modules/user/ShopDetail"), "ShopDetail");
 
+// Reels (product-affiliation short videos)
+const Reels = lazyWithRetry(() => import("./modules/user/Reels"), "Reels");
+const ReelUpload = lazyWithRetry(() => import("./modules/user/ReelUpload"), "ReelUpload");
+const MyReels = lazyWithRetry(() => import("./modules/user/MyReels"), "MyReels");
+const Wallet = lazyWithRetry(() => import("./modules/user/Wallet"), "Wallet");
+
 // Lazy load delivery routes
 const DeliveryLayout = lazyWithRetry(
   () => import("./modules/delivery/components/DeliveryLayout"), "DeliveryLayout"
@@ -301,6 +307,7 @@ const AdminWallet = lazyWithRetry(() => import("./modules/admin/pages/AdminWalle
 const AdminBillingSettings = lazyWithRetry(
   () => import("./modules/admin/pages/AdminBillingSettings"), "AdminBillingSettings"
 );
+const AdminReels = lazyWithRetry(() => import("./modules/admin/pages/AdminReels"), "AdminReels");
 
 function App() {
   useEffect(() => {
@@ -452,6 +459,44 @@ function App() {
                                   <AdminLogin />
                                 </Suspense>
                               </PublicRoute>
+                            }
+                          />
+
+                          {/* Reels — immersive full-screen (outside AppLayout) */}
+                          <Route
+                            path="/reels"
+                            element={
+                              <ProtectedRoute
+                                requiredUserType="Customer"
+                                redirectTo="/login">
+                                <Suspense fallback={<IconLoader forceShow />}>
+                                  <Reels />
+                                </Suspense>
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="/reels/upload"
+                            element={
+                              <ProtectedRoute
+                                requiredUserType="Customer"
+                                redirectTo="/login">
+                                <Suspense fallback={<IconLoader forceShow />}>
+                                  <ReelUpload />
+                                </Suspense>
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="/reels/mine"
+                            element={
+                              <ProtectedRoute
+                                requiredUserType="Customer"
+                                redirectTo="/login">
+                                <Suspense fallback={<IconLoader forceShow />}>
+                                  <MyReels />
+                                </Suspense>
+                              </ProtectedRoute>
                             }
                           />
 
@@ -833,6 +878,10 @@ function App() {
                                         path="billing-settings"
                                         element={<AdminBillingSettings />}
                                       />
+                                      <Route
+                                        path="reels"
+                                        element={<AdminReels />}
+                                      />
                                     </Routes>
                                   </AdminLayout>
                                 </Suspense>
@@ -888,6 +937,10 @@ function App() {
                                     <Route
                                       path="/account"
                                       element={<Account />}
+                                    />
+                                    <Route
+                                      path="/wallet"
+                                      element={<Wallet />}
                                     />
                                     <Route
                                       path="/notifications"

@@ -616,6 +616,14 @@ export const updateOrderStatus = asyncHandler(
       } catch (commissionError) {
         console.error("Error distributing commissions on seller delivery:", commissionError);
       }
+      try {
+        const { settleReelCommissionsForOrder } = await import(
+          "../../../services/reelService"
+        );
+        await settleReelCommissionsForOrder(order._id.toString());
+      } catch (reelError) {
+        console.error("Error settling reel commissions on seller delivery:", reelError);
+      }
     }
 
     return res.status(200).json({

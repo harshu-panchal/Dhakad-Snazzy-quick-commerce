@@ -49,6 +49,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      codEnabled,
     } = req.body;
 
     const categoryExists = await HeaderCategory.findOne({ slug });
@@ -67,6 +68,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      codEnabled: codEnabled !== undefined ? !!codEnabled : true,
     });
 
     return res.status(201).json(category);
@@ -92,6 +94,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      codEnabled,
     } = req.body;
     const category = await HeaderCategory.findById(req.params.id);
 
@@ -114,6 +117,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.relatedCategory = relatedCategory; // Allow clearing it (undefined or null or empty string)
       category.status = status || category.status;
       category.order = order !== undefined ? order : category.order;
+      category.codEnabled = codEnabled !== undefined ? !!codEnabled : category.codEnabled;
 
       const updatedCategory = await category.save();
       return res.json(updatedCategory);
@@ -143,6 +147,23 @@ export const toggleHeaderCategoryActive = async (req: Request, res: Response) =>
       return res.status(404).json({ message: "Header category not found" });
     }
     category.isActive = !category.isActive;
+    await category.save();
+    return res.json(category);
+  } catch (error) {
+    return res.status(500).json({ message: "Server Error", error });
+  }
+};
+
+// @desc    Toggle codEnabled for a header category
+// @route   PATCH /api/v1/header-categories/:id/toggle-cod
+// @access  Private/Admin
+export const toggleHeaderCategoryCod = async (req: Request, res: Response) => {
+  try {
+    const category = await HeaderCategory.findById(req.params.id);
+    if (!category) {
+      return res.status(404).json({ message: "Header category not found" });
+    }
+    category.codEnabled = !category.codEnabled;
     await category.save();
     return res.json(category);
   } catch (error) {

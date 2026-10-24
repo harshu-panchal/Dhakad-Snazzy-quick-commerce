@@ -10,6 +10,7 @@ export interface IHeaderCategory extends Document {
     order: number;
     status: 'Published' | 'Unpublished';
     isActive: boolean;
+    codEnabled: boolean; // Whether Cash on Delivery is allowed for products under this header category
     createdAt: Date;
     updatedAt: Date;
 }
@@ -25,6 +26,7 @@ const HeaderCategorySchema: Schema = new Schema(
         order: { type: Number, default: 0 },
         status: { type: String, enum: ['Published', 'Unpublished'], default: 'Published' },
         isActive: { type: Boolean, default: true },
+        codEnabled: { type: Boolean, default: true },
     },
     { timestamps: true }
 );

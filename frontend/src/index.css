@@ -43,6 +43,17 @@
   }
 }
 
+/* Reel double-tap heart burst */
+@keyframes reel-heart-burst {
+  0% { transform: scale(0); opacity: 0; }
+  30% { transform: scale(1.1); opacity: 1; }
+  70% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+.animate-ping-once {
+  animation: reel-heart-burst 0.7s ease-out forwards;
+}
+
 /* Remove default video styling */
 video {
   border: none !important;

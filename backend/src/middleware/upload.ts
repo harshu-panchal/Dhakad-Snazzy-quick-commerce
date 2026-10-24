@@ -5,6 +5,7 @@ import { Request } from "express";
 const MAX_IMAGE_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024; // 50MB
 const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+const MAX_REEL_SIZE = 400 * 1024 * 1024; // 400MB (customer affiliation reels)
 
 // Allowed file types
 const ALLOWED_IMAGE_TYPES = [
@@ -123,6 +124,15 @@ export const uploadSingleVideo = multer({
   fileFilter: videoFileFilter,
 });
 
+// Multer instance for reel video upload (customers, up to 400MB)
+export const uploadReelVideo = multer({
+  storage,
+  limits: {
+    fileSize: MAX_REEL_SIZE,
+  },
+  fileFilter: videoFileFilter,
+});
+
 // Multer instance for document upload (image or PDF)
 export const uploadDocument = multer({
   storage,
@@ -152,7 +162,7 @@ export const handleUploadError = (
     if (err.code === "LIMIT_FILE_SIZE") {
       return res.status(400).json({
         success: false,
-        message: "File size exceeds the maximum allowed limit (Images: 50MB, Videos: 200MB)",
+        message: "File size exceeds the maximum allowed limit (Images: 50MB, Videos: 200MB, Reels: 400MB)",
       });
     }
     if (err.code === "LIMIT_FILE_COUNT") {
