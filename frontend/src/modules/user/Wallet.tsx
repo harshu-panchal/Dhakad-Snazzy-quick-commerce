@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getWallet, type WalletData } from '../../services/api/customerWalletService';
+import ReelBenefits from './components/ReelBenefits';
 
 function formatDate(d: string): string {
     if (!d) return '';
@@ -80,14 +81,19 @@ export default function Wallet() {
                         <div className="h-8 w-8 rounded-full border-4 border-neutral-200 border-t-green-600 animate-spin" />
                     </div>
                 ) : !wallet || wallet.transactions.length === 0 ? (
-                    <div className="bg-white rounded-xl border border-neutral-200 p-8 text-center">
-                        <p className="text-neutral-800 font-semibold mb-1">No transactions yet</p>
-                        <p className="text-neutral-500 text-sm mb-4">
-                            Post reels linked to products and earn commission on every sale.
-                        </p>
+                    <div className="bg-white rounded-xl border border-neutral-200 p-5">
+                        <div className="text-center mb-4">
+                            <p className="text-neutral-800 font-semibold mb-1">
+                                No transactions yet
+                            </p>
+                            <p className="text-neutral-500 text-sm">
+                                Post a reel for a product you've received and start earning.
+                            </p>
+                        </div>
+                        <ReelBenefits className="mb-4" />
                         <button
                             onClick={() => navigate('/reels/upload')}
-                            className="px-5 py-2 rounded-full bg-green-600 text-white text-sm font-semibold"
+                            className="w-full py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold"
                         >
                             Create a Reel
                         </button>

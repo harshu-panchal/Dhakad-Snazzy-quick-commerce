@@ -3,9 +3,11 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 import { uploadVideoFromBuffer, uploadImageFromBuffer } from "../../../services/localStorageService";
 import { CLOUDINARY_FOLDERS } from "../../../config/cloudinary";
 import { verifyToken } from "../../../services/jwtService";
+import AppSettings from "../../../models/AppSettings";
 import {
   getReelFeed,
   getPublicReel,
+  getReelableOrderItems,
   createReel,
   toggleLike,
   recordShare,
@@ -76,10 +78,42 @@ export const getFeed = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/v1/reels/config — PUBLIC.
+ * The numbers shown in the "why create a reel" copy, so the UI stays in sync
+ * when an admin changes the commission rate.
+ */
+export const getReelConfig = asyncHandler(async (_req: Request, res: Response) => {
+  const settings = await (AppSettings as any).getSettings();
+  return res.status(200).json({
+    success: true,
+    data: {
+      reelCommissionRate: Number(settings?.reelCommissionRate ?? 5),
+      maxReelSizeMB: Number(settings?.maxReelSizeMB ?? 400),
+    },
+  });
+});
+
+/**
+ * GET /api/v1/customer/reels/eligible
+ * Delivered purchases this customer can still make a reel for.
+ */
+export const eligibleProducts = asyncHandler(async (req: Request, res: Response) => {
+  const customerId = getCustomerId(req);
+  if (!customerId) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
+  const items = await getReelableOrderItems(customerId);
+  return res.status(200).json({ success: true, data: items });
+});
+
+/**
  * POST /api/v1/customer/reels
  * Multipart: field "video" (<=400MB), optional field "thumbnail" (a small
  * JPEG the client captures from the clip's first frame — see ReelUpload.tsx)
- * + productId, caption?, durationSec?, city?, state?
+ * + orderItemId, caption?, durationSec?, city?, state?
+ *
+ * The product is derived server-side from the delivered order item, so reels
+ * can only be made for what the customer actually bought and received.
  *
  * The thumbnail gives the feed an instant poster image to show while the
  * (possibly large) video is still buffering, instead of a black screen —
@@ -101,11 +135,11 @@ export const uploadReel = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: "No video file provided" });
   }
 
-  const { productId, caption, durationSec, city, state } = req.body;
-  if (!productId) {
+  const { orderItemId, caption, durationSec, city, state } = req.body;
+  if (!orderItemId) {
     return res.status(400).json({
       success: false,
-      message: "A product must be linked to the reel",
+      message: "A delivered purchase must be selected for the reel",
     });
   }
 
@@ -138,7 +172,7 @@ export const uploadReel = asyncHandler(async (req: Request, res: Response) => {
   try {
     const reel = await createReel({
       customerId,
-      productId,
+      orderItemId,
       videoUrl: uploadResult.secureUrl || uploadResult.url,
       videoPublicId: uploadResult.publicId,
       thumbnailUrl,

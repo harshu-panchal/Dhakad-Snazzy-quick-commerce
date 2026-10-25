@@ -14,6 +14,8 @@ import {
 } from "../../services/api/customerReviewService";
 import StarRating from "../../components/ui/StarRating";
 import MediaThumbnail from "../../components/ui/MediaThumbnail";
+import { getReelableProducts } from "../../services/api/customerReelService";
+import ReelBenefits from "./components/ReelBenefits";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -481,6 +483,10 @@ export default function OrderDetail() {
   const [customTip, setCustomTip] = useState("");
 
   // Review states (delivered orders)
+  // Delivered purchases in this order that can still become a reel. Anything
+  // in a delivered order that is NOT in this set already has a reel.
+  const [reelableItemIds, setReelableItemIds] = useState<Set<string> | null>(null);
+
   const [reviewStatusByProduct, setReviewStatusByProduct] = useState<
     Record<string, { reviewed: boolean; rating?: number }>
   >({});
@@ -615,6 +621,29 @@ export default function OrderDetail() {
 
     loadReviewStatuses();
   }, [order?.status, order?.items, id]);
+
+  // Which of this delivered order's items are still reel-eligible
+  useEffect(() => {
+    if (order?.status !== "Delivered") {
+      setReelableItemIds(null);
+      return;
+    }
+    let cancelled = false;
+    getReelableProducts()
+      .then((res) => {
+        if (cancelled) return;
+        const forThisOrder = (res.data || []).filter(
+          (i) => String(i.orderId) === String(id)
+        );
+        setReelableItemIds(new Set(forThisOrder.map((i) => String(i.orderItemId))));
+      })
+      .catch(() => {
+        if (!cancelled) setReelableItemIds(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [order?.status, id]);
 
   const getItemProductId = (item: any): string | null => {
     const productId =
@@ -1398,6 +1427,83 @@ export default function OrderDetail() {
                         </div>
                       </div>
                     )}
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Create a Reel & Earn — delivered orders only. The product is linked
+            automatically from the purchase, so this is the entry point into
+            the reel upload flow. */}
+        {order?.status === "Delivered" && reelableItemIds !== null && (
+          <motion.div
+            className="bg-white rounded-xl shadow-sm overflow-hidden p-4"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.79 }}>
+            <h3 className="font-semibold text-gray-900 mb-1">
+              Create a Reel &amp; Earn
+            </h3>
+            <p className="text-sm text-gray-500 mb-3">
+              Post a short video of what you received and earn on every sale it
+              brings in
+            </p>
+
+            <ReelBenefits variant="compact" className="mb-4" />
+
+            <div className="space-y-3">
+              {order.items?.map((item: any, index: number) => {
+                const orderItemId = item?._id ? String(item._id) : null;
+                if (!orderItemId) return null;
+                const name =
+                  item.product?.productName ||
+                  item.product?.name ||
+                  item.productName ||
+                  "Product";
+                const alreadyPosted = !reelableItemIds.has(orderItemId);
+
+                return (
+                  <div
+                    key={orderItemId + index}
+                    className="border border-gray-100 rounded-xl p-3 flex items-start gap-3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                      {(item.product?.mainImage || item.productImage) ? (
+                        <MediaThumbnail
+                          src={item.product?.mainImage || item.productImage}
+                          alt={name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-lg">
+                          📦
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 text-sm truncate">
+                        {name}
+                      </p>
+                      {alreadyPosted ? (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-xs text-green-700 font-medium">
+                            Reel posted
+                          </span>
+                          <Link
+                            to="/reels/mine"
+                            className="text-xs font-medium text-gray-500 hover:text-gray-700 underline">
+                            View earnings
+                          </Link>
+                        </div>
+                      ) : (
+                        <Link
+                          to={`/reels/upload?orderItem=${orderItemId}`}
+                          className="mt-1.5 inline-block text-sm font-medium text-green-700 hover:text-green-800">
+                          Create a Reel
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 );
               })}

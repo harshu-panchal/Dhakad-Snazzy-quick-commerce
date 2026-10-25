@@ -42,7 +42,7 @@ import sellerNotificationRoutes from "./sellerNotificationRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
 import customerReelRoutes from "./customerReelRoutes";
-import { getPublicReelById } from "../modules/customer/controllers/customerReelController";
+import { getPublicReelById, getReelConfig } from "../modules/customer/controllers/customerReelController";
 
 import {
   createOrder,
@@ -136,6 +136,9 @@ router.use("/customer/wishlist", wishlistRoutes);
 router.use("/customer/reviews", productReviewRoutes);
 router.use("/customer/shops", customerShopRoutes);
 router.use("/customer/reels", customerReelRoutes);
+// Public reel config (commission rate shown in "why create a reel" copy).
+// Must be registered before /reels/:id so "config" isn't read as an id.
+router.get("/reels/config", getReelConfig);
 // Public single reel (shared links must open for logged-out viewers)
 router.get("/reels/:id", getPublicReelById);
 // General customer route (must be last to avoid intercepting specific routes)

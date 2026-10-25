@@ -1,22 +1,19 @@
 import { useRef, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLocation as useLocationContext } from '../../hooks/useLocation';
 import { useToast } from '../../context/ToastContext';
-import { getProducts } from '../../services/api/customerProductService';
-import { uploadReel } from '../../services/api/customerReelService';
+import {
+    uploadReel,
+    getReelableProducts,
+    type ReelableItem,
+} from '../../services/api/customerReelService';
+import ReelBenefits from './components/ReelBenefits';
 
 const MAX_SIZE_MB = 400;
 
-interface PickedProduct {
-    _id: string;
-    productName: string;
-    mainImage?: string;
-    price: number;
-    discPrice?: number;
-}
-
 export default function ReelUpload() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { location } = useLocationContext();
     const { showToast } = useToast();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,10 +29,10 @@ export default function ReelUpload() {
     const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
-    const [search, setSearch] = useState('');
-    const [results, setResults] = useState<PickedProduct[]>([]);
-    const [searching, setSearching] = useState(false);
-    const [selected, setSelected] = useState<PickedProduct | null>(null);
+    // Reels may only be created for delivered purchases, so the "product
+    // picker" is really a picker over this customer's eligible order items.
+    const [eligible, setEligible] = useState<ReelableItem[] | null>(null);
+    const [selected, setSelected] = useState<ReelableItem | null>(null);
 
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -91,38 +88,34 @@ export default function ReelUpload() {
         }
     };
 
-    // Debounced product search
+    // Load eligible delivered purchases. If the customer arrived from a
+    // specific delivered order item (?orderItem=…), preselect it so the
+    // product is already linked and they go straight to picking a video.
     useEffect(() => {
-        if (!search.trim()) {
-            setResults([]);
-            return;
-        }
-        const t = setTimeout(async () => {
-            setSearching(true);
-            try {
-                const res = await getProducts({
-                    search: search.trim(),
-                    latitude: location?.latitude,
-                    longitude: location?.longitude,
-                    limit: 15,
-                });
-                setResults(
-                    (res.data || []).map((p: any) => ({
-                        _id: p._id,
-                        productName: p.productName,
-                        mainImage: p.mainImage || p.mainImageUrl,
-                        price: p.price,
-                        discPrice: p.discPrice,
-                    })),
-                );
-            } catch {
-                setResults([]);
-            } finally {
-                setSearching(false);
-            }
-        }, 400);
-        return () => clearTimeout(t);
-    }, [search, location?.latitude, location?.longitude]);
+        let cancelled = false;
+        getReelableProducts()
+            .then((res) => {
+                if (cancelled) return;
+                const items = res.data || [];
+                setEligible(items);
+                const preselectId = searchParams.get('orderItem');
+                if (preselectId) {
+                    const match = items.find((i) => i.orderItemId === preselectId);
+                    if (match) setSelected(match);
+                    else
+                        showToast(
+                            'You have already created a reel for that purchase',
+                            'info',
+                        );
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setEligible([]);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [searchParams, showToast]);
 
     const handleSubmit = async () => {
         if (!video) {
@@ -130,7 +123,7 @@ export default function ReelUpload() {
             return;
         }
         if (!selected) {
-            showToast('Link a product to your reel', 'error');
+            showToast('Choose which delivered product this reel is about', 'error');
             return;
         }
         setUploading(true);
@@ -139,7 +132,7 @@ export default function ReelUpload() {
             await uploadReel(
                 {
                     video,
-                    productId: selected._id,
+                    orderItemId: selected.orderItemId,
                     caption: caption.trim() || undefined,
                     durationSec,
                     thumbnail: thumbnailBlob || undefined,
@@ -159,19 +152,72 @@ export default function ReelUpload() {
         }
     };
 
+    const header = (
+        <div className="sticky top-0 z-20 bg-white border-b border-neutral-100 px-4 py-3 flex items-center gap-3">
+            <button onClick={() => navigate(-1)} aria-label="Back" className="p-1">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <h1 className="text-lg font-bold text-neutral-900">New Reel</h1>
+        </div>
+    );
+
+    // Still checking which purchases qualify
+    if (eligible === null) {
+        return (
+            <div className="min-h-screen bg-white">
+                {header}
+                <div className="flex items-center justify-center py-20">
+                    <div className="h-8 w-8 rounded-full border-4 border-neutral-200 border-t-green-600 animate-spin" />
+                </div>
+            </div>
+        );
+    }
+
+    // Nothing delivered yet (or every purchase already has a reel) — explain
+    // how to become eligible instead of showing an unusable form.
+    if (eligible.length === 0) {
+        return (
+            <div className="min-h-screen bg-white">
+                {header}
+                <div className="p-4 space-y-5">
+                    <div className="text-center pt-6 pb-2">
+                        <div className="text-5xl mb-3">🎬</div>
+                        <h2 className="text-lg font-bold text-neutral-900 mb-1">
+                            No products to feature yet
+                        </h2>
+                        <p className="text-sm text-neutral-500">
+                            You can create a reel for any product once your order has been
+                            delivered. Reels you've already posted don't appear here.
+                        </p>
+                    </div>
+
+                    <ReelBenefits />
+
+                    <button
+                        onClick={() => navigate('/orders')}
+                        className="w-full py-3 rounded-xl bg-green-600 text-white font-semibold active:scale-[0.99] transition-transform"
+                    >
+                        View my orders
+                    </button>
+                    <button
+                        onClick={() => navigate('/')}
+                        className="w-full py-3 rounded-xl border border-neutral-200 text-neutral-700 font-semibold"
+                    >
+                        Start shopping
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-white pb-28">
-            {/* Header */}
-            <div className="sticky top-0 z-20 bg-white border-b border-neutral-100 px-4 py-3 flex items-center gap-3">
-                <button onClick={() => navigate(-1)} aria-label="Back" className="p-1">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M19 12H5M12 19l-7-7 7-7" />
-                    </svg>
-                </button>
-                <h1 className="text-lg font-bold text-neutral-900">New Reel</h1>
-            </div>
+            {header}
 
             <div className="p-4 space-y-5">
+                <ReelBenefits />
                 {/* Video picker */}
                 <div>
                     <label className="block text-sm font-semibold text-neutral-800 mb-2">
@@ -227,75 +273,67 @@ export default function ReelUpload() {
                     />
                 </div>
 
-                {/* Product picker */}
+                {/* Which delivered purchase this reel features */}
                 <div>
-                    <label className="block text-sm font-semibold text-neutral-800 mb-2">
-                        Tag a product
+                    <label className="block text-sm font-semibold text-neutral-800 mb-1">
+                        Product
                     </label>
+                    <p className="text-xs text-neutral-500 mb-2">
+                        Choose one of your delivered purchases — it gets linked to the reel
+                        automatically.
+                    </p>
                     {selected ? (
-                        <div className="flex items-center gap-3 border border-neutral-200 rounded-xl p-2.5">
+                        <div className="flex items-center gap-3 border border-green-200 bg-green-50/50 rounded-xl p-2.5">
                             <img
-                                src={selected.mainImage || '/placeholder.png'}
-                                alt={selected.productName}
+                                src={selected.product.mainImage || '/placeholder.png'}
+                                alt={selected.product.productName}
                                 className="h-12 w-12 rounded-lg object-cover bg-neutral-100"
                             />
                             <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-neutral-900 line-clamp-1">
-                                    {selected.productName}
+                                    {selected.product.productName}
                                 </p>
-                                <p className="text-sm font-bold text-neutral-900">
-                                    ₹{selected.discPrice && selected.discPrice > 0 ? selected.discPrice : selected.price}
+                                <p className="text-xs text-neutral-500">
+                                    {selected.orderNumber
+                                        ? `Order ${selected.orderNumber}`
+                                        : 'Delivered order'}
                                 </p>
                             </div>
-                            <button
-                                onClick={() => setSelected(null)}
-                                className="text-sm text-red-600 font-medium px-2"
-                            >
-                                Remove
-                            </button>
+                            {eligible.length > 1 && (
+                                <button
+                                    onClick={() => setSelected(null)}
+                                    className="text-sm text-green-700 font-medium px-2"
+                                >
+                                    Change
+                                </button>
+                            )}
                         </div>
                     ) : (
-                        <>
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search products near you..."
-                                className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
-                            {searching && (
-                                <p className="text-xs text-neutral-400 mt-2">Searching…</p>
-                            )}
-                            {results.length > 0 && (
-                                <div className="mt-2 border border-neutral-200 rounded-xl divide-y divide-neutral-100 max-h-72 overflow-y-auto">
-                                    {results.map((p) => (
-                                        <button
-                                            key={p._id}
-                                            onClick={() => {
-                                                setSelected(p);
-                                                setResults([]);
-                                                setSearch('');
-                                            }}
-                                            className="flex items-center gap-3 p-2.5 w-full text-left hover:bg-neutral-50"
-                                        >
-                                            <img
-                                                src={p.mainImage || '/placeholder.png'}
-                                                alt={p.productName}
-                                                className="h-10 w-10 rounded-lg object-cover bg-neutral-100"
-                                            />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm text-neutral-900 line-clamp-1">
-                                                    {p.productName}
-                                                </p>
-                                                <p className="text-xs font-semibold text-neutral-600">
-                                                    ₹{p.discPrice && p.discPrice > 0 ? p.discPrice : p.price}
-                                                </p>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </>
+                        <div className="border border-neutral-200 rounded-xl divide-y divide-neutral-100 max-h-72 overflow-y-auto">
+                            {eligible.map((item) => (
+                                <button
+                                    key={item.orderItemId}
+                                    onClick={() => setSelected(item)}
+                                    className="flex items-center gap-3 p-2.5 w-full text-left hover:bg-neutral-50"
+                                >
+                                    <img
+                                        src={item.product.mainImage || '/placeholder.png'}
+                                        alt={item.product.productName}
+                                        className="h-10 w-10 rounded-lg object-cover bg-neutral-100"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm text-neutral-900 line-clamp-1">
+                                            {item.product.productName}
+                                        </p>
+                                        <p className="text-xs text-neutral-400">
+                                            {item.orderNumber
+                                                ? `Order ${item.orderNumber}`
+                                                : 'Delivered order'}
+                                        </p>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
 

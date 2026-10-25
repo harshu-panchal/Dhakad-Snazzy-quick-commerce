@@ -14,8 +14,16 @@ import mongoose, { Document, Schema } from "mongoose";
  */
 export interface IReel extends Document {
   customer: mongoose.Types.ObjectId; // Uploader / owner (earns commission)
-  product: mongoose.Types.ObjectId; // Linked product
+  product: mongoose.Types.ObjectId; // Linked product (derived from the order item)
   seller: mongoose.Types.ObjectId; // Denormalized from product for location filter
+
+  // Proof of purchase: a reel may only be created for a product the uploader
+  // actually bought and had delivered. Both are derived server-side from the
+  // order item, never trusted from the client. Optional in the schema only so
+  // reels created before this rule existed stay valid; `createReel` requires
+  // them for every new reel.
+  order?: mongoose.Types.ObjectId;
+  orderItem?: mongoose.Types.ObjectId;
 
   // Media
   videoUrl: string;
@@ -59,6 +67,15 @@ const ReelSchema = new Schema<IReel>(
       type: Schema.Types.ObjectId,
       ref: "Seller",
       required: [true, "Seller is required"],
+    },
+
+    order: {
+      type: Schema.Types.ObjectId,
+      ref: "Order",
+    },
+    orderItem: {
+      type: Schema.Types.ObjectId,
+      ref: "OrderItem",
     },
 
     videoUrl: {
@@ -134,6 +151,9 @@ ReelSchema.index({ seller: 1, status: 1, createdAt: -1 });
 // "My reels" query
 ReelSchema.index({ customer: 1, createdAt: -1 });
 ReelSchema.index({ product: 1 });
+// One reel per delivered order item. Sparse so the pre-rule reels (which have
+// no orderItem) are excluded rather than colliding with each other on null.
+ReelSchema.index({ orderItem: 1 }, { unique: true, sparse: true });
 
 const Reel =
   (mongoose.models.Reel as mongoose.Model<IReel>) ||

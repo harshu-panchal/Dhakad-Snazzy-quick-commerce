@@ -30,6 +30,7 @@
     "seed:sub-subcategories": "tsx src/scripts/seedSubSubcategories.ts",
     "add:products-from-paths": "tsx src/scripts/addProductsFromImagePaths.ts",
     "generate:delivery-otp": "tsx src/scripts/generateDeliveryOtpForCustomers.ts",
+    "reels:create-indexes": "tsx src/scripts/createReelIndexes.ts",
     "postinstall": "npm run build"
   },
   "keywords": [

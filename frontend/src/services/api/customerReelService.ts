@@ -67,6 +67,39 @@ export const getReelFeed = async (
     return response.data;
 };
 
+/** A delivered purchase the customer may still create a reel for. */
+export interface ReelableItem {
+    orderItemId: string;
+    orderId: string;
+    orderNumber?: string;
+    deliveredAt?: string;
+    product: {
+        _id: string;
+        productName: string;
+        mainImage?: string;
+        price: number;
+        discPrice?: number;
+    };
+}
+
+/** Delivered purchases that don't have a reel yet (one reel per purchase). */
+export const getReelableProducts = async (): Promise<{
+    success: boolean;
+    data: ReelableItem[];
+}> => {
+    const response = await api.get('/customer/reels/eligible');
+    return response.data;
+};
+
+/** Public reel settings — the commission rate shown in the benefits copy. */
+export const getReelConfig = async (): Promise<{
+    success: boolean;
+    data: { reelCommissionRate: number; maxReelSizeMB: number };
+}> => {
+    const response = await api.get('/reels/config');
+    return response.data;
+};
+
 /**
  * One reel by id — PUBLIC endpoint backing shared `/reels/:id` links (works
  * logged out; if a token is present the server also reports like/owner state).
@@ -79,15 +112,18 @@ export const getPublicReel = async (
 };
 
 /**
- * Upload a reel video (<=400MB) linked to a product, with an optional
- * client-captured poster thumbnail (a small JPEG from the clip's first
- * frame — see ReelUpload.tsx) so the feed has something to show instantly
- * while the video itself is still buffering.
+ * Upload a reel video (<=400MB) for a delivered purchase. The product is
+ * derived server-side from `orderItemId`, so reels can only be created for
+ * products the customer actually bought and received.
+ *
+ * `thumbnail` is an optional client-captured poster (a small JPEG from the
+ * clip's first frame — see ReelUpload.tsx) so the feed has something to show
+ * instantly while the video itself is still buffering.
  */
 export const uploadReel = async (
     data: {
         video: File;
-        productId: string;
+        orderItemId: string;
         caption?: string;
         durationSec?: number;
         city?: string;
@@ -98,7 +134,7 @@ export const uploadReel = async (
 ): Promise<{ success: boolean; data: Reel }> => {
     const form = new FormData();
     form.append('video', data.video);
-    form.append('productId', data.productId);
+    form.append('orderItemId', data.orderItemId);
     if (data.caption) form.append('caption', data.caption);
     if (data.durationSec) form.append('durationSec', String(data.durationSec));
     if (data.city) form.append('city', data.city);

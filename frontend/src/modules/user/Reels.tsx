@@ -384,7 +384,7 @@ export default function Reels({ startReelId }: ReelsProps = {}) {
                         <p className="text-white/60 text-sm mb-5">
                             {lat == null
                                 ? 'Enable location to see reels near you.'
-                                : 'Be the first to post a reel for products in your area.'}
+                                : 'Got an order delivered? Post the first reel for it and earn on every sale.'}
                         </p>
                         <button
                             onClick={() => navigate('/reels/upload')}

@@ -3,6 +3,7 @@ import { authenticate, requireUserType } from "../middleware/auth";
 import { uploadReelWithThumbnail, handleUploadError } from "../middleware/upload";
 import {
   getFeed,
+  eligibleProducts,
   uploadReel,
   likeReel,
   shareReel,
@@ -21,6 +22,7 @@ router.use(authenticate, requireUserType("Customer"));
 router.get("/feed", getFeed);
 router.get("/mine", myReels);
 router.get("/earnings", earnings);
+router.get("/eligible", eligibleProducts);
 
 router.post(
   "/",

@@ -415,11 +415,72 @@ export const getReelFeed = async (params: {
 };
 
 /**
- * Create a reel linked to a product. Seller is denormalized from the product.
+ * Products a customer is allowed to make a reel for: items from their own
+ * DELIVERED orders that don't have a reel yet. One reel per delivered order
+ * item, so buying the same product again unlocks another reel.
+ *
+ * Mirrors the "Rate & Review" eligibility rule (see productReviewController).
+ */
+export const getReelableOrderItems = async (customerId: string) => {
+  const deliveredOrders = await Order.find({
+    customer: customerId,
+    status: "Delivered",
+  })
+    .select("_id orderNumber deliveredAt")
+    .sort({ deliveredAt: -1, createdAt: -1 })
+    .limit(100)
+    .lean();
+
+  if (deliveredOrders.length === 0) return [];
+
+  const orderById = new Map(
+    (deliveredOrders as any[]).map((o) => [o._id.toString(), o])
+  );
+
+  const items = await OrderItem.find({
+    order: { $in: (deliveredOrders as any[]).map((o) => o._id) },
+    sellerStatus: { $ne: "Rejected" },
+  })
+    .populate({ path: "product", select: "productName mainImage price discPrice" })
+    .lean();
+
+  // Exclude items that already have a reel
+  const used = await Reel.find({
+    orderItem: { $in: (items as any[]).map((i) => i._id) },
+  })
+    .select("orderItem")
+    .lean();
+  const usedSet = new Set((used as any[]).map((r) => r.orderItem.toString()));
+
+  return (items as any[])
+    .filter((i) => i.product && !usedSet.has(i._id.toString()))
+    .map((i) => {
+      const order = orderById.get(i.order.toString());
+      return {
+        orderItemId: i._id,
+        orderId: i.order,
+        orderNumber: order?.orderNumber,
+        deliveredAt: order?.deliveredAt,
+        product: {
+          _id: i.product._id,
+          productName: i.product.productName,
+          mainImage: i.product.mainImage,
+          price: i.product.price,
+          discPrice: i.product.discPrice,
+        },
+      };
+    });
+};
+
+/**
+ * Create a reel for a delivered order item. The product (and its seller) are
+ * derived from the order item itself, so a customer can only ever post a reel
+ * for something they actually bought and received — the client never picks
+ * the product.
  */
 export const createReel = async (data: {
   customerId: string;
-  productId: string;
+  orderItemId: string;
   videoUrl: string;
   videoPublicId?: string;
   thumbnailUrl?: string;
@@ -430,28 +491,74 @@ export const createReel = async (data: {
   uploaderCity?: string;
   uploaderState?: string;
 }) => {
-  const product = await Product.findById(data.productId).select("seller status publish");
-  if (!product) {
-    throw new Error("Linked product not found");
+  if (!mongoose.isValidObjectId(data.orderItemId)) {
+    throw new Error("A delivered order item is required to create a reel");
   }
-  if (!product.seller) {
+
+  const orderItem = await OrderItem.findById(data.orderItemId).select(
+    "order product seller sellerStatus"
+  );
+  if (!orderItem || orderItem.sellerStatus === "Rejected") {
+    throw new Error("That purchase was not found");
+  }
+
+  // The order must belong to this customer and be delivered.
+  const order = await Order.findOne({
+    _id: orderItem.order,
+    customer: data.customerId,
+    status: "Delivered",
+  }).select("_id");
+  if (!order) {
+    throw new Error(
+      "You can only create a reel for a product from your delivered orders."
+    );
+  }
+
+  const existing = await Reel.findOne({ orderItem: orderItem._id }).select("_id");
+  if (existing) {
+    throw new Error("You have already created a reel for this purchase.");
+  }
+
+  // The product must still exist. Old orders can reference products that have
+  // since been deleted — a reel for one of those could never show a product
+  // card or earn commission, so it must not be created. (getReelableOrderItems
+  // already hides these; this guards a stale client or a direct API call.)
+  const product = await Product.findById(orderItem.product).select("seller");
+  if (!product) {
+    throw new Error("This product is no longer available, so it can't be featured in a reel.");
+  }
+
+  // Prefer the seller recorded on the order item; fall back to the product.
+  const sellerId = orderItem.seller || (product.seller as any);
+  if (!sellerId) {
     throw new Error("Linked product has no seller");
   }
 
-  const reel = await Reel.create({
-    customer: data.customerId,
-    product: product._id,
-    seller: product.seller,
-    videoUrl: data.videoUrl,
-    videoPublicId: data.videoPublicId,
-    thumbnailUrl: data.thumbnailUrl,
-    thumbnailPublicId: data.thumbnailPublicId,
-    caption: data.caption,
-    durationSec: data.durationSec,
-    sizeBytes: data.sizeBytes,
-    uploaderCity: data.uploaderCity,
-    uploaderState: data.uploaderState,
-  });
+  let reel;
+  try {
+    reel = await Reel.create({
+      customer: data.customerId,
+      product: orderItem.product,
+      seller: sellerId,
+      order: orderItem.order,
+      orderItem: orderItem._id,
+      videoUrl: data.videoUrl,
+      videoPublicId: data.videoPublicId,
+      thumbnailUrl: data.thumbnailUrl,
+      thumbnailPublicId: data.thumbnailPublicId,
+      caption: data.caption,
+      durationSec: data.durationSec,
+      sizeBytes: data.sizeBytes,
+      uploaderCity: data.uploaderCity,
+      uploaderState: data.uploaderState,
+    });
+  } catch (err: any) {
+    // Unique index on orderItem — two concurrent submits for the same purchase
+    if (err?.code === 11000) {
+      throw new Error("You have already created a reel for this purchase.");
+    }
+    throw err;
+  }
 
   return Reel.findById(reel._id)
     .populate({ path: "product", select: PRODUCT_SELECT })
