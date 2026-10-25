@@ -23,6 +23,7 @@ import {
 
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { isVideoUrl } from '../../utils/media';
+import { setReelAttribution } from '../../utils/reelAttribution';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +37,16 @@ export default function ProductDetail() {
     useState(false);
   const [isHighlightsExpanded, setIsHighlightsExpanded] = useState(false);
   const [isInfoExpanded, setIsInfoExpanded] = useState(false);
+
+  // Legacy reel share links pointed here as /product/:id?reel=<reelId>.
+  // Honor them so purchases from already-shared links still credit the reel
+  // owner (the server re-validates the reel when the order is placed).
+  useEffect(() => {
+    const reelId = new URLSearchParams(routerLocation.search).get('reel');
+    if (id && reelId && /^[a-f0-9]{24}$/i.test(reelId)) {
+      setReelAttribution(id, reelId);
+    }
+  }, [id, routerLocation.search]);
 
   const [product, setProduct] = useState<any>(null);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);

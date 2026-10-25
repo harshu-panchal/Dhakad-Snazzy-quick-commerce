@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
-import { uploadReelVideo, handleUploadError } from "../middleware/upload";
+import { uploadReelWithThumbnail, handleUploadError } from "../middleware/upload";
 import {
   getFeed,
   uploadReel,
@@ -24,7 +24,10 @@ router.get("/earnings", earnings);
 
 router.post(
   "/",
-  uploadReelVideo.single("video"),
+  uploadReelWithThumbnail.fields([
+    { name: "video", maxCount: 1 },
+    { name: "thumbnail", maxCount: 1 },
+  ]),
   handleUploadError,
   uploadReel
 );

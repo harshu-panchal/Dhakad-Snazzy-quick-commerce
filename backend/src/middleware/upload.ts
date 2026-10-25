@@ -133,6 +133,32 @@ export const uploadReelVideo = multer({
   fileFilter: videoFileFilter,
 });
 
+// Multer instance for a reel's video + an optional client-captured poster
+// thumbnail, uploaded together. The thumbnail is a small JPEG captured in the
+// browser from the selected clip's first frame (see ReelUpload.tsx) so the
+// feed has something to show immediately while the (possibly large) video is
+// still buffering, instead of a black screen.
+const reelWithThumbnailFileFilter = (
+  _req: Request,
+  file: any,
+  cb: multer.FileFilterCallback
+) => {
+  if (file.fieldname === "thumbnail") {
+    return imageFileFilter(_req, file, cb);
+  }
+  return videoFileFilter(_req, file, cb);
+};
+
+export const uploadReelWithThumbnail = multer({
+  storage,
+  // Applies to both fields; the thumbnail is always just a few KB/MB, so
+  // sharing the (generous) reel limit here is harmless.
+  limits: {
+    fileSize: MAX_REEL_SIZE,
+  },
+  fileFilter: reelWithThumbnailFileFilter,
+});
+
 // Multer instance for document upload (image or PDF)
 export const uploadDocument = multer({
   storage,

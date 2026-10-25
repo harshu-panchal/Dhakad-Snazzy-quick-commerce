@@ -21,6 +21,7 @@ export interface IReel extends Document {
   videoUrl: string;
   videoPublicId?: string; // For deletion from storage
   thumbnailUrl?: string;
+  thumbnailPublicId?: string; // For deletion from storage
   durationSec?: number;
   sizeBytes?: number;
 
@@ -70,6 +71,10 @@ const ReelSchema = new Schema<IReel>(
       trim: true,
     },
     thumbnailUrl: {
+      type: String,
+      trim: true,
+    },
+    thumbnailPublicId: {
       type: String,
       trim: true,
     },

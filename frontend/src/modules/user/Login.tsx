@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { sendOTP, verifyOTP } from '../../services/api/auth/customerAuthService';
 import { useAuth } from '../../context/AuthContext';
 import OTPInput from '../../components/OTPInput';
+import { getPostLoginRedirect } from '../../utils/authRedirect';
 
 export default function Login() {
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const { login } = useAuth();
   const [mobileNumber, setMobileNumber] = useState('');
   const [showOTP, setShowOTP] = useState(false);
@@ -51,7 +53,8 @@ export default function Login() {
           refCode: response.data.user.refCode,
           status: response.data.user.status,
         });
-        navigate('/');
+        // Return to the page that sent them here (e.g. a shared reel), else home
+        navigate(getPostLoginRedirect(routerLocation.state), { replace: true });
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid OTP. Please try again.');

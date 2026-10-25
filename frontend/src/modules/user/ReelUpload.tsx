@@ -25,6 +25,12 @@ export default function ReelUpload() {
     const [videoUrl, setVideoUrl] = useState<string>('');
     const [durationSec, setDurationSec] = useState<number | undefined>();
     const [caption, setCaption] = useState('');
+    // Poster thumbnail, captured client-side from the clip's first frame (see
+    // handleCaptureThumbnail) so the feed has something to show instantly
+    // while the video itself is still buffering — large reels otherwise look
+    // "stuck" on a black screen until enough of the video downloads.
+    const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
+    const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
     const [search, setSearch] = useState('');
     const [results, setResults] = useState<PickedProduct[]>([]);
@@ -56,6 +62,33 @@ export default function ReelUpload() {
         const url = URL.createObjectURL(file);
         setVideo(file);
         setVideoUrl(url);
+        setThumbnailBlob(null); // stale thumbnail from a previous clip shouldn't carry over
+    };
+
+    // Grab a frame from the (locally loaded, same-origin blob: URL) preview
+    // video as a small JPEG to use as the reel's poster image. Best-effort:
+    // if it fails for any reason, the reel still uploads, just without a
+    // poster — never blocks posting.
+    const handleCaptureThumbnail = () => {
+        const videoEl = videoPreviewRef.current;
+        if (!videoEl || !videoEl.videoWidth || !videoEl.videoHeight) return;
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoEl.videoWidth;
+            canvas.height = videoEl.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+            ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(
+                (blob) => {
+                    if (blob) setThumbnailBlob(blob);
+                },
+                'image/jpeg',
+                0.8,
+            );
+        } catch {
+            // Ignore — thumbnail is a nice-to-have, not required.
+        }
     };
 
     // Debounced product search
@@ -109,6 +142,7 @@ export default function ReelUpload() {
                     productId: selected._id,
                     caption: caption.trim() || undefined,
                     durationSec,
+                    thumbnail: thumbnailBlob || undefined,
                     city: location?.city,
                     state: location?.state,
                 },
@@ -146,13 +180,24 @@ export default function ReelUpload() {
                     {videoUrl ? (
                         <div className="relative rounded-xl overflow-hidden bg-black aspect-[9/16] max-h-[55vh] mx-auto">
                             <video
+                                ref={videoPreviewRef}
                                 src={videoUrl}
                                 controls
                                 playsInline
                                 className="h-full w-full object-contain"
-                                onLoadedMetadata={(e) =>
-                                    setDurationSec(Math.round((e.target as HTMLVideoElement).duration))
-                                }
+                                onLoadedMetadata={(e) => {
+                                    const el = e.currentTarget;
+                                    setDurationSec(Math.round(el.duration));
+                                    // Seek a touch in so we don't capture an all-black
+                                    // first frame (common right after a cut/transition).
+                                    try {
+                                        el.currentTime = Math.min(0.3, (el.duration || 1) / 4);
+                                    } catch {
+                                        // Some browsers may not be ready to seek yet — the
+                                        // thumbnail is best-effort, so just skip it.
+                                    }
+                                }}
+                                onSeeked={handleCaptureThumbnail}
                             />
                             <button
                                 onClick={() => fileInputRef.current?.click()}

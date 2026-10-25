@@ -68,7 +68,21 @@ export const getReelFeed = async (
 };
 
 /**
- * Upload a reel video (<=400MB) linked to a product.
+ * One reel by id — PUBLIC endpoint backing shared `/reels/:id` links (works
+ * logged out; if a token is present the server also reports like/owner state).
+ */
+export const getPublicReel = async (
+    id: string,
+): Promise<{ success: boolean; data: Reel }> => {
+    const response = await api.get(`/reels/${id}`);
+    return response.data;
+};
+
+/**
+ * Upload a reel video (<=400MB) linked to a product, with an optional
+ * client-captured poster thumbnail (a small JPEG from the clip's first
+ * frame — see ReelUpload.tsx) so the feed has something to show instantly
+ * while the video itself is still buffering.
  */
 export const uploadReel = async (
     data: {
@@ -78,6 +92,7 @@ export const uploadReel = async (
         durationSec?: number;
         city?: string;
         state?: string;
+        thumbnail?: Blob;
     },
     onProgress?: (percent: number) => void,
 ): Promise<{ success: boolean; data: Reel }> => {
@@ -88,6 +103,7 @@ export const uploadReel = async (
     if (data.durationSec) form.append('durationSec', String(data.durationSec));
     if (data.city) form.append('city', data.city);
     if (data.state) form.append('state', data.state);
+    if (data.thumbnail) form.append('thumbnail', data.thumbnail, 'thumbnail.jpg');
 
     const response = await api.post('/customer/reels', form, {
         headers: { 'Content-Type': 'multipart/form-data' },

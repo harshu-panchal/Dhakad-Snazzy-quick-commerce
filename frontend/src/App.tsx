@@ -68,6 +68,7 @@ const ShopDetail = lazyWithRetry(() => import("./modules/user/ShopDetail"), "Sho
 const Reels = lazyWithRetry(() => import("./modules/user/Reels"), "Reels");
 const ReelUpload = lazyWithRetry(() => import("./modules/user/ReelUpload"), "ReelUpload");
 const MyReels = lazyWithRetry(() => import("./modules/user/MyReels"), "MyReels");
+const SharedReel = lazyWithRetry(() => import("./modules/user/SharedReel"), "SharedReel");
 const Wallet = lazyWithRetry(() => import("./modules/user/Wallet"), "Wallet");
 
 // Lazy load delivery routes
@@ -497,6 +498,17 @@ function App() {
                                   <MyReels />
                                 </Suspense>
                               </ProtectedRoute>
+                            }
+                          />
+                          {/* Shared reel link — public, so it opens for logged-out
+                              viewers too; logged-in customers get the full feed
+                              starting at this reel. Also the App Links target. */}
+                          <Route
+                            path="/reels/:id"
+                            element={
+                              <Suspense fallback={<IconLoader forceShow />}>
+                                <SharedReel />
+                              </Suspense>
                             }
                           />
 

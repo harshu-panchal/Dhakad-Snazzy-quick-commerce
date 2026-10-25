@@ -211,6 +211,64 @@ function diversify<T extends { ownerId: string; finalScore: number }>(sorted: T[
 }
 
 /**
+ * Shape a populated reel into the response contract shared by the feed and the
+ * single-reel endpoint. Only whitelisted product fields are copied, so the
+ * extra ranking fields (category/subcategory/brand) never leak to clients.
+ */
+function shapeReelForViewer(r: any, liked: boolean, isOwner: boolean) {
+  return {
+    _id: r._id,
+    videoUrl: r.videoUrl,
+    thumbnailUrl: r.thumbnailUrl,
+    caption: r.caption,
+    durationSec: r.durationSec,
+    likesCount: r.likesCount || 0,
+    sharesCount: r.sharesCount || 0,
+    viewsCount: r.viewsCount || 0,
+    liked,
+    isOwner,
+    owner: r.customer ? { _id: r.customer._id, name: r.customer.name } : null,
+    product: r.product
+      ? {
+          _id: r.product._id,
+          productName: r.product.productName,
+          mainImage: r.product.mainImage,
+          price: r.product.price,
+          discPrice: r.product.discPrice,
+          compareAtPrice: r.product.compareAtPrice,
+          discount: r.product.discount,
+          seller: r.product.seller,
+        }
+      : null,
+    createdAt: r.createdAt,
+  };
+}
+
+/**
+ * Fetch one Active reel by id — backs shared reel links (/reels/:id), which
+ * must work for logged-out viewers too. Deliberately NOT location-filtered:
+ * someone explicitly shared this reel, so show it; the product page handles
+ * whether the product can be delivered to the viewer.
+ */
+export const getPublicReel = async (reelId: string, viewerId?: string) => {
+  if (!mongoose.isValidObjectId(reelId)) return null;
+
+  const reel: any = await Reel.findOne({ _id: reelId, status: "Active" })
+    .populate({ path: "product", select: PRODUCT_SELECT })
+    .populate({ path: "customer", select: "name" })
+    .lean();
+  if (!reel) return null;
+
+  let liked = false;
+  if (viewerId && mongoose.isValidObjectId(viewerId)) {
+    liked = !!(await ReelLike.exists({ reel: reel._id, customer: viewerId }));
+  }
+  const ownerId = (reel.customer?._id || reel.customer)?.toString();
+
+  return shapeReelForViewer(reel, liked, !!viewerId && ownerId === viewerId);
+};
+
+/**
  * Build the location-aware, ranked reel feed for a viewer.
  *
  * Hard filter (unchanged): a reel is eligible only when the viewer's
@@ -341,32 +399,10 @@ export const getReelFeed = async (params: {
     : [];
   const likedSet = new Set(liked.map((l: any) => l.reel.toString()));
 
-  const shaped = page_.map((r: any) => ({
-    _id: r._id,
-    videoUrl: r.videoUrl,
-    thumbnailUrl: r.thumbnailUrl,
-    caption: r.caption,
-    durationSec: r.durationSec,
-    likesCount: r.likesCount || 0,
-    sharesCount: r.sharesCount || 0,
-    viewsCount: r.viewsCount || 0,
-    liked: likedSet.has(r._id.toString()),
-    isOwner: false, // viewer's own reels are excluded from their own feed
-    owner: r.customer ? { _id: r.customer._id, name: r.customer.name } : null,
-    product: r.product
-      ? {
-          _id: r.product._id,
-          productName: r.product.productName,
-          mainImage: r.product.mainImage,
-          price: r.product.price,
-          discPrice: r.product.discPrice,
-          compareAtPrice: r.product.compareAtPrice,
-          discount: r.product.discount,
-          seller: r.product.seller,
-        }
-      : null,
-    createdAt: r.createdAt,
-  }));
+  // Viewer's own reels are excluded from their own feed, so isOwner is false.
+  const shaped = page_.map((r: any) =>
+    shapeReelForViewer(r, likedSet.has(r._id.toString()), false)
+  );
 
   return {
     reels: shaped,
@@ -387,6 +423,7 @@ export const createReel = async (data: {
   videoUrl: string;
   videoPublicId?: string;
   thumbnailUrl?: string;
+  thumbnailPublicId?: string;
   caption?: string;
   durationSec?: number;
   sizeBytes?: number;
@@ -408,6 +445,7 @@ export const createReel = async (data: {
     videoUrl: data.videoUrl,
     videoPublicId: data.videoPublicId,
     thumbnailUrl: data.thumbnailUrl,
+    thumbnailPublicId: data.thumbnailPublicId,
     caption: data.caption,
     durationSec: data.durationSec,
     sizeBytes: data.sizeBytes,
@@ -507,9 +545,12 @@ export const deleteReel = async (reelId: string, customerId: string) => {
   await ReelLike.deleteMany({ reel: reel._id });
   // Best-effort media cleanup
   try {
+    const { deleteImage } = await import("./localStorageService");
     if (reel.videoUrl) {
-      const { deleteImage } = await import("./localStorageService");
       await deleteImage(reel.videoPublicId || reel.videoUrl);
+    }
+    if (reel.thumbnailUrl) {
+      await deleteImage(reel.thumbnailPublicId || reel.thumbnailUrl);
     }
   } catch (e) {
     console.error("Failed to delete reel media:", e);

@@ -42,6 +42,7 @@ import sellerNotificationRoutes from "./sellerNotificationRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
 import customerReelRoutes from "./customerReelRoutes";
+import { getPublicReelById } from "../modules/customer/controllers/customerReelController";
 
 import {
   createOrder,
@@ -135,6 +136,8 @@ router.use("/customer/wishlist", wishlistRoutes);
 router.use("/customer/reviews", productReviewRoutes);
 router.use("/customer/shops", customerShopRoutes);
 router.use("/customer/reels", customerReelRoutes);
+// Public single reel (shared links must open for logged-out viewers)
+router.get("/reels/:id", getPublicReelById);
 // General customer route (must be last to avoid intercepting specific routes)
 router.use("/customer", customerRoutes);
 

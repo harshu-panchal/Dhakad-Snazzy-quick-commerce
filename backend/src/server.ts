@@ -65,8 +65,20 @@ const corsOptions = {
   maxAge: 86400,
 };
 
-// Apply compression middleware - Reduces payload size effectively
-app.use(compression());
+// Apply compression middleware - Reduces payload size effectively.
+// Skip it entirely for /uploads: those are already-compressed binary assets
+// (images/videos), so gzip wastes CPU for no benefit, and running a large
+// video response through compression can interfere with byte-range (seek)
+// support that video playback depends on. express.static's own Range
+// handling is left completely untouched for that path.
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.path.startsWith("/uploads")) return false;
+      return compression.filter(req, res);
+    },
+  })
+);
 
 // Apply CORS middleware - This handles everything including preflight
 app.use(cors(corsOptions));
@@ -76,8 +88,22 @@ import path from "path";
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve local uploaded files statically
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Serve local uploaded files statically.
+// Every upload (images, videos, reels) gets a unique timestamp+random
+// filename and is never overwritten (see localStorageService), so it's safe
+// to cache these responses aggressively and "immutable" — the browser/any CDN
+// or reverse proxy in front of this server will stop re-requesting bytes it
+// already has, which matters a lot for large reel videos. express.static's
+// built-in byte-range (seek) support is unaffected by these headers.
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "uploads"), {
+    maxAge: "365d",
+    immutable: true,
+    etag: true,
+    lastModified: true,
+  })
+);
 
 // Initialize Socket.io
 const io = initializeSocket(httpServer);
