@@ -56,7 +56,15 @@ export interface MyOrdersParams {
  */
 export const getPaymentConfig = async (
     productIds?: string[],
-): Promise<{ success: boolean; data: { codEnabled: boolean; blockedCategories?: string[] } }> => {
+): Promise<{
+    success: boolean;
+    data: {
+        codEnabled: boolean;
+        razorpayEnabled: boolean;
+        cashfreeEnabled: boolean;
+        blockedCategories?: string[];
+    };
+}> => {
     const response = await api.get('/customer/orders/payment-config', {
         params: productIds && productIds.length > 0 ? { productIds: productIds.join(',') } : undefined,
     });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireUserType } from '../middleware/auth';
 import { Request, Response } from 'express';
 import Order from '../models/Order';
+import AppSettings from '../models/AppSettings';
 import {
     createCashfreeOrder,
     captureCashfreePayment,
@@ -34,6 +35,21 @@ router.post(
 
             if (order.customer.toString() !== req.user!.userId) {
                 return res.status(403).json({ success: false, message: 'Unauthorized access to order' });
+            }
+
+            if (order.paymentMethod?.trim().toUpperCase() !== 'CASHFREE') {
+                return res.status(400).json({
+                    success: false,
+                    message: 'This order was not created with Cashfree as its payment method',
+                });
+            }
+
+            const settings = await AppSettings.getSettings();
+            if (settings.paymentGateways?.cashfree?.enabled === false) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cashfree is currently unavailable. Please choose another payment method.',
+                });
             }
 
             // Extract customer info directly from Order fields or fallback to req.user

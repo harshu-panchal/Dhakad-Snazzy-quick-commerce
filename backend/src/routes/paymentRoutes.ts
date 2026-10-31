@@ -3,6 +3,7 @@ import { authenticate, requireUserType } from '../middleware/auth';
 import { Request, Response } from 'express';
 import { createRazorpayOrder, capturePayment, handleWebhook } from '../services/paymentService';
 import Order from '../models/Order';
+import AppSettings from '../models/AppSettings';
 
 const router = Router();
 
@@ -33,6 +34,21 @@ router.post('/create-order', authenticate, requireUserType('Customer'), async (r
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized access to order',
+            });
+        }
+
+        if (order.paymentMethod?.trim().toUpperCase() !== 'RAZORPAY') {
+            return res.status(400).json({
+                success: false,
+                message: 'This order was not created with Razorpay as its payment method',
+            });
+        }
+
+        const settings = await AppSettings.getSettings();
+        if (settings.paymentGateways?.razorpay?.enabled === false) {
+            return res.status(400).json({
+                success: false,
+                message: 'Razorpay is currently unavailable. Please choose another payment method.',
             });
         }
 

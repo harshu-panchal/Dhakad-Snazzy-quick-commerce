@@ -31,6 +31,8 @@ export default function AdminBillingSettings() {
     // Feature Flags
     const [showSellerDetails, setShowSellerDetails] = useState<boolean>(true);
     const [codEnabled, setCodEnabled] = useState<boolean>(true);
+    const [razorpayEnabled, setRazorpayEnabled] = useState<boolean>(true);
+    const [cashfreeEnabled, setCashfreeEnabled] = useState<boolean>(true);
 
     // Per header-category COD toggles
     const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
@@ -105,6 +107,9 @@ export default function AdminBillingSettings() {
                 if (data.paymentMethods) {
                     setCodEnabled(data.paymentMethods.cod ?? true);
                 }
+
+                setRazorpayEnabled(data.paymentGateways?.razorpay?.enabled ?? true);
+                setCashfreeEnabled(data.paymentGateways?.cashfree?.enabled ?? true);
             }
         } catch (error: any) {
             console.error(error);
@@ -151,6 +156,17 @@ export default function AdminBillingSettings() {
                         upi: true,
                     }),
                     cod: codEnabled
+                },
+                paymentGateways: {
+                    ...(settings?.paymentGateways || {}),
+                    razorpay: {
+                        ...(settings?.paymentGateways?.razorpay || {}),
+                        enabled: razorpayEnabled,
+                    },
+                    cashfree: {
+                        ...(settings?.paymentGateways?.cashfree || {}),
+                        enabled: cashfreeEnabled,
+                    },
                 }
             };
 
@@ -498,7 +514,43 @@ export default function AdminBillingSettings() {
                     <h2 className="text-lg font-semibold text-gray-900 mb-2">Payment Settings</h2>
                     <p className="text-sm text-gray-500 mb-6">Control which payment options customers can use at checkout.</p>
 
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
+                            <div className="flex-1 pr-4">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Razorpay</h3>
+                                <p className="text-xs text-gray-500">Show or hide Razorpay as a separate online payment option at customer checkout.</p>
+                            </div>
+
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={razorpayEnabled}
+                                    onChange={(e) => setRazorpayEnabled(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            </label>
+                        </div>
+
+                        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
+                            <div className="flex-1 pr-4">
+                                <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Cashfree</h3>
+                                <p className="text-xs text-gray-500">Show or hide Cashfree as a separate online payment option at customer checkout.</p>
+                            </div>
+
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={cashfreeEnabled}
+                                    onChange={(e) => setCashfreeEnabled(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between p-4 mt-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all">
                         <div className="flex-1 pr-4">
                             <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Cash on Delivery (COD)</h3>
                             <p className="text-xs text-gray-500">Master switch. When enabled, customers can choose to pay with cash when the order is delivered. Turn off to accept only online payments everywhere.</p>

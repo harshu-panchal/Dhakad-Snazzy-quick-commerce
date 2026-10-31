@@ -230,7 +230,7 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     },
     paymentGateways: {
       razorpay: {
-        enabled: Boolean,
+        enabled: { type: Boolean, default: true },
         keyId: String,
         keySecret: String,
       },

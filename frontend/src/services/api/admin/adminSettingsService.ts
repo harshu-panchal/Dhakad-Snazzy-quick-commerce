@@ -36,6 +36,12 @@ export interface PaymentGateways {
     keyId?: string;
     keySecret?: string;
   };
+  cashfree?: {
+    enabled: boolean;
+    appId?: string;
+    secretKey?: string;
+    environment?: "TEST" | "PRODUCTION";
+  };
   stripe?: {
     enabled: boolean;
     publishableKey?: string;

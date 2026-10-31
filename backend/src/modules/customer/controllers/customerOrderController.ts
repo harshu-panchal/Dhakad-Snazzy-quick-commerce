@@ -165,12 +165,16 @@ export const restoreOrderInventoryAndCoupon = async (
   }
 };
 
-// Get which payment methods are currently enabled (used by checkout to show/hide COD)
+// Get which payment methods are currently enabled (used by checkout to show/hide options)
 // Accepts an optional ?productIds=id1,id2,... (the cart's items) to also factor in
 // per-header-category COD restrictions set by the admin.
 export const getPaymentConfig = async (req: Request, res: Response) => {
   const settings = await AppSettings.getSettings();
   const globalCodEnabled = settings.paymentMethods?.cod !== false;
+  // Treat missing gateway flags as enabled so existing settings documents keep
+  // the behaviour they had before these switches were introduced.
+  const razorpayEnabled = settings.paymentGateways?.razorpay?.enabled !== false;
+  const cashfreeEnabled = settings.paymentGateways?.cashfree?.enabled !== false;
 
   let blockedCategories: string[] = [];
   const productIdsParam = req.query.productIds;
@@ -187,6 +191,8 @@ export const getPaymentConfig = async (req: Request, res: Response) => {
     message: "Payment config fetched successfully",
     data: {
       codEnabled: globalCodEnabled && blockedCategories.length === 0,
+      razorpayEnabled,
+      cashfreeEnabled,
       blockedCategories,
     },
   });
@@ -352,6 +358,31 @@ export const createOrder = async (req: Request, res: Response) => {
 
     // Pre-fetch settings for various calculations (also used below for COD gating)
     const settings = await AppSettings.getSettings();
+
+    const normalizedPaymentMethod =
+      typeof paymentMethod === "string" ? paymentMethod.trim().toUpperCase() : "";
+
+    if (
+      normalizedPaymentMethod === "RAZORPAY" &&
+      settings.paymentGateways?.razorpay?.enabled === false
+    ) {
+      if (session) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Razorpay is currently unavailable. Please choose another payment method.",
+      });
+    }
+
+    if (
+      normalizedPaymentMethod === "CASHFREE" &&
+      settings.paymentGateways?.cashfree?.enabled === false
+    ) {
+      if (session) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: "Cashfree is currently unavailable. Please choose another payment method.",
+      });
+    }
 
     if (isCod && settings.paymentMethods?.cod === false) {
       if (session) await session.abortTransaction();

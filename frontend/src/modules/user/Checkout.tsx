@@ -146,31 +146,66 @@ export default function Checkout() {
   const [isMapSelected, setIsMapSelected] = useState(false);
 
   // Payment Method State
-  const [paymentMethod, setPaymentMethod] = useState<"Cashfree" | "Razorpay" | "COD">(
-    "Cashfree",
-  );
+  type CheckoutPaymentMethod = "Cashfree" | "Razorpay" | "COD";
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod | null>(null);
+  const [paymentConfigLoaded, setPaymentConfigLoaded] = useState(false);
+  const [razorpayEnabled, setRazorpayEnabled] = useState(false);
+  const [cashfreeEnabled, setCashfreeEnabled] = useState(false);
   const [codEnabled, setCodEnabled] = useState(false);
   const [codBlockedCategories, setCodBlockedCategories] = useState<string[]>([]);
 
   useEffect(() => {
     if (cart.items.length === 0) return;
+    let cancelled = false;
+    setPaymentConfigLoaded(false);
     const productIds = cart.items
       .map((item) => item.product?.id || (item.product as any)?._id)
       .filter(Boolean);
     getPaymentConfig(productIds)
       .then((res) => {
+        if (cancelled) return;
         setCodEnabled(!!res?.data?.codEnabled);
+        setRazorpayEnabled(!!res?.data?.razorpayEnabled);
+        setCashfreeEnabled(!!res?.data?.cashfreeEnabled);
         setCodBlockedCategories(res?.data?.blockedCategories || []);
+        setPaymentConfigLoaded(true);
       })
-      .catch((err) => console.error("Failed to fetch payment config:", err));
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to fetch payment config:", err);
+        setRazorpayEnabled(false);
+        setCashfreeEnabled(false);
+        setCodEnabled(false);
+        setPaymentConfigLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [cart.items]);
 
-  // If COD gets disabled by the admin while it's selected, fall back to online payment
+  // Keep the current selection when possible; otherwise choose the first enabled
+  // option in the same priority order used by the checkout UI.
   useEffect(() => {
-    if (!codEnabled && paymentMethod === "COD") {
-      setPaymentMethod("Cashfree");
+    if (!paymentConfigLoaded) return;
+
+    const selectedMethodIsEnabled =
+      (paymentMethod === "Cashfree" && cashfreeEnabled) ||
+      (paymentMethod === "Razorpay" && razorpayEnabled) ||
+      (paymentMethod === "COD" && codEnabled);
+
+    if (!selectedMethodIsEnabled) {
+      setPaymentMethod(
+        cashfreeEnabled
+          ? "Cashfree"
+          : razorpayEnabled
+            ? "Razorpay"
+            : codEnabled
+              ? "COD"
+              : null,
+      );
     }
-  }, [codEnabled, paymentMethod]);
+  }, [cashfreeEnabled, codEnabled, paymentConfigLoaded, paymentMethod, razorpayEnabled]);
 
   // Order Processing State
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
@@ -578,6 +613,16 @@ export default function Checkout() {
     const bypassProfileCheck = arg === true;
 
     if (!selectedAddress || cart.items.length === 0) {
+      return;
+    }
+
+    if (!paymentConfigLoaded || !paymentMethod) {
+      showGlobalToast(
+        paymentConfigLoaded
+          ? "No payment method is currently available. Please try again later."
+          : "Payment methods are still loading. Please wait a moment.",
+        "error",
+      );
       return;
     }
 
@@ -1845,15 +1890,23 @@ export default function Checkout() {
         </div>
 
         <div className="space-y-2">
+          {!paymentConfigLoaded && (
+            <div className="flex items-center justify-center gap-2 px-3.5 py-4 rounded-xl border border-neutral-200 bg-neutral-50 text-xs text-neutral-600">
+              <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+              Loading payment methods...
+            </div>
+          )}
+
           {/* Online Payment (Cashfree) */}
-          <div
-            onClick={() => setPaymentMethod("Cashfree")}
-            className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
-              paymentMethod === "Cashfree"
-                ? "border-green-600 bg-green-50/70 shadow-xs"
-                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
-            }`}>
-            <div className="flex items-center gap-3 min-w-0">
+          {paymentConfigLoaded && cashfreeEnabled && (
+            <div
+              onClick={() => setPaymentMethod("Cashfree")}
+              className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
+                paymentMethod === "Cashfree"
+                  ? "border-green-600 bg-green-50/70 shadow-xs"
+                  : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
+              }`}>
+              <div className="flex items-center gap-3 min-w-0">
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
                   paymentMethod === "Cashfree"
@@ -1886,28 +1939,30 @@ export default function Checkout() {
                   Cards, UPI (GPay, PhonePe, Paytm), NetBanking
                 </p>
               </div>
+              </div>
+              <div
+                className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
+                  paymentMethod === "Cashfree"
+                    ? "border-green-600 bg-green-600"
+                    : "border-neutral-300 bg-white"
+                }`}>
+                {paymentMethod === "Cashfree" && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                )}
+              </div>
             </div>
-            <div
-              className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
-                paymentMethod === "Cashfree"
-                  ? "border-green-600 bg-green-600"
-                  : "border-neutral-300 bg-white"
-              }`}>
-              {paymentMethod === "Cashfree" && (
-                <div className="w-1.5 h-1.5 rounded-full bg-white" />
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Online Payment (Razorpay) */}
-          <div
-            onClick={() => setPaymentMethod("Razorpay")}
-            className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
-              paymentMethod === "Razorpay"
-                ? "border-green-600 bg-green-50/70 shadow-xs"
-                : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
-            }`}>
-            <div className="flex items-center gap-3 min-w-0">
+          {paymentConfigLoaded && razorpayEnabled && (
+            <div
+              onClick={() => setPaymentMethod("Razorpay")}
+              className={`cursor-pointer flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
+                paymentMethod === "Razorpay"
+                  ? "border-green-600 bg-green-50/70 shadow-xs"
+                  : "border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50/50"
+              }`}>
+              <div className="flex items-center gap-3 min-w-0">
               <div
                 className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
                   paymentMethod === "Razorpay"
@@ -1935,18 +1990,19 @@ export default function Checkout() {
                   Secondary Gateway • Cards, UPI, NetBanking
                 </p>
               </div>
+              </div>
+              <div
+                className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
+                  paymentMethod === "Razorpay"
+                    ? "border-green-600 bg-green-600"
+                    : "border-neutral-300 bg-white"
+                }`}>
+                {paymentMethod === "Razorpay" && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                )}
+              </div>
             </div>
-            <div
-              className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ml-2 transition-all ${
-                paymentMethod === "Razorpay"
-                  ? "border-green-600 bg-green-600"
-                  : "border-neutral-300 bg-white"
-              }`}>
-              {paymentMethod === "Razorpay" && (
-                <div className="w-1.5 h-1.5 rounded-full bg-white" />
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Cash on Delivery */}
           {codEnabled && (
@@ -2002,7 +2058,16 @@ export default function Checkout() {
           {!codEnabled && codBlockedCategories.length > 0 && (
             <div className="px-3.5 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-800">
               Cash on Delivery isn't available for items in your cart from:{" "}
-              {codBlockedCategories.join(", ")}. Please pay online, or remove these items to use COD.
+              {codBlockedCategories.join(", ")}.
+              {cashfreeEnabled || razorpayEnabled
+                ? " Please pay online, or remove these items to use COD."
+                : " No online payment method is currently enabled, so remove these items or try again later."}
+            </div>
+          )}
+
+          {paymentConfigLoaded && !cashfreeEnabled && !razorpayEnabled && !codEnabled && codBlockedCategories.length === 0 && (
+            <div className="px-3.5 py-3 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-800">
+              No payment method is currently available. Please try again later.
             </div>
           )}
         </div>
@@ -2704,15 +2769,27 @@ export default function Checkout() {
           <button
             onClick={handlePlaceOrder}
             disabled={
-              cart.items.length === 0 || isProcessingOrder || !meetsMinimumOrder
+              cart.items.length === 0 ||
+              isProcessingOrder ||
+              !meetsMinimumOrder ||
+              !paymentConfigLoaded ||
+              !paymentMethod
             }
             className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
-              cart.items.length > 0 && !isProcessingOrder && meetsMinimumOrder
+              cart.items.length > 0 &&
+              !isProcessingOrder &&
+              meetsMinimumOrder &&
+              paymentConfigLoaded &&
+              paymentMethod
                 ? "bg-green-600 text-white hover:bg-green-700"
                 : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
             }`}>
             {isProcessingOrder
               ? "Processing..."
+              : !paymentConfigLoaded
+                ? "Loading payment methods..."
+                : !paymentMethod
+                  ? "Payment unavailable"
               : !meetsMinimumOrder
                 ? `Add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more`
                 : `Pay ₹${grandTotal.toFixed(0)}`}
