@@ -14,6 +14,7 @@ export { default as Brand } from "./Brand";
 export { default as Product } from "./Product";
 export { default as Order } from "./Order";
 export { default as OrderItem } from "./OrderItem";
+export { default as Shipment } from "./Shipment";
 export { default as Coupon } from "./Coupon";
 export { default as Inventory } from "./Inventory";
 export { default as Payment } from "./Payment";

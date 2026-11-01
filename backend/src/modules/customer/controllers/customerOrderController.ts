@@ -16,6 +16,7 @@ import { getOrderItemCommissionRate } from "../../../services/commissionService"
 import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Coupon from "../../../models/Coupon";
 import Reel from "../../../models/Reel";
+import Shipment from "../../../models/Shipment";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
@@ -1104,6 +1105,9 @@ export const getOrderById = async (req: Request, res: Response) => {
 
     // Transform order to match frontend Order type
     const orderObj: any = order;
+    const shipment = await Shipment.findOne({ order: orderObj._id })
+      .select("provider status awb courierName estimatedDeliveryDays estimatedDeliveryDate trackingUrl shiprocketStatus trackingEvents lastSyncedAt")
+      .lean();
     const transformedOrder = {
       ...orderObj,
       id: orderObj._id.toString(),
@@ -1122,6 +1126,8 @@ export const getOrderById = async (req: Request, res: Response) => {
       deliveryOtp,
       // Map deliveryBoy to deliveryPartner for frontend
       deliveryPartner: orderObj.deliveryBoy,
+      deliveryProvider: orderObj.deliveryProvider,
+      shipment,
     };
 
     return res.status(200).json({
@@ -1237,6 +1243,19 @@ export const cancelOrder = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         message: `Order cannot be cancelled as it is already ${order.status}`,
+      });
+    }
+
+    // Keep local and Shiprocket state consistent. If the remote cancellation fails,
+    // do not restore inventory or mark the local order cancelled.
+    try {
+      const { cancelBookedShipment } = await import("../../../services/shippingService");
+      await cancelBookedShipment(id);
+    } catch (error: any) {
+      if (session) await session.abortTransaction();
+      return res.status(error?.statusCode || 502).json({
+        success: false,
+        message: `Cancellation could not be completed with Shiprocket: ${error.message}`,
       });
     }
 

@@ -31,6 +31,9 @@ export interface ISeller extends Document {
 
   // Store Location Info
   city: string;
+  state: string;
+  pincode: string;
+  country: string;
   serviceableArea?: string;
   searchLocation?: string;
   latitude?: string;
@@ -42,6 +45,14 @@ export interface ISeller extends Document {
   };
   // Service radius in kilometers
   serviceRadiusKm?: number;
+
+  // Shiprocket pickup-location synchronization
+  shiprocketPickupCode?: string;
+  shiprocketPickupLocationId?: string;
+  shiprocketPickupSyncStatus: 'Pending' | 'Synced' | 'Failed';
+  shiprocketPickupSyncError?: string;
+  shiprocketPickupSyncedAt?: Date;
+  shiprocketPickupAddressHash?: string;
 
   // Payment Details
   accountName?: string;
@@ -180,6 +191,25 @@ const SellerSchema = new Schema<ISeller>(
       required: false,
       trim: true,
     },
+    state: {
+      type: String,
+      required: [true, 'State is required'],
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      required: [true, 'Pincode is required'],
+      trim: true,
+      validate: {
+        validator: (value: string) => /^[1-9][0-9]{5}$/.test(value),
+        message: 'Pincode must be a valid 6-digit Indian PIN code',
+      },
+    },
+    country: {
+      type: String,
+      default: 'India',
+      trim: true,
+    },
     serviceableArea: {
       type: String,
       trim: true,
@@ -213,6 +243,29 @@ const SellerSchema = new Schema<ISeller>(
       default: 10,
       min: [0.1, 'Service radius must be at least 0.1 km'],
       max: [100, 'Service radius cannot exceed 100 km'],
+    },
+    shiprocketPickupCode: {
+      type: String,
+      trim: true,
+    },
+    shiprocketPickupLocationId: {
+      type: String,
+      trim: true,
+    },
+    shiprocketPickupSyncStatus: {
+      type: String,
+      enum: ['Pending', 'Synced', 'Failed'],
+      default: 'Pending',
+      index: true,
+    },
+    shiprocketPickupSyncError: {
+      type: String,
+      trim: true,
+    },
+    shiprocketPickupSyncedAt: Date,
+    shiprocketPickupAddressHash: {
+      type: String,
+      trim: true,
     },
 
     // Payment Details

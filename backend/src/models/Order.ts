@@ -61,6 +61,7 @@ export interface IOrder extends Document {
 
   // Delivery Assignment
   deliveryBoy?: mongoose.Types.ObjectId;
+  deliveryProvider?: "Personal" | "Shiprocket";
   deliveryBoyStatus?:
   | "Assigned"
   | "Picked Up"
@@ -302,6 +303,10 @@ const OrderSchema = new Schema<IOrder>(
     deliveryBoy: {
       type: Schema.Types.ObjectId,
       ref: "Delivery",
+    },
+    deliveryProvider: {
+      type: String,
+      enum: ["Personal", "Shiprocket"],
     },
     deliveryBoyStatus: {
       type: String,

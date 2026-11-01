@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import Category from "../models/Category";
 import Product from "../models/Product";
 import WalletTransaction from "../models/WalletTransaction";
+import Shipment from "../models/Shipment";
 
 /**
  * Get the effective commission rate for a product/item
@@ -953,6 +954,7 @@ export interface ICODOrderBreakdown {
   deliveryBoyId?: string;
   deliveryDistanceKm?: number;
   isSelfAssign?: boolean; // true = delivery charge goes to seller(s), no delivery boy
+  thirdPartyShippingCost?: number;
 }
 
 /**
@@ -1024,12 +1026,18 @@ export const calculateCODOrderBreakdown = async (
       );
     }
 
+    const shipment = await Shipment.findOne({ order: order._id, provider: "Shiprocket" }).lean();
+    if (shipment) breakdown.thirdPartyShippingCost = Number(shipment.quotedRate) || 0;
+
     // 2. Calculate Delivery Commission Split (Self Assign = delivery charge to seller, no delivery boy)
     if (isSelfAssign) {
       breakdown.deliveryBoyCommission = 0;
       breakdown.adminDeliveryCommission = 0;
       breakdown.amountDeliveryBoyOwesAdmin = 0;
       // totalAdminEarning computed below (no delivery share for admin)
+    } else if (shipment) {
+      breakdown.deliveryBoyCommission = 0;
+      breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge - (breakdown.thirdPartyShippingCost || 0);
     } else if (order.deliveryBoy) {
       const settings = await AppSettings.getSettings();
 
@@ -1157,6 +1165,9 @@ export const getOrderEarningBreakdown = async (
     breakdown.sellerEarnings.set(sellerId, current + itemSellerEarning);
   }
 
+  const shipment = await Shipment.findOne({ order: order._id, provider: "Shiprocket" }).lean();
+  if (shipment) breakdown.thirdPartyShippingCost = Number(shipment.quotedRate) || 0;
+
   if (isSelfAssign) {
     breakdown.deliveryBoyCommission = 0;
     breakdown.adminDeliveryCommission = 0;
@@ -1169,6 +1180,9 @@ export const getOrderEarningBreakdown = async (
         breakdown.sellerEarnings.set(sid, amt + shippingShare);
       }
     }
+  } else if (shipment) {
+    breakdown.deliveryBoyCommission = 0;
+    breakdown.adminDeliveryCommission = breakdown.totalDeliveryCharge - (breakdown.thirdPartyShippingCost || 0);
   } else if (order.deliveryBoy) {
     const settings = await AppSettings.getSettings();
     if (
@@ -1463,5 +1477,88 @@ export const processCODOrderDelivery = async (
     if (!useExternalSession) {
       session.endSession();
     }
+  }
+};
+
+/**
+ * Settle a Shiprocket COD order after the remittance reaches the admin.
+ * Shiprocket, not a personal delivery partner, holds the collected cash, so
+ * seller proceeds must stay pending until an admin records the remittance.
+ */
+export const processShiprocketCODRemittance = async (
+  orderId: string,
+  reference: string,
+): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const order = await Order.findById(orderId).session(session);
+    if (!order) throw new Error("Order not found");
+    if (String(order.paymentMethod).toUpperCase() !== "COD") throw new Error("Order is not COD");
+    if (order.deliveryProvider !== "Shiprocket") throw new Error("Order is not a Shiprocket delivery");
+    if (order.status !== "Delivered") throw new Error("Shiprocket COD can be remitted only after delivery");
+
+    const existing = await Commission.findOne({
+      order: order._id,
+      type: "SELLER",
+      paymentReference: reference,
+      status: "Paid",
+    }).session(session);
+    if (existing) {
+      await session.commitTransaction();
+      return;
+    }
+
+    const items = await OrderItem.find({ order: order._id, status: { $ne: "Cancelled" } }).session(session);
+    for (const item of items) {
+      const duplicate = await Commission.findOne({
+        order: order._id,
+        orderItem: item._id,
+        type: "SELLER",
+        status: "Paid",
+      }).session(session);
+      if (duplicate) continue;
+
+      const commissionRate =
+        item.commissionRate ||
+        (await getOrderItemCommissionRate(item.product.toString(), item.seller.toString()));
+      const commissionAmount = Math.round(((item.total * commissionRate) / 100) * 100) / 100;
+      const netAmount = Math.round((item.total - commissionAmount) * 100) / 100;
+      const [commission] = await Commission.create(
+        [
+          {
+            order: order._id,
+            orderItem: item._id,
+            seller: item.seller,
+            type: "SELLER",
+            orderAmount: item.total,
+            commissionRate,
+            commissionAmount,
+            status: "Paid",
+            paidAt: new Date(),
+            paymentReference: reference,
+          },
+        ],
+        { session },
+      );
+      await creditWallet(
+        item.seller.toString(),
+        "SELLER",
+        netAmount,
+        `Sale proceeds from Shiprocket COD order ${order.orderNumber}`,
+        orderId,
+        commission._id.toString(),
+        session,
+      );
+    }
+
+    order.codPaidToAdminAt = new Date();
+    await order.save({ session });
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
 };

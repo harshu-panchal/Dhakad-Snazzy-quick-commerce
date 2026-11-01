@@ -5,6 +5,7 @@ import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
 import Seller from "../../../models/Seller";
 import Delivery from "../../../models/Delivery";
+import Shipment from "../../../models/Shipment";
 
 /**
  * Get tracking information for an order
@@ -31,7 +32,11 @@ export const getOrderTracking = asyncHandler(
       .populate("deliveryBoy", "name phone profileImage")
       .lean();
 
-    if (!tracking) {
+    const shipment = await Shipment.findOne({ order: orderId, provider: "Shiprocket" })
+      .select("provider status awb courierName estimatedDeliveryDays estimatedDeliveryDate trackingUrl shiprocketStatus trackingEvents lastSyncedAt")
+      .lean();
+
+    if (!tracking && !shipment) {
       return res.status(404).json({
         success: false,
         message: "Tracking information not available yet",
@@ -47,7 +52,8 @@ export const getOrderTracking = asyncHandler(
         orderId: order._id,
         orderNumber: order.orderNumber,
         status: order.status,
-        tracking: {
+        provider: shipment ? "Shiprocket" : "Personal",
+        tracking: tracking ? {
           deliveryBoy: tracking.deliveryBoy,
           currentLocation: tracking.currentLocation,
           route: tracking.route,
@@ -55,7 +61,8 @@ export const getOrderTracking = asyncHandler(
           distance: tracking.distance,
           status: tracking.status,
           lastUpdated: tracking.updatedAt,
-        },
+        } : null,
+        shipment,
         deliveryAddress: deliveryAddress,
       },
     });

@@ -13,6 +13,8 @@ import {
   getOrderEarningBreakdown as getOrderEarningBreakdownService,
 } from "../../../services/commissionService";
 import Seller from "../../../models/Seller";
+import Shipment from "../../../models/Shipment";
+import { cancelBookedShipment, getPersonalDeliveryOptions } from "../../../services/shippingService";
 
 /**
  * Get all orders with filters
@@ -178,7 +180,7 @@ export const getSettlementOrders = asyncHandler(
 export const getOrderCODBreakdown = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const order = await Order.findById(id).select("paymentMethod deliveryPreference");
+    const order = await Order.findById(id).select("paymentMethod deliveryPreference deliveryProvider");
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -199,7 +201,9 @@ export const getOrderCODBreakdown = asyncHandler(
         sellerEarningsList,
         note: breakdown.isSelfAssign
           ? "Self Assign: Delivery boy has no share. Delivery charge goes to seller(s)."
-          : undefined,
+          : order.deliveryProvider === "Shiprocket"
+            ? "Shiprocket COD stays pending until the remittance is recorded."
+            : undefined,
       },
     });
   },
@@ -211,7 +215,7 @@ export const getOrderCODBreakdown = asyncHandler(
 export const getOrderEarningBreakdown = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const order = await Order.findById(id).select("paymentMethod deliveryPreference");
+    const order = await Order.findById(id).select("paymentMethod deliveryPreference deliveryProvider");
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
@@ -230,8 +234,10 @@ export const getOrderEarningBreakdown = asyncHandler(
       ...rest,
       sellerEarningsList,
       note: breakdown.isSelfAssign
-        ? "Self Assign: Delivery charge goes to seller(s). Delivery boy has no share."
-        : "Delivery partner gets delivery share; rest is admin.",
+          ? "Self Assign: Delivery charge goes to seller(s). Delivery boy has no share."
+          : order.deliveryProvider === "Shiprocket"
+            ? "Shiprocket courier cost is deducted from the admin delivery margin."
+            : "Delivery partner gets delivery share; rest is admin.",
     };
     return res.status(200).json({ success: true, data: payload });
   },
@@ -269,10 +275,12 @@ export const getOrderById = asyncHandler(
       });
     }
 
+    const shipment = await Shipment.findOne({ order: order._id }).lean();
+
     return res.status(200).json({
       success: true,
       message: "Order fetched successfully",
-      data: order,
+      data: { ...order.toObject(), shipment },
     });
   },
 );
@@ -283,12 +291,18 @@ export const getOrderById = asyncHandler(
 export const markOrderCODPaid = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
+    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt deliveryProvider");
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     if (order.paymentMethod !== "COD") {
       return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
+    }
+    if (order.deliveryProvider === "Shiprocket") {
+      return res.status(409).json({
+        success: false,
+        message: "Record this payment through the Shiprocket COD remittance action.",
+      });
     }
     if (order.codPaidToAdminAt) {
       return res.status(400).json({ success: false, message: "COD for this order is already marked as paid" });
@@ -333,6 +347,17 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
+    const currentOrder = await Order.findById(id).select("deliveryProvider");
+    if (!currentOrder) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (currentOrder.deliveryProvider === "Shiprocket" && status !== "Cancelled") {
+      return res.status(409).json({
+        success: false,
+        message: "Shiprocket order status is controlled by courier tracking.",
+      });
+    }
+
     const updateData: any = { status };
     if (adminNotes) updateData.adminNotes = adminNotes;
 
@@ -341,6 +366,14 @@ export const updateOrderStatus = asyncHandler(
     }
 
     if (status === "Cancelled") {
+      try {
+        await cancelBookedShipment(id);
+      } catch (error: any) {
+        return res.status(error?.statusCode || 502).json({
+          success: false,
+          message: `Order was not cancelled because Shiprocket cancellation failed: ${error.message}`,
+        });
+      }
       updateData.cancelledAt = new Date();
       updateData.cancelledBy = req.user?.userId;
     }
@@ -441,6 +474,14 @@ export const assignDeliveryBoy = asyncHandler(
       });
     }
 
+    const existingShipment = await Shipment.findOne({ order: order._id });
+    if (existingShipment?.provider === "Shiprocket" && existingShipment.shiprocketOrderId) {
+      return res.status(409).json({
+        success: false,
+        message: "This order is booked with Shiprocket. Cancel that shipment before assigning a personal partner.",
+      });
+    }
+
     // Prevent loading one delivery boy with multiple concurrent orders — they must
     // complete (or the order must be cancelled/returned) before taking another.
     const busyCheck = await isDeliveryBoyBusy(deliveryBoyId, id);
@@ -453,11 +494,27 @@ export const assignDeliveryBoy = asyncHandler(
 
     // Update order
     order.deliveryBoy = deliveryBoyId as any;
+    order.deliveryProvider = "Personal";
     order.deliveryBoyStatus = "Assigned";
     order.assignedAt = new Date();
     order.deliveryAssignmentStatus = "Assigned" as any;
     order.deliveryAssignmentResolvedAt = new Date();
     await order.save();
+
+    const personalOptions = await getPersonalDeliveryOptions(order);
+    const selectedCost = personalOptions.find((option) => option.deliveryBoyId === deliveryBoyId)?.cost;
+    await Shipment.findOneAndUpdate(
+      { order: order._id },
+      {
+        order: order._id,
+        seller: (await OrderItem.findOne({ order: order._id }).select("seller").lean())?.seller,
+        provider: "Personal",
+        status: "Assigned",
+        personalDeliveryCost: selectedCost,
+        codRemittanceStatus: "NotApplicable",
+      },
+      { upsert: true, new: true, runValidators: true },
+    );
 
     // Create or update delivery assignment
     await DeliveryAssignment.findOneAndUpdate(

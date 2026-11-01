@@ -9,6 +9,7 @@ import * as productController from "../modules/admin/controllers/adminProductCon
 
 // Order Controllers
 import * as orderController from "../modules/admin/controllers/adminOrderController";
+import * as shippingController from "../modules/admin/controllers/adminShippingController";
 
 // Customer Controllers
 import * as customerController from "../modules/admin/controllers/adminCustomerController";
@@ -165,7 +166,19 @@ router.get("/orders/:id/earning-breakdown", orderController.getOrderEarningBreak
 router.patch("/orders/:id/mark-cod-paid", orderController.markOrderCODPaid);
 router.patch("/orders/:id/status", orderController.updateOrderStatus);
 router.patch("/orders/:id/assign-delivery", orderController.assignDeliveryBoy);
+router.post("/orders/:id/shipping/quotes", shippingController.getShippingQuotes);
+router.post("/orders/:id/shipping/book", shippingController.bookShiprocket);
+router.get("/orders/:id/shipment", shippingController.getOrderShipment);
+router.post("/orders/:id/shipment/refresh", shippingController.refreshTracking);
+router.post("/orders/:id/shipment/retry-pickup", shippingController.retryPickup);
+router.post("/orders/:id/shipment/documents", shippingController.regenerateDocuments);
+router.post("/orders/:id/shipment/cancel", shippingController.cancelShipment);
+router.patch("/orders/:id/shipment/cod-remitted", shippingController.markCodRemitted);
 router.get("/orders/export/csv", orderController.exportOrders);
+
+router.get("/shipping/config", shippingController.getShippingConfiguration);
+router.post("/shipping/sellers/migrate", shippingController.migrateSellerPickups);
+router.post("/shipping/sellers/:sellerId/retry", shippingController.retrySellerPickup);
 
 // ==================== Return Request Routes ====================
 router.get("/return-requests", orderController.getReturnRequests);

@@ -105,6 +105,17 @@ export const updateSeller = asyncHandler(
 
     // Remove password from update data if present
     delete updateData.password;
+    for (const field of [
+      "shiprocketPickupCode", "shiprocketPickupLocationId", "shiprocketPickupSyncStatus",
+      "shiprocketPickupSyncError", "shiprocketPickupSyncedAt", "shiprocketPickupAddressHash",
+    ]) delete updateData[field];
+
+    if (updateData.pincode && !/^[1-9][0-9]{5}$/.test(String(updateData.pincode))) {
+      return res.status(400).json({ success: false, message: "Valid 6-digit Indian pincode is required" });
+    }
+    const pickupFields = ["sellerName", "storeName", "address", "city", "state", "pincode"];
+    const pickupChanged = pickupFields.some((field) => Object.prototype.hasOwnProperty.call(updateData, field));
+    if (pickupChanged) updateData.shiprocketPickupSyncStatus = "Pending";
 
     // Handle location update (convert lat/lng to GeoJSON)
     if (updateData.latitude && updateData.longitude) {
@@ -150,7 +161,7 @@ export const updateSeller = asyncHandler(
       delete updateData.serviceRadiusKm;
     }
 
-    const seller = await Seller.findByIdAndUpdate(id, updateData, {
+    let seller = await Seller.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
     }).select("-password");
@@ -160,6 +171,16 @@ export const updateSeller = asyncHandler(
         success: false,
         message: "Seller not found",
       });
+    }
+
+    if (pickupChanged) {
+      try {
+        const { syncSellerPickup } = await import("../../../services/shiprocketService");
+        await syncSellerPickup(id);
+      } catch (error) {
+        console.warn("Admin seller update saved; Shiprocket pickup will be retried:", error instanceof Error ? error.message : error);
+      }
+      seller = await Seller.findById(id).select("-password");
     }
 
     return res.status(200).json({

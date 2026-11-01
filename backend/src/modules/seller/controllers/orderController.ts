@@ -309,12 +309,18 @@ export const markOrderCODPaidSeller = asyncHandler(
     if (!hasItems) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
-    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
+    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt deliveryProvider");
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     if (order.paymentMethod !== "COD") {
       return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
+    }
+    if (order.deliveryProvider === "Shiprocket") {
+      return res.status(409).json({
+        success: false,
+        message: "Shiprocket remittance is recorded by the admin after the courier transfers COD funds.",
+      });
     }
     if (order.status !== "Delivered") {
       return res.status(400).json({
@@ -514,6 +520,13 @@ export const updateOrderStatus = asyncHandler(
     }
 
     const previousStatus = order.status;
+
+    if (order.deliveryProvider === "Shiprocket") {
+      return res.status(409).json({
+        success: false,
+        message: "Shiprocket order status is controlled by courier tracking.",
+      });
+    }
 
     // Allow same status only when updating deliveryPreference or in multi-seller acceptance phase
     if (order.status === status && !deliveryPreference && status !== "Accepted" && status !== "Rejected") {

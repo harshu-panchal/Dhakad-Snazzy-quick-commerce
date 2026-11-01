@@ -43,6 +43,7 @@ import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
 import customerReelRoutes from "./customerReelRoutes";
 import { getPublicReelById, getReelConfig } from "../modules/customer/controllers/customerReelController";
+import { shiprocketWebhook } from "../modules/admin/controllers/adminShippingController";
 
 import {
   createOrder,
@@ -64,6 +65,9 @@ router.get("/health", (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Public server-to-server webhook. Authentication is the Shiprocket x-api-key token.
+router.post("/logistics/events", shiprocketWebhook);
 
 // Authentication routes
 router.use("/auth/admin", adminAuthRoutes);

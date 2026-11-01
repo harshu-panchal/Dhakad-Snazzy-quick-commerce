@@ -11,6 +11,8 @@ import { ensureDefaultAdmin } from "./utils/ensureDefaultAdmin";
 import { seedHeaderCategories } from "./utils/seedHeaderCategories";
 import { initializeSocket } from "./socket/socketService";
 import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
+import { isShiprocketConfigured, syncPendingSellerPickups } from "./services/shiprocketService";
+import { syncActiveShiprocketTracking } from "./services/shippingService";
 
 
 // Load environment variables
@@ -60,7 +62,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "x-api-key"],
   exposedHeaders: ["Content-Length", "Content-Type"],
   maxAge: 86400,
 };
@@ -143,6 +145,32 @@ async function startServer() {
 
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();
+
+  // Retry pickup-location synchronization without blocking seller registration/profile updates.
+  if (isShiprocketConfigured()) {
+    const runPickupSync = () =>
+      syncPendingSellerPickups(Number(process.env.SHIPROCKET_PICKUP_SYNC_BATCH_SIZE) || 25).catch((error) =>
+        console.error("Shiprocket pickup sync worker failed:", error),
+      );
+    void runPickupSync();
+    const timer = setInterval(
+      runPickupSync,
+      Number(process.env.SHIPROCKET_PICKUP_SYNC_INTERVAL_MS) || 5 * 60 * 1000,
+    );
+    timer.unref();
+
+    const runTrackingSync = () =>
+      syncActiveShiprocketTracking(
+        Number(process.env.SHIPROCKET_TRACKING_SYNC_BATCH_SIZE) || 50,
+        io,
+      ).catch((error) => console.error("Shiprocket tracking sync worker failed:", error));
+    void runTrackingSync();
+    const trackingTimer = setInterval(
+      runTrackingSync,
+      Number(process.env.SHIPROCKET_TRACKING_SYNC_INTERVAL_MS) || 15 * 60 * 1000,
+    );
+    trackingTimer.unref();
+  }
 
   // Handle server errors gracefully (e.g., port already in use)
   httpServer.on('error', (error: NodeJS.ErrnoException) => {
