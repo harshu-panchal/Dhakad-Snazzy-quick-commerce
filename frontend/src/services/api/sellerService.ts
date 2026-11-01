@@ -24,6 +24,8 @@ export interface Seller {
   category?: string;
   address?: string;
   city?: string;
+  state?: string;
+  pincode?: string;
   serviceableArea?: string;
   panCard?: string;
   taxName?: string;
@@ -45,6 +47,9 @@ export interface Seller {
   showInDiscovery?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  shiprocketPickupSyncStatus?: "Pending" | "Synced" | "Failed";
+  shiprocketPickupSyncError?: string;
+  shiprocketPickupCode?: string;
 }
 
 export interface GetAllSellersParams {
@@ -155,6 +160,19 @@ export const updateSellerCategoryCommissions = async (
   const response = await api.put<ApiResponse<Seller>>(
     `/sellers/${sellerId}/category-commissions`,
     { categoryCommissions }
+  );
+  return response.data;
+};
+
+export const retrySellerPickupSync = async (sellerId: string): Promise<ApiResponse<Seller>> => {
+  const response = await api.post<ApiResponse<Seller>>(`/admin/shipping/sellers/${sellerId}/retry`);
+  return response.data;
+};
+
+export const migrateSellerPickups = async (limit = 100): Promise<ApiResponse<{ attempted: number; synced: number; failed: number }>> => {
+  const response = await api.post<ApiResponse<{ attempted: number; synced: number; failed: number }>>(
+    "/admin/shipping/sellers/migrate",
+    { limit },
   );
   return response.data;
 };

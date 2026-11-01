@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
     getOrdersByStatus,
     type Order,
@@ -12,6 +12,7 @@ import { useAuth } from "../../../context/AuthContext";
 import AssignDeliveryBoyModal from "../components/AssignDeliveryBoyModal";
 
 export default function AdminAssignDeliveryBoy() {
+    const navigate = useNavigate();
     const { isAuthenticated, token } = useAuth();
     const [orders, setOrders] = useState<Order[]>([]);
     const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
@@ -77,12 +78,17 @@ export default function AdminAssignDeliveryBoy() {
             order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
             order.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
 
-        if (filter === "Unassigned") return matchesSearch && (!order.deliveryBoyStatus || (order.deliveryBoyStatus as string) === "Not Assigned");
-        if (filter === "Assigned") return matchesSearch && order.deliveryBoyStatus === "Assigned";
+        const isAssigned = Boolean(order.deliveryProvider || order.deliveryBoyStatus === "Assigned");
+        if (filter === "Unassigned") return matchesSearch && !isAssigned;
+        if (filter === "Assigned") return matchesSearch && isAssigned;
         return matchesSearch;
     });
 
     const handleAssignClick = (order: Order) => {
+        if (order.deliveryProvider === "Shiprocket") {
+            navigate(`/admin/orders/${order._id}`);
+            return;
+        }
         setSelectedOrder(order);
         setAssignModalOpen(true);
     };
@@ -129,7 +135,7 @@ export default function AdminAssignDeliveryBoy() {
                     <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Unassigned Orders</p>
                     <div className="mt-2 flex items-baseline justify-between">
                         <p className="text-2xl font-bold text-red-600">
-                            {orders.filter(o => !o.deliveryBoyStatus || (o.deliveryBoyStatus as string) === "Not Assigned").length}
+                            {orders.filter(o => !o.deliveryProvider && (!o.deliveryBoyStatus || (o.deliveryBoyStatus as string) === "Not Assigned")).length}
                         </p>
                         <span className="bg-red-50 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-bold">Action Needed</span>
                     </div>
@@ -145,7 +151,7 @@ export default function AdminAssignDeliveryBoy() {
                     <p className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Assigned Today</p>
                     <div className="mt-2 flex items-baseline justify-between">
                         <p className="text-2xl font-bold text-blue-600">
-                            {orders.filter(o => o.deliveryBoyStatus === "Assigned").length}
+                            {orders.filter(o => o.deliveryProvider || o.deliveryBoyStatus === "Assigned").length}
                         </p>
                         <span className="bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold">In Progress</span>
                     </div>
@@ -264,6 +270,11 @@ export default function AdminAssignDeliveryBoy() {
                                                             Assigned: <span className="font-bold">{(order.deliveryBoy as any).name || "Unknown"}</span>
                                                         </div>
                                                     )}
+                                                    {order.deliveryProvider === "Shiprocket" && (
+                                                        <div className="mt-1 flex items-center gap-1 text-xs text-blue-700 bg-blue-50 w-fit px-1.5 py-0.5 rounded">
+                                                            Shiprocket assigned
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-1">
@@ -288,11 +299,11 @@ export default function AdminAssignDeliveryBoy() {
                                                 ) : (
                                                     <button
                                                         onClick={() => handleAssignClick(order)}
-                                                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${order.deliveryBoyStatus === "Assigned"
+                                                        className={`flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all ${(order.deliveryProvider || order.deliveryBoyStatus === "Assigned")
                                                             ? "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
                                                             : "bg-green-600 text-white hover:bg-green-700 shadow-sm shadow-green-200"
                                                             }`}>
-                                                        {order.deliveryBoyStatus === "Assigned" ? "Change Driver" : "Assign Now"}
+                                                        {order.deliveryProvider === "Shiprocket" ? "View Shiprocket" : order.deliveryBoyStatus === "Assigned" ? "Change Driver" : "Assign Now"}
                                                     </button>
                                                 )}
 
@@ -388,6 +399,7 @@ export default function AdminAssignDeliveryBoy() {
                                 ? (selectedOrder.deliveryBoy as { _id?: string })._id || undefined
                                 : undefined
                     }
+                    currentProvider={selectedOrder.deliveryProvider}
                     onAssignSuccess={async () => {
                         await fetchData();
                         setAssignModalOpen(false);

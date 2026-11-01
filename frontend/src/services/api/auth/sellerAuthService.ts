@@ -33,6 +33,8 @@ export interface RegisterData {
   categories: string[]; // multiple categories
   address: string;
   city: string;
+  state: string;
+  pincode: string;
   serviceableArea?: string;
   searchLocation?: string;
   latitude?: string;

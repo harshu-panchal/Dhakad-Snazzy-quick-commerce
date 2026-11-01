@@ -20,6 +20,8 @@ export default function SellerSignUp() {
     categories: [] as string[],
     address: '',
     city: '',
+    state: '',
+    pincode: '',
     panCard: '',
     taxName: '',
     taxNumber: '',
@@ -125,6 +127,14 @@ export default function SellerSignUp() {
       setError('Please enter your city');
       return;
     }
+    if (!formData.state) {
+      setError('Please enter your state');
+      return;
+    }
+    if (!/^[1-9][0-9]{5}$/.test(formData.pincode)) {
+      setError('Please enter a valid 6-digit pincode');
+      return;
+    }
 
     if (formData.mobile.length !== 10) {
       setError('Please enter a valid 10-digit mobile number');
@@ -157,6 +167,8 @@ export default function SellerSignUp() {
         categories: formData.categories,
         address: formData.address || formData.searchLocation,
         city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
         searchLocation: formData.searchLocation,
         latitude: formData.latitude,
         longitude: formData.longitude,
@@ -362,7 +374,7 @@ export default function SellerSignUp() {
                     <div className="flex-1">
                       <GoogleMapsAutocomplete
                         value={formData.searchLocation}
-                        onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string }) => {
+                        onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string; pincode?: string }) => {
                           setFormData(prev => ({
                             ...prev,
                             searchLocation: address,
@@ -370,6 +382,8 @@ export default function SellerSignUp() {
                             longitude: lng.toString(),
                             address: address,
                             city: components?.city || prev.city,
+                            state: components?.state || prev.state,
+                            pincode: components?.pincode || prev.pincode,
                           }));
                         }}
                         placeholder="Search your store location..."
@@ -511,6 +525,35 @@ export default function SellerSignUp() {
                       placeholder="PAN Card Number"
                       className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                       disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
+                      State <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      placeholder="Enter state"
+                      required
+                      className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">
+                      Pincode <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      name="pincode"
+                      value={formData.pincode}
+                      onChange={(event) => setFormData((prev) => ({ ...prev, pincode: event.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                      placeholder="6-digit pincode"
+                      required
+                      className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                     />
                   </div>
 

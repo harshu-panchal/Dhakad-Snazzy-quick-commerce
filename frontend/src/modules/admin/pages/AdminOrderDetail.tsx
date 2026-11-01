@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
+import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, refreshShipmentTracking, retryShipmentPickup, regenerateShipmentDocuments, cancelShiprocketShipment, markShiprocketCodRemitted, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
 import MediaThumbnail from '../../../components/ui/MediaThumbnail';
 
 export default function AdminOrderDetail() {
@@ -12,6 +12,7 @@ export default function AdminOrderDetail() {
   const [error, setError] = useState<string>('');
   const [updating, setUpdating] = useState(false);
   const [markingCodPaid, setMarkingCodPaid] = useState(false);
+  const [shipmentAction, setShipmentAction] = useState(false);
 
   // Fetch order detail from API
   useEffect(() => {
@@ -86,6 +87,30 @@ export default function AdminOrderDetail() {
       alert(err.response?.data?.message || 'Failed to update order status');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const runShipmentAction = async (action: 'refresh' | 'pickup' | 'documents' | 'cancel' | 'remit') => {
+    if (!id || !order) return;
+    try {
+      setShipmentAction(true);
+      let response;
+      if (action === 'refresh') response = await refreshShipmentTracking(id);
+      else if (action === 'pickup') response = await retryShipmentPickup(id);
+      else if (action === 'documents') response = await regenerateShipmentDocuments(id);
+      else if (action === 'cancel') {
+        if (!window.confirm('Request cancellation of this Shiprocket shipment?')) return;
+        response = await cancelShiprocketShipment(id);
+      } else {
+        const reference = window.prompt('Enter the Shiprocket COD remittance reference');
+        if (!reference) return;
+        response = await markShiprocketCodRemitted(id, reference);
+      }
+      if (response?.success && response.data) setOrder({ ...order, shipment: response.data });
+    } catch (err: any) {
+      window.alert(err.response?.data?.message || 'Shipment action failed');
+    } finally {
+      setShipmentAction(false);
     }
   };
 
@@ -189,7 +214,7 @@ export default function AdminOrderDetail() {
               <select
                 value={order.status}
                 onChange={(e) => handleStatusUpdate(e.target.value)}
-                disabled={updating}
+                disabled={updating || order.deliveryProvider === 'Shiprocket'}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 {statusOptions.map((status) => (
@@ -367,6 +392,38 @@ export default function AdminOrderDetail() {
             </div>
           )}
 
+          {order.shipment?.provider === 'Shiprocket' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Shiprocket Shipment</h2>
+                  <p className="text-xs text-neutral-500">Status is controlled by Shiprocket tracking events.</p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">{order.shipment.status}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div><span className="text-neutral-500">Courier:</span> <strong>{order.shipment.courierName || '-'}</strong></div>
+                <div><span className="text-neutral-500">AWB:</span> <strong>{order.shipment.awb || '-'}</strong></div>
+                <div><span className="text-neutral-500">Booked cost:</span> <strong>₹{order.shipment.quotedRate?.toFixed(2) || '0.00'}</strong></div>
+                <div><span className="text-neutral-500">Estimated days:</span> <strong>{order.shipment.estimatedDeliveryDays || '-'}</strong></div>
+                <div><span className="text-neutral-500">Package:</span> <strong>{order.shipment.package ? `${order.shipment.package.weight} kg · ${order.shipment.package.length}×${order.shipment.package.breadth}×${order.shipment.package.height} cm` : '-'}</strong></div>
+                <div><span className="text-neutral-500">COD remittance:</span> <strong>{order.shipment.codRemittanceStatus || '-'}</strong></div>
+              </div>
+              {order.shipment.lastError && <div className="mt-3 p-2 bg-amber-50 text-amber-800 text-xs rounded">{order.shipment.lastError}</div>}
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button disabled={shipmentAction || !order.shipment.awb} onClick={() => runShipmentAction('refresh')} className="px-3 py-2 bg-blue-600 text-white rounded text-xs disabled:opacity-50">Refresh tracking</button>
+                {order.shipment.status === 'Pickup Failed' && <button disabled={shipmentAction} onClick={() => runShipmentAction('pickup')} className="px-3 py-2 bg-amber-600 text-white rounded text-xs">Retry pickup</button>}
+                <button disabled={shipmentAction} onClick={() => runShipmentAction('documents')} className="px-3 py-2 border rounded text-xs">Refresh documents</button>
+                {order.shipment.trackingUrl && <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border rounded text-xs">Track</a>}
+                {order.shipment.labelUrl && <a href={order.shipment.labelUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border rounded text-xs">Label</a>}
+                {order.shipment.manifestUrl && <a href={order.shipment.manifestUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border rounded text-xs">Manifest</a>}
+                {order.shipment.invoiceUrl && <a href={order.shipment.invoiceUrl} target="_blank" rel="noreferrer" className="px-3 py-2 border rounded text-xs">Invoice</a>}
+                {order.shipment.codRemittanceStatus === 'Pending' && order.status === 'Delivered' && <button disabled={shipmentAction} onClick={() => runShipmentAction('remit')} className="px-3 py-2 bg-green-600 text-white rounded text-xs">Record COD remittance</button>}
+                {!['Delivered', 'Cancelled', 'Cancellation Requested', 'RTO Delivered'].includes(order.shipment.status) && <button disabled={shipmentAction} onClick={() => runShipmentAction('cancel')} className="px-3 py-2 bg-red-50 text-red-700 rounded text-xs">Cancel shipment</button>}
+              </div>
+            </div>
+          )}
+
           {/* Payment Information */}
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold mb-4">Payment Information</h2>
@@ -411,6 +468,12 @@ export default function AdminOrderDetail() {
                     {earningBreakdown.isSelfAssign ? '₹0.00 (Self delivery – goes to seller)' : `₹${(earningBreakdown.deliveryBoyCommission ?? 0).toFixed(2)}`}
                   </span>
                 </div>
+                {earningBreakdown.thirdPartyShippingCost != null && (
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Shiprocket courier cost:</span>
+                    <span className="font-medium">₹{earningBreakdown.thirdPartyShippingCost.toFixed(2)}</span>
+                  </div>
+                )}
                 {earningBreakdown.sellerEarningsList?.length > 0 && (
                   <div className="pt-2 border-t">
                     <span className="text-neutral-600 block mb-1">Seller(s) earning:</span>

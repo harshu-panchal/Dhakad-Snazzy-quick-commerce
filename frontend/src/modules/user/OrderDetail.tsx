@@ -1038,7 +1038,7 @@ export default function OrderDetail() {
       </motion.div>
 
       {/* Map Section */}
-      {!showConfirmation && !['Delivered', 'Cancelled', 'Returned'].includes(order?.status) && (
+      {!showConfirmation && order?.deliveryProvider !== 'Shiprocket' && !['Delivered', 'Cancelled', 'Returned'].includes(order?.status) && (
         <GoogleMapsTracking
           sellerLocations={sellerLocations.map(s => ({
             lat: s.latitude,
@@ -1111,6 +1111,30 @@ export default function OrderDetail() {
         />
       )}
 
+      {order?.shipment?.provider === 'Shiprocket' && (
+        <div className="mx-4 mt-3 bg-white rounded-xl p-4 shadow-sm border border-blue-100">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-bold text-gray-900">{order.shipment.courierName || 'Shiprocket courier'}</p>
+              <p className="text-xs text-gray-500 mt-1">AWB: {order.shipment.awb || 'Being assigned'}</p>
+            </div>
+            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">{order.shipment.shiprocketStatus || order.shipment.status}</span>
+          </div>
+          {order.shipment.estimatedDeliveryDays && <p className="text-sm text-gray-600 mt-3">Estimated delivery: {order.shipment.estimatedDeliveryDays} days</p>}
+          {order.shipment.trackingEvents?.length ? (
+            <div className="mt-4 space-y-3 border-t pt-3">
+              {order.shipment.trackingEvents.slice(-5).reverse().map((event: { status?: string; activity?: string; location?: string; eventAt?: string }, index: number) => (
+                <div key={`${event.eventAt || index}-${index}`} className="flex gap-3 text-xs">
+                  <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                  <div><p className="font-semibold text-gray-800">{event.status || event.activity}</p><p className="text-gray-500">{event.location || ''}{event.eventAt ? ` · ${new Date(event.eventAt).toLocaleString()}` : ''}</p></div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {order.shipment.trackingUrl && <a href={order.shipment.trackingUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block text-sm text-blue-600 font-semibold">Open live courier tracking →</a>}
+        </div>
+      )}
+
       {/* Scrollable Content */}
       <div className="px-4 py-4 space-y-4 pb-24">
         {/* Payment Pending */}
@@ -1138,7 +1162,7 @@ export default function OrderDetail() {
         <PromoCarousel />
 
         {/* Delivery Partner Assignment - Only show if no partner assigned yet */}
-        {!order?.deliveryPartner && (
+        {!order?.deliveryPartner && order?.deliveryProvider !== 'Shiprocket' && (
           <motion.div
             className="bg-white rounded-xl p-4 shadow-sm"
             initial={{ opacity: 0, y: 20 }}

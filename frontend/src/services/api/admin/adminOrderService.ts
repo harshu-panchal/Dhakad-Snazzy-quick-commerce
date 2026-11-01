@@ -62,6 +62,7 @@ export interface Order {
   | "Returned";
   deliveryOption?: "Instant" | "Standard";
   deliveryPreference?: "Self" | "Admin";
+  deliveryProvider?: "Personal" | "Shiprocket";
   deliveryBoy?:
   | string
   | { _id: string; name: string; mobile: string; email?: string };
@@ -82,6 +83,79 @@ export interface Order {
   cancelledBy?: string | { firstName: string; lastName: string };
   createdAt?: string;
   updatedAt?: string;
+  shipment?: Shipment | null;
+}
+
+export interface Shipment {
+  _id: string;
+  provider: "Personal" | "Shiprocket";
+  status: string;
+  package?: { weight: number; length: number; breadth: number; height: number };
+  personalDeliveryCost?: number;
+  shiprocketOrderId?: number;
+  shiprocketShipmentId?: number;
+  awb?: string;
+  courierId?: number;
+  courierName?: string;
+  quotedRate?: number;
+  estimatedDeliveryDays?: string;
+  pickupScheduledAt?: string;
+  labelUrl?: string;
+  manifestUrl?: string;
+  invoiceUrl?: string;
+  trackingUrl?: string;
+  shiprocketStatusCode?: number;
+  shiprocketStatus?: string;
+  lastSyncedAt?: string;
+  lastError?: string;
+  codRemittanceStatus?: "NotApplicable" | "Pending" | "Remitted";
+  codRemittedAt?: string;
+  codRemittanceReference?: string;
+  trackingEvents?: Array<{
+    status?: string;
+    statusCode?: number;
+    activity?: string;
+    location?: string;
+    eventAt?: string;
+  }>;
+}
+
+export interface PackageDetails {
+  weight: number;
+  length: number;
+  breadth: number;
+  height: number;
+}
+
+export interface CourierQuote {
+  courierId: number;
+  courierName: string;
+  rate: number;
+  freightCharge: number;
+  codCharges: number;
+  rating: number;
+  estimatedDeliveryDays: string;
+  etd?: string;
+  mode: "Surface" | "Air";
+  cheapest: boolean;
+}
+
+export interface PersonalDeliveryQuote {
+  deliveryBoyId: string;
+  name: string;
+  mobile: string;
+  city?: string;
+  cost: number;
+  calculation: string;
+}
+
+export interface ShippingQuotes {
+  packageDetails: PackageDetails;
+  couriers: CourierQuote[];
+  personalOptions: PersonalDeliveryQuote[];
+  cheapestShiprocket?: number;
+  cheapestPersonal?: number;
+  recommendation?: "Shiprocket" | "Personal";
 }
 
 export interface GetOrdersParams {
@@ -103,6 +177,65 @@ export interface UpdateOrderStatusData {
 export interface AssignDeliveryBoyData {
   deliveryBoyId: string;
 }
+
+export const getShippingQuotes = async (
+  orderId: string,
+  packageDetails: PackageDetails,
+): Promise<ApiResponse<ShippingQuotes>> => {
+  const response = await api.post<ApiResponse<ShippingQuotes>>(
+    `/admin/orders/${orderId}/shipping/quotes`,
+    { package: packageDetails },
+  );
+  return response.data;
+};
+
+export const bookShiprocketCourier = async (
+  orderId: string,
+  packageDetails: PackageDetails,
+  courierId: number,
+): Promise<ApiResponse<Shipment> & { warning?: string }> => {
+  const response = await api.post<ApiResponse<Shipment> & { warning?: string }>(
+    `/admin/orders/${orderId}/shipping/book`,
+    { package: packageDetails, courierId },
+  );
+  return response.data;
+};
+
+export const getOrderShipment = async (orderId: string): Promise<ApiResponse<Shipment | null>> => {
+  const response = await api.get<ApiResponse<Shipment | null>>(`/admin/orders/${orderId}/shipment`);
+  return response.data;
+};
+
+export const refreshShipmentTracking = async (orderId: string): Promise<ApiResponse<Shipment>> => {
+  const response = await api.post<ApiResponse<Shipment>>(`/admin/orders/${orderId}/shipment/refresh`);
+  return response.data;
+};
+
+export const retryShipmentPickup = async (orderId: string): Promise<ApiResponse<Shipment>> => {
+  const response = await api.post<ApiResponse<Shipment>>(`/admin/orders/${orderId}/shipment/retry-pickup`);
+  return response.data;
+};
+
+export const regenerateShipmentDocuments = async (orderId: string): Promise<ApiResponse<Shipment>> => {
+  const response = await api.post<ApiResponse<Shipment>>(`/admin/orders/${orderId}/shipment/documents`);
+  return response.data;
+};
+
+export const cancelShiprocketShipment = async (orderId: string): Promise<ApiResponse<Shipment>> => {
+  const response = await api.post<ApiResponse<Shipment>>(`/admin/orders/${orderId}/shipment/cancel`);
+  return response.data;
+};
+
+export const markShiprocketCodRemitted = async (
+  orderId: string,
+  reference: string,
+): Promise<ApiResponse<Shipment>> => {
+  const response = await api.patch<ApiResponse<Shipment>>(
+    `/admin/orders/${orderId}/shipment/cod-remitted`,
+    { reference },
+  );
+  return response.data;
+};
 
 export interface ReturnRequest {
   _id: string;
@@ -215,6 +348,7 @@ export interface EarningBreakdown {
   isSelfAssign?: boolean;
   deliveryBoyId?: string;
   deliveryDistanceKm?: number;
+  thirdPartyShippingCost?: number;
   note?: string;
 }
 

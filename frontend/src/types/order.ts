@@ -40,6 +40,27 @@ export interface Order {
   couponCode?: string;
   giftPackaging?: boolean;
   deliveryOption?: 'Instant' | 'Standard';
+  deliveryProvider?: 'Personal' | 'Shiprocket';
+  deliveryPartner?: { name?: string; phone?: string; profileImage?: string; vehicleNumber?: string };
+  deliveryOtp?: string;
+  deliveryAddress?: OrderAddress;
+  shipment?: {
+    provider: 'Personal' | 'Shiprocket';
+    status: string;
+    awb?: string;
+    courierName?: string;
+    estimatedDeliveryDays?: string;
+    estimatedDeliveryDate?: string;
+    trackingUrl?: string;
+    shiprocketStatus?: string;
+    lastSyncedAt?: string;
+    trackingEvents?: Array<{
+      status?: string;
+      activity?: string;
+      location?: string;
+      eventAt?: string;
+    }>;
+  } | null;
 }
 
 

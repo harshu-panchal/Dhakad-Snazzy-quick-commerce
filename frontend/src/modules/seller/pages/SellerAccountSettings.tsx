@@ -26,6 +26,8 @@ const SellerAccountSettings = () => {
         category: '',
         address: '',
         city: '',
+        state: '',
+        pincode: '',
         searchLocation: '',
         latitude: '',
         longitude: '',
@@ -127,6 +129,11 @@ const SellerAccountSettings = () => {
             // Validate location if address is being updated
             if (sellerData.searchLocation && (!sellerData.latitude || !sellerData.longitude)) {
                 setError('Please select a valid location using the map picker');
+                setSaveLoading(false);
+                return;
+            }
+            if (!sellerData.state?.trim() || !/^[1-9][0-9]{5}$/.test(sellerData.pincode || '')) {
+                setError('State and a valid 6-digit pincode are required for pickup');
                 setSaveLoading(false);
                 return;
             }
@@ -461,7 +468,7 @@ const SellerAccountSettings = () => {
                                                             <>
                                                                 <GoogleMapsAutocomplete
                                                                     value={sellerData.searchLocation || sellerData.address || ''}
-                                                                    onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string }) => {
+                                                                    onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string; pincode?: string }) => {
                                                                         setSellerData(prev => ({
                                                                             ...prev,
                                                                             searchLocation: address,
@@ -469,6 +476,8 @@ const SellerAccountSettings = () => {
                                                                             longitude: lng.toString(),
                                                                             address: address,
                                                                             city: components?.city || prev.city,
+                                                                            state: components?.state || prev.state,
+                                                                            pincode: components?.pincode || prev.pincode,
                                                                         }));
                                                                     }}
                                                                     placeholder="Search and select your store location..."
@@ -507,6 +516,8 @@ const SellerAccountSettings = () => {
                                                     </div>
 
                                                     <InputGroup label="City" name="city" value={sellerData.city} onChange={handleInputChange} disabled={!isEditing} />
+                                                    <InputGroup label="State" name="state" value={sellerData.state} onChange={handleInputChange} disabled={!isEditing} />
+                                                    <InputGroup label="Pincode" name="pincode" value={sellerData.pincode} onChange={handleInputChange} disabled={!isEditing} />
 
                                                     <div className="space-y-1.5">
                                                         <label className="text-sm font-semibold text-gray-700 ml-1">

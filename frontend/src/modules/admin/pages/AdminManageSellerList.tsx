@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerCategoryCommissions } from '../../../services/api/sellerService';
+import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerCategoryCommissions, retrySellerPickupSync, migrateSellerPickups } from '../../../services/api/sellerService';
 import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/headerCategoryService';
 import SellerServiceMap from '../components/SellerServiceMap';
 
@@ -26,6 +26,8 @@ interface Seller {
     category?: string;
     address?: string;
     city?: string;
+    state?: string;
+    pincode?: string;
     serviceableArea?: string;
     panCard?: string;
     taxName?: string;
@@ -45,6 +47,9 @@ interface Seller {
     requireProductApproval?: boolean;
     viewCustomerDetails?: boolean;
     showInDiscovery?: boolean;
+    shiprocketPickupSyncStatus?: 'Pending' | 'Synced' | 'Failed';
+    shiprocketPickupSyncError?: string;
+    shiprocketPickupCode?: string;
 }
 
 // Helper function to convert backend seller to frontend format
@@ -68,6 +73,8 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         category: seller.category,
         address: seller.address,
         city: seller.city,
+        state: seller.state,
+        pincode: seller.pincode,
         serviceableArea: seller.serviceableArea,
         panCard: seller.panCard,
         taxName: seller.taxName,
@@ -87,6 +94,9 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         requireProductApproval: seller.requireProductApproval,
         viewCustomerDetails: seller.viewCustomerDetails,
         showInDiscovery: seller.showInDiscovery ?? true,
+        shiprocketPickupSyncStatus: seller.shiprocketPickupSyncStatus || 'Pending',
+        shiprocketPickupSyncError: seller.shiprocketPickupSyncError,
+        shiprocketPickupCode: seller.shiprocketPickupCode,
     };
 };
 
@@ -312,6 +322,8 @@ export default function AdminManageSellerList() {
                 status: editForm.status as 'Approved' | 'Pending' | 'Rejected',
                 address: editForm.address,
                 city: editForm.city,
+                state: editForm.state,
+                pincode: editForm.pincode,
                 serviceableArea: editForm.serviceableArea,
                 searchLocation: editForm.searchLocation,
                 latitude: editForm.latitude,
@@ -559,6 +571,29 @@ export default function AdminManageSellerList() {
         }
     };
 
+    const handleRetryPickupSync = async (seller: Seller) => {
+        try {
+            const response = await retrySellerPickupSync(seller._id);
+            if (response.success) {
+                setSellers(prev => prev.map(item => item._id === seller._id ? mapSellerToFrontend(response.data) : item));
+                setSuccessMessage(`Shiprocket pickup synchronized for ${seller.storeName}`);
+            }
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Pickup synchronization failed');
+        }
+    };
+
+    const handleMigratePickups = async () => {
+        try {
+            const response = await migrateSellerPickups(500);
+            setSuccessMessage(`Pickup migration: ${response.data.synced} synced, ${response.data.failed} failed.`);
+            const refreshed = await getAllSellers();
+            if (refreshed.success) setSellers(refreshed.data.map(mapSellerToFrontend));
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Pickup migration failed');
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-gray-50">
             {/* Page Content */}
@@ -567,7 +602,10 @@ export default function AdminManageSellerList() {
                 <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
                     {/* Header */}
                     <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg">
-                        <h2 className="text-lg font-semibold">View Seller List</h2>
+                        <div className="flex items-center justify-between gap-3">
+                            <h2 className="text-lg font-semibold">View Seller List</h2>
+                            <button onClick={handleMigratePickups} className="px-3 py-1.5 bg-white text-teal-700 rounded text-xs font-semibold">Migrate Shiprocket pickups</button>
+                        </div>
                     </div>
 
                     {/* Error Message */}
@@ -717,6 +755,7 @@ export default function AdminManageSellerList() {
                                         <th className="p-4">
                                             Show in Discovery
                                         </th>
+                                        <th className="p-4">Shiprocket Pickup</th>
                                         <th className="p-4">
                                             Action
                                         </th>
@@ -807,6 +846,14 @@ export default function AdminManageSellerList() {
                                                 </button>
                                             </td>
                                             <td className="p-4 align-middle">
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span title={seller.shiprocketPickupSyncError} className={`px-2 py-0.5 rounded-full text-xs font-medium ${seller.shiprocketPickupSyncStatus === 'Synced' ? 'bg-green-100 text-green-800' : seller.shiprocketPickupSyncStatus === 'Failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                                        {seller.shiprocketPickupSyncStatus || 'Pending'}
+                                                    </span>
+                                                    {seller.shiprocketPickupSyncStatus !== 'Synced' && <button onClick={() => handleRetryPickupSync(seller)} className="text-xs text-blue-600 hover:underline">Retry</button>}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     <button
                                                         onClick={() => handleEdit(seller._id)}
@@ -834,7 +881,7 @@ export default function AdminManageSellerList() {
                                     ))}
                                     {displayedSellers.length === 0 && (
                                         <tr>
-                                            <td colSpan={12} className="p-8 text-center text-neutral-400">
+                                            <td colSpan={13} className="p-8 text-center text-neutral-400">
                                                 No sellers found.
                                             </td>
                                         </tr>
@@ -1161,6 +1208,14 @@ export default function AdminManageSellerList() {
                                             className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
                                             placeholder="Enter city"
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">State</label>
+                                        <input type="text" value={editForm.state || ''} onChange={(e) => setEditForm(prev => ({ ...prev, state: e.target.value }))} className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" placeholder="Enter state" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Pincode</label>
+                                        <input type="text" inputMode="numeric" value={editForm.pincode || ''} onChange={(e) => setEditForm(prev => ({ ...prev, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }))} className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white" placeholder="6-digit pincode" />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-neutral-600 mb-1">Serviceable Area</label>
