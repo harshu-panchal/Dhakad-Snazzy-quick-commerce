@@ -98,14 +98,15 @@ export const getNearbyShops = async (params?: GetShopsParams): Promise<ShopListR
 export const getShopDetails = async (
   sellerId: string,
   latitude?: number,
-  longitude?: number
+  longitude?: number,
+  signal?: AbortSignal,
 ): Promise<ShopDetailResponse> => {
   const params: any = {};
   if (latitude !== undefined && longitude !== undefined) {
     params.latitude = latitude;
     params.longitude = longitude;
   }
-  const response = await api.get<ShopDetailResponse>(`/customer/shops/${sellerId}`, { params });
+  const response = await api.get<ShopDetailResponse>(`/customer/shops/${sellerId}`, { params, signal });
   return response.data;
 };
 
@@ -121,8 +122,9 @@ export const getShopProducts = async (
     sort?: string;
     page?: number;
     limit?: number;
-  }
+  },
+  signal?: AbortSignal,
 ): Promise<ShopProductsResponse> => {
-  const response = await api.get<ShopProductsResponse>(`/customer/shops/${sellerId}/products`, { params });
+  const response = await api.get<ShopProductsResponse>(`/customer/shops/${sellerId}/products`, { params, signal });
   return response.data;
 };

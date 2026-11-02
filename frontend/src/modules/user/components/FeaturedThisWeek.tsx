@@ -29,12 +29,17 @@ const featuredCards: FeaturedCard[] = [
   },
 ];
 
-export default function FeaturedThisWeek() {
+export default function FeaturedThisWeek({ products }: { products?: any[] }) {
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [newlyLaunchedProducts, setNewlyLaunchedProducts] = useState<any[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (products) {
+      setNewlyLaunchedProducts(products.slice(0, 6));
+      return;
+    }
+
     const fetchProducts = async () => {
       try {
         const res = await getProducts({ limit: 6 });
@@ -55,7 +60,7 @@ export default function FeaturedThisWeek() {
       }
     };
     fetchProducts();
-  }, []);
+  }, [products]);
 
   useEffect(() => {
     if (newlyLaunchedProducts.length > 1) {

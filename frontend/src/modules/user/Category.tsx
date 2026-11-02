@@ -95,6 +95,7 @@ export default function CategoryPage() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   // Common Types Definition for reusable filtering logic (Grocery + Fashion)
   const commonTypes = useMemo(() => [
@@ -154,11 +155,13 @@ export default function CategoryPage() {
 
   // Fetch Category Details
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchCategoryDetails = async () => {
       setCategoryLoading(true);
       setError(null);
       try {
-        const response = await getCategoryById(id!);
+        const response = await getCategoryById(id!, controller.signal);
         if (response.success && response.data) {
           const {
             category: cat,
@@ -191,21 +194,27 @@ export default function CategoryPage() {
           setError("Category not found or failed to load details.");
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Error fetching category details:", error);
         setError("Failed to load category information.");
       } finally {
-        setCategoryLoading(false);
+        if (!controller.signal.aborted) setCategoryLoading(false);
       }
     };
 
     if (id) {
       fetchCategoryDetails();
     }
+    return () => controller.abort();
   }, [id, searchParams]);
 
   // Fetch Page 1 Products when category or subcategory changes
   useEffect(() => {
     let ignore = false;
+    const controller = new AbortController();
+    loadMoreControllerRef.current?.abort();
+    loadMoreControllerRef.current = null;
+    setLoadingMore(false);
 
     const fetchProducts = async () => {
       setLoading(true);
@@ -220,8 +229,8 @@ export default function CategoryPage() {
           params.longitude = userLocation.longitude;
         }
 
-        const response = await getProducts(params);
-        if (ignore) return;
+        const response = await getProducts(params, { signal: controller.signal });
+        if (ignore || controller.signal.aborted) return;
         if (response.success) {
           const safeProducts = response.data.map((p: any) => ({
             ...p,
@@ -254,14 +263,18 @@ export default function CategoryPage() {
 
     return () => {
       ignore = true;
+      controller.abort();
     };
-  }, [id, selectedSubcategory, category?._id, userLocation]);
+  }, [id, selectedSubcategory, category?._id, userLocation?.latitude, userLocation?.longitude]);
 
   // Load next page and append to current results (Infinite Scroll)
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !hasMore) return;
 
     const nextPage = page + 1;
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
     setLoadingMore(true);
     try {
       const params: any = { category: category?._id || id, limit: PAGE_SIZE, page: nextPage };
@@ -273,7 +286,8 @@ export default function CategoryPage() {
         params.longitude = userLocation.longitude;
       }
 
-      const response = await getProducts(params);
+      const response = await getProducts(params, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (response.success && response.data) {
         const safeProducts = response.data.map((p: any) => ({
           ...p,
@@ -290,11 +304,14 @@ export default function CategoryPage() {
         );
       }
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error("Error loading more products:", error);
     } finally {
-      setLoadingMore(false);
+      if (!controller.signal.aborted) setLoadingMore(false);
     }
-  }, [id, category?._id, selectedSubcategory, userLocation, page, loading, loadingMore, hasMore]);
+  }, [id, category?._id, selectedSubcategory, userLocation?.latitude, userLocation?.longitude, page, loading, loadingMore, hasMore]);
+
+  useEffect(() => () => loadMoreControllerRef.current?.abort(), []);
 
   // Observer to trigger loadMore when user scrolls near sentinel element
   useEffect(() => {

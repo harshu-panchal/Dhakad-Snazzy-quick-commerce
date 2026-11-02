@@ -109,6 +109,20 @@ class APICache {
     }
     return null;
   }
+
+  /**
+   * Store a value explicitly. This is used by cancellable requests: sharing an
+   * AbortSignal through the pending-request de-duplicator would allow one
+   * unmounted screen to cancel another screen's request for the same key.
+   */
+  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
+    const now = Date.now();
+    this.cache.set(key, {
+      data,
+      timestamp: now,
+      expiresAt: now + ttl,
+    });
+  }
 }
 
 // Singleton instance

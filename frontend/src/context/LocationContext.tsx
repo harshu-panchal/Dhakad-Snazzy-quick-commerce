@@ -377,6 +377,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         // Add timeout to fetch request
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const abortFromParent = () => controller.abort();
+        if (signal?.aborted) {
+          controller.abort();
+        } else {
+          signal?.addEventListener('abort', abortFromParent, { once: true });
+        }
 
         // Use precise coordinates (6 decimal places = ~10cm accuracy)
         const preciseLat = lat.toFixed(6);
@@ -385,11 +391,15 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         // Use more precise result types and location_type to get better address match
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${preciseLat},${preciseLng}&key=${apiKey}&result_type=street_address|premise|route|sublocality|locality|administrative_area_level_1|postal_code&location_type=ROOFTOP|RANGE_INTERPOLATED&language=en`;
 
-        const response = await fetch(geocodeUrl, {
-          signal: signal || controller.signal,
-        });
-
-        clearTimeout(timeoutId);
+        let response: Response;
+        try {
+          // Always use the local controller so both the five-second timeout and
+          // a parent cancellation can terminate the same fetch.
+          response = await fetch(geocodeUrl, { signal: controller.signal });
+        } finally {
+          clearTimeout(timeoutId);
+          signal?.removeEventListener('abort', abortFromParent);
+        }
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);

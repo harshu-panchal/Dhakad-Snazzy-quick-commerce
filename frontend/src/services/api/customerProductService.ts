@@ -61,14 +61,30 @@ export interface CategoryListResponse {
  * back navigation) doesn't always refetch - short TTL since price/stock can
  * change more often than categories.
  */
-export const getProducts = async (params?: GetProductsParams): Promise<ProductListResponse> => {
+export const getProducts = async (
+    params?: GetProductsParams,
+    options: { signal?: AbortSignal } = {}
+): Promise<ProductListResponse> => {
     const cacheKey = `customer-products-${JSON.stringify(params || {})}`;
+    const fetchProducts = async () => {
+        const response = await api.get<ProductListResponse>('/customer/products', {
+            params,
+            signal: options.signal,
+        });
+        return response.data;
+    };
+
+    if (options.signal) {
+        const cached = apiCache.getSync<ProductListResponse>(cacheKey);
+        if (cached) return cached;
+        const data = await fetchProducts();
+        apiCache.set(cacheKey, data, 30 * 1000);
+        return data;
+    }
+
     return apiCache.getOrFetch(
         cacheKey,
-        async () => {
-            const response = await api.get<ProductListResponse>('/customer/products', { params });
-            return response.data;
-        },
+        fetchProducts,
         30 * 1000 // 30 seconds cache
     );
 };
@@ -98,8 +114,8 @@ export const getProductById = async (id: string, latitude?: number, longitude?: 
 /**
  * Get category details by ID or slug (Public)
  */
-export const getCategoryById = async (id: string): Promise<any> => {
-    const response = await api.get<any>(`/customer/categories/${id}`);
+export const getCategoryById = async (id: string, signal?: AbortSignal): Promise<any> => {
+    const response = await api.get<any>(`/customer/categories/${id}`, { signal });
     return response.data;
 };
 

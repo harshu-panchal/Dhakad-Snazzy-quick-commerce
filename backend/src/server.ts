@@ -120,13 +120,16 @@ app.get("/", (_req: Request, res: Response) => {
   });
 });
 
-// Request logger for home page debugging
-app.use((req, _res, next) => {
-  if (req.path.includes('/customer/home')) {
-    console.log(`[REQUEST] ${req.method} ${req.originalUrl} - query:`, req.query);
-  }
-  next();
-});
+// Keep verbose home diagnostics out of production's hot path. They can still
+// be enabled deliberately while investigating a deployment.
+if (process.env.LOG_HOME_REQUESTS === "true") {
+  app.use((req, _res, next) => {
+    if (req.path.includes("/customer/home")) {
+      console.log(`[REQUEST] ${req.method} ${req.originalUrl} - query:`, req.query);
+    }
+    next();
+  });
+}
 
 // API Routes
 app.use("/api/v1", routes);

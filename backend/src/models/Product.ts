@@ -406,6 +406,9 @@ ProductSchema.index({ publish: 1 });
 ProductSchema.index({ status: 1, publish: 1 }); // For getProducts
 ProductSchema.index({ category: 1, status: 1, publish: 1 }); // For category products
 ProductSchema.index({ subcategory: 1, status: 1, publish: 1 }); // For subcategory products
+ProductSchema.index({ status: 1, publish: 1, createdAt: -1 });
+ProductSchema.index({ seller: 1, status: 1, publish: 1, createdAt: -1 });
+ProductSchema.index({ category: 1, seller: 1, status: 1, publish: 1, createdAt: -1 });
 ProductSchema.index({
   productName: "text",
   smallDescription: "text",

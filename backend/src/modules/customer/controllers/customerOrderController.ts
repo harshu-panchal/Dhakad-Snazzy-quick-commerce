@@ -218,16 +218,19 @@ export const createOrder = async (req: Request, res: Response) => {
     const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging } = req.body;
     const userId = req.user!.userId;
 
-    // Log incoming request for debugging
-    console.log("DEBUG: Order creation request:", {
-      userId,
-      itemsCount: items?.length,
-      hasAddress: !!address,
-      addressLat: address?.latitude,
-      addressLng: address?.longitude,
-      paymentMethod,
-      deliveryOption,
-    });
+    // Request diagnostics are opt-in; serializing every checkout request adds
+    // synchronous console I/O to a latency-sensitive path.
+    if (process.env.LOG_CUSTOMER_REQUESTS === "true") {
+      console.log("DEBUG: Order creation request:", {
+        userId,
+        itemsCount: items?.length,
+        hasAddress: !!address,
+        addressLat: address?.latitude,
+        addressLng: address?.longitude,
+        paymentMethod,
+        deliveryOption,
+      });
+    }
 
     // Clean up any stale pending/unpaid orders for this customer to free up stock & coupon
     try {

@@ -35,7 +35,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Force include React and react-dom to ensure single instance
-    include: ['react', 'react-dom', 'react-apexcharts', 'apexcharts'],
+    include: ['react', 'react-dom'],
     // Exclude problematic packages if needed
     exclude: [],
   },
@@ -52,8 +52,6 @@ export default defineConfig({
           // Vendor chunks
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['framer-motion', 'gsap'],
-          'chart-vendor': ['apexcharts', 'react-apexcharts', 'recharts'],
-          'map-vendor': ['@react-google-maps/api', 'leaflet', 'react-leaflet'],
         },
       },
     },

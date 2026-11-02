@@ -30,6 +30,7 @@ export default function ShopDetail() {
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   // Filters & Search State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -37,7 +38,7 @@ export default function ShopDetail() {
   const [sortBy, setSortBy] = useState<string>('default');
 
   // Load shop details
-  const fetchShopInfo = useCallback(async () => {
+  const fetchShopInfo = useCallback(async (signal?: AbortSignal) => {
     if (!sellerId) return;
     setLoadingShop(true);
     setError(null);
@@ -46,7 +47,8 @@ export default function ShopDetail() {
       const res = await getShopDetails(
         sellerId,
         userLocation?.latitude,
-        userLocation?.longitude
+        userLocation?.longitude,
+        signal,
       );
       if (res.success && res.data) {
         setShop(res.data);
@@ -54,15 +56,16 @@ export default function ShopDetail() {
         setError('Store not found.');
       }
     } catch (err: any) {
+      if (signal?.aborted) return;
       console.error('Error fetching shop info:', err);
       setError('Unable to load store details.');
     } finally {
-      setLoadingShop(false);
+      if (!signal?.aborted) setLoadingShop(false);
     }
   }, [sellerId, userLocation?.latitude, userLocation?.longitude]);
 
   // Load page 1 of shop products (reset whenever the store or filters change)
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async (signal?: AbortSignal) => {
     if (!sellerId) return;
     setLoadingProducts(true);
 
@@ -73,7 +76,7 @@ export default function ShopDetail() {
         sort: sortBy !== 'default' ? sortBy : undefined,
         page: 1,
         limit: PAGE_SIZE,
-      });
+      }, signal);
 
       if (res.success && res.data) {
         setProducts(res.data || []);
@@ -90,12 +93,13 @@ export default function ShopDetail() {
         setHasMore(false);
       }
     } catch (err: any) {
+      if (signal?.aborted) return;
       console.error('Error fetching shop products:', err);
       setProducts([]);
       setTotalCount(0);
       setHasMore(false);
     } finally {
-      setLoadingProducts(false);
+      if (!signal?.aborted) setLoadingProducts(false);
     }
   }, [sellerId, selectedCategory, searchQuery, sortBy]);
 
@@ -104,6 +108,9 @@ export default function ShopDetail() {
     if (!sellerId || loadingProducts || loadingMore || !hasMore) return;
 
     const nextPage = page + 1;
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
     setLoadingMore(true);
     try {
       const res = await getShopProducts(sellerId, {
@@ -112,7 +119,7 @@ export default function ShopDetail() {
         sort: sortBy !== 'default' ? sortBy : undefined,
         page: nextPage,
         limit: PAGE_SIZE,
-      });
+      }, controller.signal);
 
       if (res.success && res.data) {
         setProducts((prev) => [...prev, ...res.data]);
@@ -124,19 +131,29 @@ export default function ShopDetail() {
         );
       }
     } catch (err: any) {
+      if (controller.signal.aborted) return;
       console.error('Error loading more shop products:', err);
     } finally {
-      setLoadingMore(false);
+      if (!controller.signal.aborted) setLoadingMore(false);
     }
   }, [sellerId, selectedCategory, searchQuery, sortBy, page, loadingProducts, loadingMore, hasMore]);
 
   useEffect(() => {
-    fetchShopInfo();
+    const controller = new AbortController();
+    fetchShopInfo(controller.signal);
+    return () => controller.abort();
   }, [fetchShopInfo]);
 
   useEffect(() => {
-    fetchProducts();
+    loadMoreControllerRef.current?.abort();
+    loadMoreControllerRef.current = null;
+    setLoadingMore(false);
+    const controller = new AbortController();
+    fetchProducts(controller.signal);
+    return () => controller.abort();
   }, [fetchProducts]);
+
+  useEffect(() => () => loadMoreControllerRef.current?.abort(), []);
 
   // Observer to trigger loadMoreProducts when the user scrolls near the sentinel
   useEffect(() => {

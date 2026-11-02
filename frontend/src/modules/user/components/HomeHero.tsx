@@ -5,8 +5,6 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { getTheme } from '../../../utils/themes';
 import { useLocation } from '../../../hooks/useLocation';
 import { appConfig } from '../../../services/configService';
-import { getCategories } from '../../../services/api/customerProductService';
-import { Category } from '../../../types/domain';
 import { getHeaderCategoriesPublic, getHeaderCategoryDisplaySettings } from '../../../services/api/headerCategoryService';
 import { getIconByName } from '../../../utils/iconLibrary';
 
@@ -15,6 +13,7 @@ gsap.registerPlugin(ScrollTrigger);
 interface HomeHeroProps {
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
+  categorySuggestions?: string[];
 }
 
 interface Tab {
@@ -34,7 +33,7 @@ const ALL_TAB: Tab = {
   ),
 };
 
-export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroProps) {
+export default function HomeHero({ activeTab = 'all', onTabChange, categorySuggestions = [] }: HomeHeroProps) {
   const [tabs, setTabs] = useState<Tab[]>([ALL_TAB]);
   const [showHeaderCategoryRow, setShowHeaderCategoryRow] = useState(true);
 
@@ -99,31 +98,11 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     return '';
   }, [userLocation]);
 
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  // Fetch categories for search suggestions
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await getCategories();
-        if (response.success && response.data) {
-          setCategories(response.data.map((c: any) => ({
-            ...c,
-            id: c._id || c.id
-          })));
-        }
-      } catch (error) {
-        console.error("Error fetching categories for suggestions:", error);
-      }
-    };
-    fetchCategories();
-  }, []);
-
   // Search suggestions based on active tab or fetched categories
   const searchSuggestions = useMemo(() => {
-    if (activeTab === 'all' && categories.length > 0) {
+    if (activeTab === 'all' && categorySuggestions.length > 0) {
       // Use real category names for 'all' tab suggestions
-      return categories.slice(0, 8).map(c => c.name.toLowerCase());
+      return categorySuggestions.slice(0, 8).map((name) => name.toLowerCase());
     }
 
     switch (activeTab) {
@@ -144,7 +123,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       default: // 'all'
         return ['atta', 'milk', 'dal', 'coke', 'bread', 'eggs', 'rice', 'oil'];
     }
-  }, [activeTab]);
+  }, [activeTab, categorySuggestions]);
 
   useLayoutEffect(() => {
     const hero = heroRef.current;
@@ -178,21 +157,35 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
 
   // Handle sticky header transition based on scroll position
   useEffect(() => {
+    let frameId: number | null = null;
+
     const handleScroll = () => {
-      if (topSectionRef.current && stickyRef.current) {
+      if (frameId !== null) return;
+
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        if (!topSectionRef.current || !stickyRef.current) return;
+
         const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
         const topSectionHeight = topSectionRef.current.offsetHeight;
         // When the top section has scrolled up, transition to white
         const progress = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
-        setScrollProgress(progress);
-        setIsSticky(topSectionBottom <= 0);
-      }
+        const nextProgress = Math.round(progress * 50) / 50;
+        setScrollProgress((current) => current === nextProgress ? current : nextProgress);
+        setIsSticky((current) => {
+          const next = topSectionBottom <= 0;
+          return current === next ? current : next;
+        });
+      });
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // Check initial state
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   // Update sliding indicator position when activeTab changes and scroll to active tab

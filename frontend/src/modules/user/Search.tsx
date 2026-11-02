@@ -23,6 +23,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   // Update input when URL param changes (e.g. back button)
   useEffect(() => {
@@ -52,6 +53,10 @@ export default function Search() {
     // Fast typing can fire several requests before earlier ones resolve;
     // this guards against an older response overwriting a newer one.
     let ignore = false;
+    const controller = new AbortController();
+    loadMoreControllerRef.current?.abort();
+    loadMoreControllerRef.current = null;
+    setLoadingMore(false);
 
     const fetchFirstPage = async () => {
       const q = searchParams.get('q') || '';
@@ -71,7 +76,7 @@ export default function Search() {
           params.latitude = location.latitude;
           params.longitude = location.longitude;
         }
-        const response = await getProducts(params);
+        const response = await getProducts(params, { signal: controller.signal });
         if (ignore) return;
         const results = response.data as unknown as Product[];
         setSearchResults(results);
@@ -79,7 +84,7 @@ export default function Search() {
         setPage(1);
         setHasMore(response.pagination ? response.pagination.page < response.pagination.pages : false);
       } catch (error) {
-        if (ignore) return;
+        if (ignore || controller.signal.aborted) return;
         console.error('Error searching products:', error);
         setSearchResults([]);
         setTotalCount(0);
@@ -93,8 +98,9 @@ export default function Search() {
 
     return () => {
       ignore = true;
+      controller.abort();
     };
-  }, [searchParams, location]);
+  }, [searchParams, location?.latitude, location?.longitude]);
 
   // Load the next page and append it to the current results
   const loadMore = useCallback(async () => {
@@ -102,6 +108,9 @@ export default function Search() {
     if (!q.trim() || loading || loadingMore || !hasMore) return;
 
     const nextPage = page + 1;
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
     setLoadingMore(true);
     try {
       const params: any = { search: q, limit: PAGE_SIZE, page: nextPage };
@@ -109,17 +118,21 @@ export default function Search() {
         params.latitude = location.latitude;
         params.longitude = location.longitude;
       }
-      const response = await getProducts(params);
+      const response = await getProducts(params, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       const results = response.data as unknown as Product[];
       setSearchResults((prev) => [...prev, ...results]);
       setPage(nextPage);
       setHasMore(response.pagination ? response.pagination.page < response.pagination.pages : false);
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Error loading more search results:', error);
     } finally {
-      setLoadingMore(false);
+      if (!controller.signal.aborted) setLoadingMore(false);
     }
-  }, [searchParams, location, page, loading, loadingMore, hasMore]);
+  }, [searchParams, location?.latitude, location?.longitude, page, loading, loadingMore, hasMore]);
+
+  useEffect(() => () => loadMoreControllerRef.current?.abort(), []);
 
   // Trigger loadMore when the sentinel at the bottom of the grid scrolls into view
   useEffect(() => {

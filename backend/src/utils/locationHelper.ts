@@ -48,50 +48,70 @@ export async function findSellersWithinRange(
   }
 
   try {
-    // Fetch all approved sellers with location data
-    const sellers = await Seller.find({
+    // Use the Seller 2dsphere index for normal GeoJSON pickup locations. The
+    // per-seller service radius is applied after MongoDB computes distance, so
+    // sellers can continue to have different radii without loading every
+    // approved seller into the Node process.
+    const geoMatches = await Seller.aggregate<{ _id: mongoose.Types.ObjectId }>([
+      {
+        $geoNear: {
+          near: { type: "Point", coordinates: [userLng, userLat] },
+          // Seller has more than one geospatial field/index in production;
+          // explicitly select the pickup location used for serviceability.
+          key: "location",
+          distanceField: "distanceMeters",
+          spherical: true,
+          query: { status: "Approved" },
+        },
+      },
+      {
+        $match: {
+          $expr: {
+            $lte: [
+              "$distanceMeters",
+              { $multiply: [{ $ifNull: ["$serviceRadiusKm", 10] }, 1000] },
+            ],
+          },
+        },
+      },
+      { $project: { _id: 1 } },
+    ]);
+
+    const nearbySellerIds = geoMatches.map((seller) => seller._id);
+
+    // Preserve support for legacy seller records that have only latitude and
+    // longitude string fields. This query is restricted to records without a
+    // usable GeoJSON point, so the normal path remains index-backed.
+    const legacySellers = await Seller.find({
       status: "Approved",
+      $or: [
+        { "location.type": { $ne: "Point" } },
+        { "location.coordinates.0": { $exists: false } },
+        { "location.coordinates.1": { $exists: false } },
+      ],
     })
-      .select("_id location serviceRadiusKm latitude longitude")
+      .select("_id serviceRadiusKm latitude longitude")
       .lean();
 
-    // Filter sellers where user is within their service radius
-    const nearbySellerIds: mongoose.Types.ObjectId[] = [];
+    for (const seller of legacySellers) {
+      const sellerLat = seller.latitude ? parseFloat(seller.latitude) : NaN;
+      const sellerLng = seller.longitude ? parseFloat(seller.longitude) : NaN;
+      if (isNaN(sellerLat) || isNaN(sellerLng)) continue;
 
-    for (const seller of sellers) {
-      let sellerLat: number | null = null;
-      let sellerLng: number | null = null;
-
-      // Try GeoJSON first
-      if (seller.location && seller.location.coordinates && seller.location.coordinates.length === 2) {
-        sellerLng = seller.location.coordinates[0];
-        sellerLat = seller.location.coordinates[1];
-      }
-      // Fallback to string fields if GeoJSON missing
-      else if (seller.latitude && seller.longitude) {
-         sellerLat = parseFloat(seller.latitude);
-         sellerLng = parseFloat(seller.longitude);
-      }
-
-      if (sellerLat !== null && sellerLng !== null && !isNaN(sellerLat) && !isNaN(sellerLng)) {
-        const distance = calculateDistance(
-          userLat,
-          userLng,
-          sellerLat,
-          sellerLng
-        );
-        const serviceRadius = seller.serviceRadiusKm || 10; // Default to 10km if not set
-
-        if (distance <= serviceRadius) {
-          nearbySellerIds.push(seller._id as mongoose.Types.ObjectId);
-        }
+      const distance = calculateDistance(userLat, userLng, sellerLat, sellerLng);
+      if (distance <= (seller.serviceRadiusKm || 10)) {
+        nearbySellerIds.push(seller._id as mongoose.Types.ObjectId);
       }
     }
 
     return nearbySellerIds;
   } catch (error) {
     console.error("Error finding nearby sellers:", error);
-    return [];
+    // A database/index failure is not the same as a valid location with no
+    // nearby sellers. Let controllers return an error so the customer UI can
+    // retain its non-blocking fallback instead of showing a false
+    // "Service Not Available" screen.
+    throw error;
   }
 }
 

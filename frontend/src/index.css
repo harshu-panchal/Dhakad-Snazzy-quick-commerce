@@ -121,6 +121,14 @@ video {
   will-change: transform;
 }
 
+/* Browser-level list virtualization. Cards keep their layout/scroll position
+   and all interactions, but offscreen card subtrees skip layout and paint until
+   they approach the viewport. */
+.product-card-virtualized {
+  content-visibility: auto;
+  contain-intrinsic-size: 260px 160px;
+}
+
 .marquee-wrapper:hover .animate-marquee-scroll,
 .marquee-wrapper:focus-within .animate-marquee-scroll,
 .marquee-wrapper.is-paused .animate-marquee-scroll {

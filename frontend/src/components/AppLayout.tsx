@@ -1,13 +1,16 @@
-import { ReactNode, useEffect, useRef, useState, useMemo } from 'react';
+import { ReactNode, Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import FloatingCartPill from './FloatingCartPill';
 import { useLocation as useLocationContext } from '../hooks/useLocation';
-import LocationPermissionRequest from './LocationPermissionRequest';
 import { useThemeContext } from '../context/ThemeContext';
 import ServiceNotAvailable from './ServiceNotAvailable';
 import { checkServiceability } from '../services/api/customerHomeService';
-import burgerIcon from '@assets/login/Burger1.png';
+import burgerIcon from '@assets/login/Burger1-96.png';
+
+// This component owns Google Maps autocomplete. Load it only when either
+// location modal is actually visible so maps are not part of the home entry.
+const LocationPermissionRequest = lazy(() => import('./LocationPermissionRequest'));
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -28,15 +31,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // State to track if service is available at user's location
   const [isServiceAvailable, setIsServiceAvailable] = useState<boolean>(true);
+  const userLatitude = userLocation?.latitude;
+  const userLongitude = userLocation?.longitude;
 
   // Check serviceability when user location changes
   useEffect(() => {
+    const controller = new AbortController();
+
     const performCheck = async () => {
-      if (userLocation && userLocation.latitude && userLocation.longitude) {
+      if (userLatitude && userLongitude) {
         try {
-          const result = await checkServiceability(userLocation.latitude, userLocation.longitude);
+          const result = await checkServiceability(
+            userLatitude,
+            userLongitude,
+            controller.signal,
+          );
+          if (controller.signal.aborted) return;
           setIsServiceAvailable(result.isServiceAvailable);
         } catch (error) {
+          if (controller.signal.aborted) return;
           console.error("Failed to check serviceability:", error);
           // Default to true on error to avoid blocking user due to network issues
           setIsServiceAvailable(true);
@@ -48,7 +61,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     };
 
     performCheck();
-  }, [userLocation]);
+    return () => controller.abort();
+  }, [userLatitude, userLongitude]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -404,23 +418,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
           {/* Location Permission Request Modal - Mandatory for all users */}
           {showLocationRequest && (
-            <LocationPermissionRequest
-              onLocationGranted={() => setShowLocationRequest(false)}
-              skipable={false}
-              title="Location Access Required"
-              description="We need your location to show you products available near you and enable delivery services. Location access is required to continue."
-            />
+            <Suspense fallback={null}>
+              <LocationPermissionRequest
+                onLocationGranted={() => setShowLocationRequest(false)}
+                skipable={false}
+                title="Location Access Required"
+                description="We need your location to show you products available near you and enable delivery services. Location access is required to continue."
+              />
+            </Suspense>
           )}
 
           {/* Location Change Modal */}
           {showLocationChangeModal && (
-            <LocationPermissionRequest
-              onLocationGranted={() => setShowLocationChangeModal(false)}
-              skipable={true}
-              title="Change Location"
-              description="Update your location to see products available near you."
-              forceOpen={true}
-            />
+            <Suspense fallback={null}>
+              <LocationPermissionRequest
+                onLocationGranted={() => setShowLocationChangeModal(false)}
+                skipable={true}
+                title="Change Location"
+                description="Update your location to see products available near you."
+                forceOpen={true}
+              />
+            </Suspense>
           )}
 
           {/* Fixed Bottom Navigation - Mobile Only, Hidden on checkout pages */}

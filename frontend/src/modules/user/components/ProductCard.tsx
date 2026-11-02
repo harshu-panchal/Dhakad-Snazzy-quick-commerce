@@ -1,7 +1,7 @@
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { memo, useRef, useMemo, useCallback } from 'react';
 import { Product } from '../../../types/domain';
-import { useCart } from '../../../context/CartContext';
+import { useCartProduct } from '../../../context/CartContext';
 import { useWishlist } from '../../../hooks/useWishlist';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
@@ -26,6 +26,34 @@ interface ProductCardProps {
   categoryStyle?: boolean;
 }
 
+function ProductWishlistButton({ productId }: { productId: string }) {
+  const { isWishlisted, toggleWishlist } = useWishlist(productId);
+  return (
+    <button
+      onClick={(event) => toggleWishlist(event)}
+      className="absolute top-2 right-2 z-30 w-9 h-9 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-all shadow-md group/heart"
+      aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill={isWishlisted ? "#ef4444" : "none"}
+        xmlns="http://www.w3.org/2000/svg"
+        className={`transition-colors ${isWishlisted ? "text-red-500" : "text-neutral-400 group-hover/heart:text-red-400"}`}
+      >
+        <path
+          d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
+
 function ProductCard({
   product,
   showBadge = false,
@@ -41,25 +69,14 @@ function ProductCard({
   categoryStyle = false,
 }: ProductCardProps) {
   const navigate = useNavigate();
-  const { cart, addToCart, updateQuantity } = useCart();
   const imageRef = useRef<HTMLImageElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   // Single ref to track any cart operation in progress for this product
   const isOperationPendingRef = useRef(false);
 
   // Stabilize IDs
-  const productId = useMemo(() => ((product as any).id || product._id) as string, [product.id, product._id]);
-  const { isWishlisted, toggleWishlist } = useWishlist(productId);
-
-  const cartItem = useMemo(() => {
-    return cart.items.find((item) => {
-      if (!item?.product) return false;
-      const itemProdId = String(item.product.id || item.product._id);
-      return itemProdId === productId;
-    });
-  }, [cart.items, productId]);
-
-  const inCartQty = cartItem?.quantity || 0;
+  const productId = String(product.id || product._id || '');
+  const { quantity: inCartQty, variant: cartVariant, addToCart, updateQuantity } = useCartProduct(productId);
 
   // Get Price and MRP using utility - Memoized to prevent re-calc
   const priceDetails = useMemo(() => calculateProductPrice(product), [product]);
@@ -144,12 +161,12 @@ function ProductCard({
       // updateQuantity matches by variant only when one is explicitly passed, and
       // every server-synced cart item has a variant value set (see
       // mapApiItemsToState), so omitting it here would never find the item to update.
-      await updateQuantity(productId, inCartQty - 1, cartItem?.variant);
+      await updateQuantity(productId, inCartQty - 1, cartVariant);
     } finally {
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  }, [productId, inCartQty, updateQuantity, cartItem]);
+  }, [productId, inCartQty, updateQuantity, cartVariant]);
 
   const handleIncrease = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -170,7 +187,7 @@ function ProductCard({
     try {
       if (inCartQty > 0) {
         // See handleDecrease for why the cart item's variant must be passed through.
-        await updateQuantity(productId, inCartQty + 1, cartItem?.variant);
+        await updateQuantity(productId, inCartQty + 1, cartVariant);
       } else {
         await addToCart(product, addButtonRef.current);
       }
@@ -178,11 +195,11 @@ function ProductCard({
       // Reset the flag after the operation truly completes
       isOperationPendingRef.current = false;
     }
-  }, [product, productId, inCartQty, updateQuantity, addToCart, cartItem]);
+  }, [product, productId, inCartQty, updateQuantity, addToCart, cartVariant]);
 
   // Memoize class names
   const cardClassName = useMemo(() =>
-    `${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative transition-transform duration-200 will-change-transform hover:-translate-y-0.5 active:scale-[0.97]`
+    `product-card-virtualized ${categoryStyle ? 'bg-green-50' : 'bg-white'} rounded-lg shadow-sm overflow-hidden flex flex-col relative transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.97]`
   , [categoryStyle]);
 
   const imageContainerClassName = useMemo(() => 
@@ -271,32 +288,7 @@ function ProductCard({
           )}
 
           {showHeartIcon && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleWishlist(e);
-              }}
-              className="absolute top-2 right-2 z-30 w-9 h-9 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-all shadow-md group/heart"
-              aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill={isWishlisted ? "#ef4444" : "none"}
-                xmlns="http://www.w3.org/2000/svg"
-                className={`transition-colors ${isWishlisted ? "text-red-500" : "text-neutral-400 group-hover/heart:text-red-400"}`}
-              >
-                <path
-                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+            <ProductWishlistButton productId={productId} />
           )}
 
           {(product.variations?.length || 0) >= 2 && (

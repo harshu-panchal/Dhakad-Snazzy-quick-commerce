@@ -21,9 +21,10 @@ import RouteTransition from "./components/RouteTransition";
 import { useEffect } from "react";
 import lazyWithRetry from "./utils/lazyWithRetry";
 
-// Critical routes - load immediately (Home, Cart)
+// Only Home is required for the initial customer render. Cart is route-level
+// code and should not inflate the home bundle.
 import Home from "./modules/user/Home";
-import Cart from "./modules/user/Cart";
+const Cart = lazyWithRetry(() => import("./modules/user/Cart"), "Cart");
 
 // Lazy load large frontend sections
 const Checkout = lazyWithRetry(() => import("./modules/user/Checkout"), "Checkout");

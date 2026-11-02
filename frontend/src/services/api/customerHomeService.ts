@@ -15,7 +15,15 @@ export interface HomeContentResponse {
     lowestPrices?: any[];
     lowestPricesSections?: any[];
     homeSections?: any[];
+    searchSuggestions?: string[];
+    fallbackProducts?: any[];
   };
+}
+
+export interface HomeContentRequestOptions {
+  signal?: AbortSignal;
+  /** Comma-separated response fields understood by the backend. */
+  fields?: string[];
 }
 
 /**
@@ -34,9 +42,11 @@ export const getHomeContent = async (
   useCache: boolean = true,
   cacheTTL: number = 5 * 60 * 1000, // 5 minutes
   skipLoader: boolean = false,
-  city?: string
+  city?: string,
+  options: HomeContentRequestOptions = {}
 ): Promise<HomeContentResponse> => {
-  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}-${city || 'all'}`;
+  const fieldsKey = options.fields?.slice().sort().join(',') || 'legacy-all';
+  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}-${city || 'all'}-${fieldsKey}`;
 
   const fetchFn = async () => {
     const params: any = headerCategorySlug ? { headerCategorySlug } : {};
@@ -47,14 +57,28 @@ export const getHomeContent = async (
     if (city) {
       params.city = city;
     }
+    if (options.fields?.length) {
+      params.fields = options.fields.join(',');
+    }
     const response = await api.get<HomeContentResponse>("/customer/home", {
       params,
-      skipLoader
+      skipLoader,
+      signal: options.signal,
     } as any);
     return response.data;
   };
 
   if (useCache) {
+    // Cancellable calls must not share their AbortSignal through the cache's
+    // pending-request map. Reuse a completed value, otherwise fetch directly
+    // and populate the cache after a successful response.
+    if (options.signal) {
+      const cached = apiCache.getSync<HomeContentResponse>(cacheKey);
+      if (cached) return cached;
+      const data = await fetchFn();
+      apiCache.set(cacheKey, data, cacheTTL);
+      return data;
+    }
     return apiCache.getOrFetch(cacheKey, fetchFn, cacheTTL);
   }
 
@@ -82,12 +106,14 @@ export const getStoreProducts = async (
  */
 export const checkServiceability = async (
   latitude: number,
-  longitude: number
+  longitude: number,
+  signal?: AbortSignal,
 ): Promise<{ success: boolean; isServiceAvailable: boolean }> => {
   const response = await api.get<{ success: boolean; isServiceAvailable: boolean }>(
     "/customer/home/serviceability",
     {
-      params: { latitude, longitude }
+      params: { latitude, longitude },
+      signal,
     }
   );
   return response.data;

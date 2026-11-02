@@ -24,6 +24,7 @@ export const getSocketBaseURL = (): string => {
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },

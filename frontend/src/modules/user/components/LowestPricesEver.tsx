@@ -13,6 +13,7 @@ import { calculateProductPrice } from '../../../utils/priceUtils';
 interface LowestPricesEverProps {
   activeTab?: string;
   products?: Product[]; // Admin-selected products from home data
+  fallbackProducts?: Product[];
   title?: string;
   city?: string;
 }
@@ -84,7 +85,7 @@ const ProductCard = memo(({
     <div className="flex-shrink-0 w-[140px]">
       <div
         onClick={() => navigate(`/product/${product.id}`)}
-        className="bg-white rounded-lg overflow-hidden flex flex-col relative h-full max-h-full cursor-pointer"
+        className="product-card-virtualized bg-white rounded-lg overflow-hidden flex flex-col relative h-full max-h-full cursor-pointer"
         style={{ boxShadow: '0 1px 1px rgba(0, 0, 0, 0.03)' }}
       >
         {/* Product Image Area */}
@@ -325,6 +326,7 @@ ProductCard.displayName = 'ProductCard';
 export default function LowestPricesEver({
   activeTab = 'all',
   products: adminProducts,
+  fallbackProducts,
   title = 'LOWEST PRICES EVER',
   city,
 }: LowestPricesEverProps) {
@@ -401,6 +403,19 @@ export default function LowestPricesEver({
         };
       });
       setProducts(mappedProducts);
+    } else if (fallbackProducts) {
+      setProducts(fallbackProducts.map((p: any) => {
+        let productName = p.productName || p.name || '';
+        productName = productName.replace(/\s*-\s*(Fresh|Quality|Assured|Premium|Best|Top|Hygienic|Carefully|Selected).*$/i, '').trim();
+        return {
+          ...p,
+          id: p._id || p.id,
+          name: productName,
+          imageUrl: p.mainImage || p.imageUrl,
+          mrp: p.mrp || p.compareAtPrice || p.price,
+          pack: p.variations?.[0]?.title || p.pack || 'Standard',
+        };
+      }));
     } else {
       // Fallback: fetch products if admin hasn't configured any
       const fetchDiscountedProducts = async () => {
@@ -433,7 +448,7 @@ export default function LowestPricesEver({
       };
       fetchDiscountedProducts();
     }
-  }, [adminProducts]);
+  }, [adminProducts, fallbackProducts]);
 
   // Get products for this section
   // If using admin-selected products, use them directly (already filtered and ordered)

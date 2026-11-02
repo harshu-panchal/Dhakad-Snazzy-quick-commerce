@@ -3,6 +3,10 @@ import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import Product from "../../../models/Product";
 import mongoose from "mongoose";
+
+const logCustomerDebug = (...args: any[]) => {
+  if (process.env.LOG_CUSTOMER_REQUESTS === "true") console.log(...args);
+};
 import { cache } from "../../../utils/cache";
 
 // Get all categories (public) - with caching
@@ -168,7 +172,7 @@ export const getCategoryById = async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[getCategoryById] Looking for category with id/slug: ${id}`);
+    logCustomerDebug(`[getCategoryById] Looking for category with id/slug: ${id}`);
     let category;
 
     // Try to find by ObjectId first (only active categories for public endpoint)
@@ -244,20 +248,20 @@ export const getCategoryById = async (req: Request, res: Response) => {
         }
       }
 
-      console.log(`[getCategoryById] Category not found: ${id}`);
+      logCustomerDebug(`[getCategoryById] Category not found: ${id}`);
       return res.status(404).json({
         success: false,
         message: `Category not found: ${id}`,
       });
     }
 
-    console.log(
+    logCustomerDebug(
       `[getCategoryById] Found category: ${category.name} (${category._id})`
     );
 
     // Check if this category is actually a subcategory (has a parentId)
     if (category.parentId) {
-      console.log(
+      logCustomerDebug(
         `[getCategoryById] Category ${category.name} is a subcategory. Fetching parent category...`
       );
       const parentCategory = await Category.findOne({
@@ -285,7 +289,7 @@ export const getCategoryById = async (req: Request, res: Response) => {
           })
           .lean();
 
-        console.log(
+        logCustomerDebug(
           `[getCategoryById] Found ${subcategories.length} sibling subcategories for parent ${parentCategory.name}`
         );
 
@@ -328,7 +332,7 @@ export const getCategoryById = async (req: Request, res: Response) => {
       })
       .lean();
 
-    console.log(
+    logCustomerDebug(
       `[getCategoryById] Found ${subcategories.length} subcategories for ${category.name}`
     );
 

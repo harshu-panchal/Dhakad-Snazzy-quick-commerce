@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { getHomeContent } from "../../../services/api/customerHomeService";
 import { getTheme } from "../../../utils/themes";
 import { resolveMediaUrl } from "../../../utils/media";
 
@@ -22,6 +21,8 @@ export interface MediaSlide {
 
 interface PromoStripProps {
   activeTab?: string;
+  promoStrip?: { banners?: MediaSlide[] } | null;
+  promoBanners?: MediaSlide[];
 }
 
 // Curated high quality default category banners and videos
@@ -168,7 +169,11 @@ const DEFAULT_CATEGORY_SLIDES: Record<string, MediaSlide[]> = {
   ],
 };
 
-export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
+export default function PromoStrip({
+  activeTab = "all",
+  promoStrip,
+  promoBanners,
+}: PromoStripProps) {
   const navigate = useNavigate();
   const theme = getTheme(activeTab);
 
@@ -184,51 +189,25 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
 
-  // Fetch or resolve category banners/videos
+  // Resolve the banners already returned by the parent home request. Keeping
+  // this component presentational avoids a second full /customer/home call.
   useEffect(() => {
-    let isMounted = true;
+    const configured = Array.isArray(promoStrip?.banners) && promoStrip.banners.length > 0
+      ? promoStrip.banners
+      : Array.isArray(promoBanners)
+        ? promoBanners
+        : [];
+    const nextSlides = configured
+      .filter((banner) => banner.isActive !== false)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    const loadCategoryMedia = async () => {
-      try {
-        const response = await getHomeContent(activeTab, undefined, undefined, false);
-        if (!isMounted) return;
-
-        let dbBanners: MediaSlide[] = [];
-        if (response.success && response.data) {
-          // Check promoStrip banners first
-          if (response.data.promoStrip?.banners && Array.isArray(response.data.promoStrip.banners) && response.data.promoStrip.banners.length > 0) {
-            dbBanners = response.data.promoStrip.banners.filter((b: MediaSlide) => b.isActive !== false);
-          } else if (response.data.promoBanners && Array.isArray(response.data.promoBanners) && response.data.promoBanners.length > 0) {
-            dbBanners = response.data.promoBanners.filter((b: MediaSlide) => b.isActive !== false);
-          } else if (response.data.banners && Array.isArray(response.data.banners) && response.data.banners.length > 0) {
-            dbBanners = response.data.banners.filter((b: MediaSlide) => b.isActive !== false);
-          }
-        }
-
-        if (dbBanners.length > 0) {
-          // Sort by order if available
-          dbBanners.sort((a, b) => (a.order || 0) - (b.order || 0));
-          setSlides(dbBanners);
-        } else {
-          // Fallback to high quality curated defaults for this header category
-          const defaultList = DEFAULT_CATEGORY_SLIDES[activeTab.toLowerCase()] || DEFAULT_CATEGORY_SLIDES.all;
-          setSlides(defaultList);
-        }
-        setCurrentIndex(0);
-      } catch (err) {
-        console.error("Failed to load header category media carousel:", err);
-        const defaultList = DEFAULT_CATEGORY_SLIDES[activeTab.toLowerCase()] || DEFAULT_CATEGORY_SLIDES.all;
-        setSlides(defaultList);
-        setCurrentIndex(0);
-      }
-    };
-
-    loadCategoryMedia();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab]);
+    setSlides(
+      nextSlides.length > 0
+        ? nextSlides
+        : DEFAULT_CATEGORY_SLIDES[activeTab.toLowerCase()] || DEFAULT_CATEGORY_SLIDES.all,
+    );
+    setCurrentIndex(0);
+  }, [activeTab, promoStrip, promoBanners]);
 
   // Current active slide
   const currentSlide = slides[currentIndex] || slides[0];

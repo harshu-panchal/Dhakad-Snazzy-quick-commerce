@@ -172,14 +172,13 @@ export const getProducts = async (req: Request, res: Response) => {
       query.discount = { $gte: Number(minDiscount) };
     }
 
-    if (search) {
-      // Use regex search for partial matching (much better user experience than text search for small catalogs)
-      const searchRegex = { $regex: search as string, $options: "i" };
-      query.$or = [
-        { productName: searchRegex },
-        { tags: searchRegex },
-        { smallDescription: searchRegex }
-      ];
+    let usesTextSearch = false;
+    if (search && String(search).trim()) {
+      // Use MongoDB's existing text index for normal searches. If it has no
+      // result, fall back to the legacy partial-match behavior so searches
+      // such as a fragment of a product name continue to work.
+      query.$text = { $search: String(search).trim() };
+      usesTextSearch = true;
     }
 
     // Calculate skip for pagination
@@ -192,7 +191,35 @@ export const getProducts = async (req: Request, res: Response) => {
     if (sort === "discount") sortOptions = { discount: -1 };
     if (sort === "popular") sortOptions = { popular: -1, dealOfDay: -1 };
 
-    const products = await Product.find(query)
+    let finalQuery: any = query;
+    let total = await Product.countDocuments(finalQuery);
+
+    if (usesTextSearch && total === 0) {
+      const partialTerm = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const partialRegex = { $regex: partialTerm, $options: "i" };
+      const { $text: _text, $or: shopVisibility, ...filters } = query;
+      finalQuery = {
+        ...filters,
+        $and: [
+          ...(shopVisibility ? [{ $or: shopVisibility }] : []),
+          {
+            $or: [
+              { productName: partialRegex },
+              { tags: partialRegex },
+              { smallDescription: partialRegex },
+            ],
+          },
+        ],
+      };
+      usesTextSearch = false;
+      total = await Product.countDocuments(finalQuery);
+    }
+
+    if (usesTextSearch && !sort) {
+      sortOptions = { score: { $meta: "textScore" }, createdAt: -1 };
+    }
+
+    const products = await Product.find(finalQuery)
       .populate("category", "name icon image")
       .populate("subcategory", "name")
       .populate("brand", "name")
@@ -201,8 +228,6 @@ export const getProducts = async (req: Request, res: Response) => {
       .skip(skip)
       .limit(limit)
       .lean();
-
-    const total = await Product.countDocuments(query);
 
     const formattedProducts = products.map((p: any) => {
       const prodObj = { ...p };

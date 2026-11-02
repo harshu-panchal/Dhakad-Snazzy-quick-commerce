@@ -14,7 +14,7 @@ import { useThemeContext } from "../../context/ThemeContext";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { location } = useLocation();
+  const { location, isLocationLoading } = useLocation();
   const { activeCategory, setActiveCategory } = useThemeContext();
   const activeTab = activeCategory; // mapping for existing code compatibility
   const setActiveTab = setActiveCategory;
@@ -24,6 +24,7 @@ export default function Home() {
 
   // State for dynamic data
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [homeData, setHomeData] = useState<any>({
     categories: [],
@@ -34,6 +35,10 @@ export default function Home() {
     cookingIdeas: [],
     bestsellers: [],
     lowestPrices: [],
+    lowestPricesSections: [],
+    searchSuggestions: [],
+    fallbackProducts: [],
+    promoStrip: null,
   });
 
   const [products, setProducts] = useState<any[]>([]);
@@ -52,6 +57,15 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (isLocationLoading) return;
+
+    // requestLocation first publishes coordinates with a temporary address and
+    // then replaces it with the reverse-geocoded city. Waiting for the settled
+    // value avoids fetching the entire home payload twice for the same point.
+    if (location?.address?.startsWith("Getting address for ")) return;
+
+    const controller = new AbortController();
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -67,26 +81,44 @@ export default function Home() {
           true,
           5 * 60 * 1000,
           false,
-          location?.city
+          location?.city,
+          {
+            signal: controller.signal,
+            fields: [
+              "bestsellers",
+              "lowestPrices",
+              "lowestPricesSections",
+              "homeSections",
+              "shops",
+              "promoStrip",
+              "promoBanners",
+              "searchSuggestions",
+              "fallbackProducts",
+            ],
+          }
         );
+        if (controller.signal.aborted) return;
         if (response.success && response.data) {
           setHomeData(response.data);
+          setHasLoadedOnce(true);
 
 
         } else {
           setError("Failed to load content. Please try again.");
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
         console.error("Failed to fetch home content", error);
         setError("Network error. Please check your connection.");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     fetchData();
 
-  }, [location?.latitude, location?.longitude, location?.city, activeTab]);
+    return () => controller.abort();
+  }, [isLocationLoading, location?.latitude, location?.longitude, location?.city, location?.address, activeTab]);
 
   // Restore scroll position when returning to this page
   useEffect(() => {
@@ -174,7 +206,7 @@ export default function Home() {
     [activeTab, products]
   );
 
-  if (loading && !products.length) {
+  if (loading && !hasLoadedOnce) {
     return <PageLoader />;
   }
 
@@ -201,10 +233,18 @@ export default function Home() {
   return (
     <div className="bg-white min-h-screen pb-20 md:pb-0" ref={contentRef}>
       {/* Hero Header with Gradient and Tabs */}
-      <HomeHero activeTab={activeTab} onTabChange={setActiveTab} />
+      <HomeHero
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        categorySuggestions={homeData.searchSuggestions || []}
+      />
 
       {/* Promo Strip */}
-      <PromoStrip activeTab={activeTab} />
+      <PromoStrip
+        activeTab={activeTab}
+        promoStrip={homeData.promoStrip}
+        promoBanners={homeData.promoBanners || homeData.banners}
+      />
 
       {/* Lowest Prices Ever Section(s) - Location Specific. Only shown on the "All" tab (home page), not on admin-created header category tabs. */}
       {activeTab === 'all' && (
@@ -219,7 +259,11 @@ export default function Home() {
             />
           ))
         ) : (
-          <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
+          <LowestPricesEver
+            activeTab={activeTab}
+            products={homeData.lowestPrices}
+            fallbackProducts={homeData.fallbackProducts}
+          />
         )
       )}
 
@@ -336,7 +380,7 @@ export default function Home() {
             )}
 
             {/* Featured this week Section */}
-            <FeaturedThisWeek />
+            <FeaturedThisWeek products={homeData.fallbackProducts} />
 
             {/* Shop by Store Section */}
             <div className="mb-6 mt-6 md:mb-8 md:mt-8">

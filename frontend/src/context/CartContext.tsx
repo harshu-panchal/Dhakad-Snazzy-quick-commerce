@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createContext, useContext, useState, ReactNode, useMemo, useEffect, useRef, useCallback, useSyncExternalStore } from 'react';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLocation } from '../hooks/useLocation';
@@ -70,6 +70,39 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+interface CartProductStore {
+  getSnapshot: (productId: string) => CartProductSnapshot;
+  subscribe: (productId: string, listener: () => void) => () => void;
+}
+
+interface CartProductSnapshot {
+  quantity: number;
+  variant?: any;
+}
+
+interface CartProductActions {
+  addToCart: CartContextType['addToCart'];
+  updateQuantity: CartContextType['updateQuantity'];
+}
+
+const CartProductStoreContext = createContext<CartProductStore | undefined>(undefined);
+const CartProductActionsContext = createContext<CartProductActions | undefined>(undefined);
+
+const EMPTY_PRODUCT_SNAPSHOT: CartProductSnapshot = { quantity: 0 };
+
+const buildProductSnapshotMap = (items: CartItem[]) => {
+  const snapshots = new Map<string, CartProductSnapshot>();
+  for (const item of items) {
+    if (!item?.product) continue;
+    const productId = String(item.product.id || item.product._id || '');
+    // ProductCard historically used the first matching cart line. Preserve
+    // that exact variant/quantity behavior while isolating its subscription.
+    if (!productId || snapshots.has(productId)) continue;
+    snapshots.set(productId, { quantity: item.quantity || 0, variant: item.variant });
+  }
+  return snapshots;
+};
+
 // Extended interface to include Cart Item ID
 interface ExtendedCartItem extends CartItem {
   id?: string;
@@ -95,6 +128,35 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const pendingOperationsRef = useRef<Set<string>>(new Set());
   const hasSyncedRef = useRef(false);
   const saveCartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const productSnapshotsRef = useRef<Map<string, CartProductSnapshot>>(buildProductSnapshotMap(items));
+  const productListenersRef = useRef<Map<string, Set<() => void>>>(new Map());
+
+  const productStore = useMemo<CartProductStore>(() => ({
+    getSnapshot: (productId) => productSnapshotsRef.current.get(productId) || EMPTY_PRODUCT_SNAPSHOT,
+    subscribe: (productId, listener) => {
+      const listeners = productListenersRef.current.get(productId) || new Set<() => void>();
+      listeners.add(listener);
+      productListenersRef.current.set(productId, listeners);
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) productListenersRef.current.delete(productId);
+      };
+    },
+  }), []);
+
+  useEffect(() => {
+    const previous = productSnapshotsRef.current;
+    const next = buildProductSnapshotMap(items);
+    productSnapshotsRef.current = next;
+    const changedIds = new Set([...previous.keys(), ...next.keys()]);
+    changedIds.forEach((productId) => {
+      const oldSnapshot = previous.get(productId) || EMPTY_PRODUCT_SNAPSHOT;
+      const newSnapshot = next.get(productId) || EMPTY_PRODUCT_SNAPSHOT;
+      if (oldSnapshot.quantity !== newSnapshot.quantity || oldSnapshot.variant !== newSnapshot.variant) {
+        productListenersRef.current.get(productId)?.forEach((listener) => listener());
+      }
+    });
+  }, [items]);
 
   const { isAuthenticated, user } = useAuth();
   const { location } = useLocation();
@@ -715,18 +777,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
     ]
   );
 
+  const actionImplementationsRef = useRef({ addToCart, updateQuantity });
+  actionImplementationsRef.current = { addToCart, updateQuantity };
+  const productActions = useMemo<CartProductActions>(() => ({
+    addToCart: (...args) => actionImplementationsRef.current.addToCart(...args),
+    updateQuantity: (...args) => actionImplementationsRef.current.updateQuantity(...args),
+  }), []);
+
   return (
-    <CartContext.Provider value={value}>
-      {children}
-      <SellerConflictModal
-        isOpen={!!sellerConflict}
-        currentSellerName={sellerConflict?.currentSellerName}
-        newSellerName={sellerConflict?.newSellerName}
-        onConfirm={confirmSellerConflict}
-        onCancel={cancelSellerConflict}
-      />
-    </CartContext.Provider>
+    <CartProductStoreContext.Provider value={productStore}>
+      <CartProductActionsContext.Provider value={productActions}>
+        <CartContext.Provider value={value}>
+          {children}
+          <SellerConflictModal
+            isOpen={!!sellerConflict}
+            currentSellerName={sellerConflict?.currentSellerName}
+            newSellerName={sellerConflict?.newSellerName}
+            onConfirm={confirmSellerConflict}
+            onCancel={cancelSellerConflict}
+          />
+        </CartContext.Provider>
+      </CartProductActionsContext.Provider>
+    </CartProductStoreContext.Provider>
   );
+}
+
+export function useCartProduct(productId: string) {
+  const store = useContext(CartProductStoreContext);
+  const actions = useContext(CartProductActionsContext);
+  if (!store || !actions) {
+    throw new Error('useCartProduct must be used within a CartProvider');
+  }
+  const subscribe = useCallback(
+    (listener: () => void) => store.subscribe(productId, listener),
+    [store, productId],
+  );
+  const getSnapshot = useCallback(() => store.getSnapshot(productId), [store, productId]);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return { ...snapshot, ...actions };
 }
 
 export function useCart() {

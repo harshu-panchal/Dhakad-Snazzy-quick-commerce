@@ -23,7 +23,7 @@ export default function LazyImage({
   alt,
   className = '',
   placeholder,
-  rootMargin = '200px',
+  rootMargin = '800px 400px',
   onError,
   width,
   ...props
@@ -35,7 +35,6 @@ export default function LazyImage({
   );
   const [imageSrc, setImageSrc] = useState<string | null>(placeholder || null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -65,34 +64,33 @@ export default function LazyImage({
       return () => observer.disconnect();
     }
 
-    // Use Intersection Observer for lazy loading
+    // Use the actual rendered <img> as the request owner. The previous
+    // Image()-preload-then-swap sequence kept the rendered image transparent
+    // until every byte had arrived and added a second lazy-loading gate.
+    // Observing the nearest scrollable <main> also makes the preload margin
+    // effective in AppLayout, whose page scroll happens inside <main> rather
+    // than on window.
+    const target = imgRef.current;
+    if (!target) return;
+    const mainScrollContainer = target.closest('main');
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            // Start loading the image
-            const img = new Image();
-            img.src = resolvedSrc;
-            img.onload = () => {
-              setImageSrc(resolvedSrc);
-              setIsLoaded(true);
-            };
-            img.onerror = () => {
-              setHasError(true);
-              // onError will be called by the img element's onError handler below
-            };
+            // Assigning the real src starts one request and allows progressive
+            // rendering/decoding instead of waiting on an invisible preloader.
+            setImageSrc(resolvedSrc);
             observer.disconnect();
           }
         });
       },
       {
+        root: mainScrollContainer instanceof Element ? mainScrollContainer : null,
         rootMargin,
       }
     );
 
-    if (imgRef.current) {
-      observer.observe(imgRef.current);
-    }
+    observer.observe(target);
 
     return () => {
       observer.disconnect();
@@ -112,16 +110,18 @@ export default function LazyImage({
     );
   }
 
+  // IntersectionObserver already controls when the real URL is assigned;
+  // eager prevents a second, browser-defined lazy-loading delay.
   return (
     <img
       ref={imgRef}
       src={imageSrc || placeholder || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E'}
       alt={alt}
-      className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
-      loading="lazy"
+      className={className}
+      loading="eager"
       decoding="async"
+      onLoad={() => setIsLoaded(true)}
       onError={(e) => {
-        setHasError(true);
         if (onError) onError(e);
       }}
       {...props}
