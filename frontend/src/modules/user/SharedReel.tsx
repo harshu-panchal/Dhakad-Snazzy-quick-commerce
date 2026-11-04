@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import ReelPlayer from './components/ReelPlayer';
 import Reels from './Reels';
 import { getPublicReel, type Reel } from '../../services/api/customerReelService';
-import { shareReelLink } from '../../utils/reelShare';
+import { copyReelLink, shareReelLink } from '../../utils/reelShare';
 import { readReelsMutedPref, writeReelsMutedPref } from '../../utils/reelPrefs';
 import {
     buildAppIntentUrl,
@@ -115,6 +115,7 @@ function PublicReelView({ reelId }: { reelId: string }) {
                     onAutoplayBlocked={() => persistMuted(true)}
                     onLike={goToLogin}
                     onShare={handleShare}
+                    onCopyLink={(r) => void copyReelLink(r, showToast)}
                 />
             )}
 

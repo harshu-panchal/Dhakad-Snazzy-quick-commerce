@@ -10,6 +10,7 @@ interface ReelPlayerProps {
     onToggleMute: () => void;
     onLike: (reel: Reel) => void;
     onShare: (reel: Reel) => void;
+    onCopyLink: (reel: Reel) => void;
     onFirstPlay?: (reelId: string) => void;
     /** Called when the browser blocks UNMUTED autoplay, so the feed can fall back to muted. */
     onAutoplayBlocked?: () => void;
@@ -37,6 +38,7 @@ function ReelPlayer({
     onToggleMute,
     onLike,
     onShare,
+    onCopyLink,
     onFirstPlay,
     onAutoplayBlocked,
     shouldLoad,
@@ -252,6 +254,29 @@ function ReelPlayer({
                     <span className="text-xs font-semibold drop-shadow">
                         {formatCount(reel.sharesCount)}
                     </span>
+                </button>
+
+                <button
+                    onClick={() => onCopyLink(reel)}
+                    className="flex flex-col items-center gap-1 text-white"
+                    aria-label="Copy reel URL"
+                >
+                    <svg
+                        width="30"
+                        height="30"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ filter: 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' }}
+                        className="transition-transform active:scale-110"
+                    >
+                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                        <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" />
+                    </svg>
+                    <span className="text-[11px] font-semibold drop-shadow">Copy URL</span>
                 </button>
 
                 <button

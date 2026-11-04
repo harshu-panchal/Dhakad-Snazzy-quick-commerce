@@ -11,7 +11,7 @@ import {
     recordReelView,
     type Reel,
 } from '../../services/api/customerReelService';
-import { shareReelLink } from '../../utils/reelShare';
+import { copyReelLink, shareReelLink } from '../../utils/reelShare';
 import { readReelsMutedPref, writeReelsMutedPref } from '../../utils/reelPrefs';
 
 interface ReelsProps {
@@ -279,6 +279,20 @@ export default function Reels({ startReelId }: ReelsProps = {}) {
         recordReelView(reelId);
     }, []);
 
+    const handleCopyLink = useCallback(
+        async (reel: Reel) => {
+            const copied = await copyReelLink(reel, showToast);
+            if (!copied) return;
+            setReels((prev) =>
+                prev.map((r) =>
+                    r._id === reel._id ? { ...r, sharesCount: r.sharesCount + 1 } : r,
+                ),
+            );
+            apiShareReel(reel._id).catch(() => {});
+        },
+        [showToast],
+    );
+
     // Nothing to show: the feed loaded empty, or there's no location to load
     // it with (and no pinned shared reel).
     const showEmptyState =
@@ -368,6 +382,7 @@ export default function Reels({ startReelId }: ReelsProps = {}) {
                             onAutoplayBlocked={() => persistMuted(true)}
                             onLike={handleLike}
                             onShare={handleShare}
+                            onCopyLink={handleCopyLink}
                             onFirstPlay={handleFirstPlay}
                         />
                     </div>
