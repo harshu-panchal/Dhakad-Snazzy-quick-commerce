@@ -5,7 +5,7 @@ import Order from "../models/Order";
 import OrderItem from "../models/OrderItem";
 import Seller from "../models/Seller";
 import Shipment from "../models/Shipment";
-import { getDeliveryBoyCommissionRate } from "./commissionService";
+import { calculateDeliveryPartnerEarning } from "./deliveryPartnerEarningService";
 import {
   assignAwb,
   cancelShiprocketOrder,
@@ -50,27 +50,26 @@ export const getPersonalDeliveryOptions = async (order: any) => {
       .select("name mobile city commissionRate")
       .lean(),
   ]);
-  const distanceRate = Number(settings.deliveryConfig?.deliveryBoyKmRate) || 0;
   const distance = Number(order.deliveryDistanceKm) || 0;
-  const distanceBased = settings.deliveryConfig?.isDistanceBased === true && distanceRate > 0 && distance > 0;
 
   return Promise.all(
     deliveryBoys.map(async (deliveryBoy: any) => {
-      const commissionRate = distanceBased
-        ? distanceRate
-        : await getDeliveryBoyCommissionRate(String(deliveryBoy._id));
-      const cost = distanceBased
-        ? distance * commissionRate
-        : (Number(order.subtotal) * commissionRate) / 100;
+      const calculation = await calculateDeliveryPartnerEarning(
+        order,
+        String(deliveryBoy._id),
+        settings,
+      );
       return {
         deliveryBoyId: String(deliveryBoy._id),
         name: deliveryBoy.name,
         mobile: deliveryBoy.mobile,
         city: deliveryBoy.city,
-        cost: Math.round(cost * 100) / 100,
-        calculation: distanceBased
-          ? `${distance.toFixed(2)} km × ₹${commissionRate}/km`
-          : `${commissionRate}% of ₹${Number(order.subtotal).toFixed(2)}`,
+        cost: calculation.amount,
+        calculation: calculation.locked
+          ? "Locked delivery partner earning"
+          : calculation.mode === "DISTANCE"
+            ? `${distance.toFixed(2)} km × ₹${calculation.rate}/km${calculation.minimumApplied ? " (minimum applied)" : ""}`
+            : `${calculation.rate}% of ₹${Number(order.subtotal).toFixed(2)}`,
       };
     }),
   );

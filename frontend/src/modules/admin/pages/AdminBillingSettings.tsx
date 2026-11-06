@@ -23,6 +23,8 @@ export default function AdminBillingSettings() {
     const [baseDistance, setBaseDistance] = useState<number>(0);
     const [kmRate, setKmRate] = useState<number>(0);
     const [deliveryBoyKmRate, setDeliveryBoyKmRate] = useState<number>(0);
+    const [minimumDeliveryPartnerEarning, setMinimumDeliveryPartnerEarning] = useState<number>(0);
+    const [minimumDeliveryPartnerEarningDistanceKm, setMinimumDeliveryPartnerEarningDistanceKm] = useState<number>(0);
     const [googleMapsKey, setGoogleMapsKey] = useState<string>('');
 
     // Instant vs Standard delivery boundary (0 = disabled, both options always available)
@@ -93,6 +95,8 @@ export default function AdminBillingSettings() {
                     setBaseDistance(data.deliveryConfig.baseDistance || 0);
                     setKmRate(data.deliveryConfig.kmRate || 0);
                     setDeliveryBoyKmRate(data.deliveryConfig.deliveryBoyKmRate || 0);
+                    setMinimumDeliveryPartnerEarning(data.deliveryConfig.minimumDeliveryPartnerEarning || 0);
+                    setMinimumDeliveryPartnerEarningDistanceKm(data.deliveryConfig.minimumDeliveryPartnerEarningDistanceKm || 0);
                     setGoogleMapsKey(data.deliveryConfig.googleMapsKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
                     setInstantDeliveryRadiusKm(data.deliveryConfig.instantDeliveryRadiusKm || 0);
                 } else {
@@ -135,6 +139,8 @@ export default function AdminBillingSettings() {
                     baseDistance,
                     kmRate,
                     deliveryBoyKmRate,
+                    minimumDeliveryPartnerEarning,
+                    minimumDeliveryPartnerEarningDistanceKm,
                     googleMapsKey,
                     instantDeliveryRadiusKm: instantDeliveryRadiusKm > 0 ? instantDeliveryRadiusKm : null
                 },
@@ -467,6 +473,44 @@ export default function AdminBillingSettings() {
                                     />
                                 </div>
                                 <p className="mt-1 text-xs text-gray-500">Amount paid to delivery partner per km.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Minimum Delivery Partner Earning (₹)
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={minimumDeliveryPartnerEarning === 0 ? '' : minimumDeliveryPartnerEarning}
+                                        onChange={(e) => setMinimumDeliveryPartnerEarning(e.target.value === '' ? 0 : Number(e.target.value))}
+                                        className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">Guaranteed minimum earning for eligible Instant deliveries.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Minimum Earning Distance (km)
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        value={minimumDeliveryPartnerEarningDistanceKm === 0 ? '' : minimumDeliveryPartnerEarningDistanceKm}
+                                        onChange={(e) => setMinimumDeliveryPartnerEarningDistanceKm(e.target.value === '' ? 0 : Number(e.target.value))}
+                                        className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                        placeholder="0"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">km</span>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">The guarantee applies at or below this distance. Above it, normal per-km earning applies.</p>
                             </div>
 
                             <div className="col-span-full">

@@ -15,6 +15,7 @@ import {
 import Seller from "../../../models/Seller";
 import Shipment from "../../../models/Shipment";
 import { cancelBookedShipment, getPersonalDeliveryOptions } from "../../../services/shippingService";
+import { lockDeliveryPartnerEarning } from "../../../services/deliveryPartnerEarningService";
 
 /**
  * Get all orders with filters
@@ -499,6 +500,7 @@ export const assignDeliveryBoy = asyncHandler(
     order.assignedAt = new Date();
     order.deliveryAssignmentStatus = "Assigned" as any;
     order.deliveryAssignmentResolvedAt = new Date();
+    await lockDeliveryPartnerEarning(order, deliveryBoyId);
     await order.save();
 
     const personalOptions = await getPersonalDeliveryOptions(order);
