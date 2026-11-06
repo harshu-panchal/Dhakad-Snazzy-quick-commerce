@@ -14,6 +14,7 @@ import {
     getPendingDeliveryOfferState,
 } from './orderAlertService';
 import { calculateEstimatedDeliveryBoyEarning } from './orderNotificationHelpers';
+import { calculateDeliveryPartnerEarning } from './deliveryPartnerEarningService';
 
 // Track order notification state
 export interface OrderNotificationState {
@@ -519,21 +520,39 @@ export async function handleOrderAcceptance(
 
         // Handling Idempotency first (Optimization):
         // Check if this driver ALREADY has it. This requires a read, but it's safe.
-        const existingOrder = await Order.findById(orderId).select('deliveryBoy status deliveryAssignmentStatus deliveryAssignmentResolvedAt');
+        const existingOrder = await Order.findById(orderId).select(
+            'deliveryBoy status deliveryAssignmentStatus deliveryAssignmentResolvedAt subtotal deliveryOption deliveryDistanceKm deliveryPartnerEarning deliveryPartnerEarningLockedAt deliveryPartnerEarningCalculation deliveryPartnerEarningRate',
+        );
         if (existingOrder && existingOrder.deliveryBoy && existingOrder.deliveryBoy.toString() === normalizedDeliveryBoyId) {
             console.log(`✅ [ACCEPT] Idempotent success. Order already assigned to this driver.`);
             await markDeliveryOfferAccepted(orderId, normalizedDeliveryBoyId).catch(() => undefined);
+            let shouldSave = false;
             if (existingOrder.status !== 'Processed') {
                 existingOrder.status = 'Processed';
                 (existingOrder as any).deliveryAssignmentStatus = 'Assigned';
                 (existingOrder as any).deliveryAssignmentResolvedAt = new Date();
-                await existingOrder.save();
+                shouldSave = true;
             }
+            if (existingOrder.deliveryPartnerEarning === undefined) {
+                const earning = await calculateDeliveryPartnerEarning(
+                    existingOrder,
+                    normalizedDeliveryBoyId,
+                );
+                existingOrder.deliveryPartnerEarning = earning.amount;
+                existingOrder.deliveryPartnerEarningLockedAt = new Date();
+                existingOrder.deliveryPartnerEarningCalculation = earning.mode;
+                existingOrder.deliveryPartnerEarningRate = earning.rate;
+                shouldSave = true;
+            }
+            if (shouldSave) await existingOrder.save();
             return { success: true, message: 'Order accepted successfully' };
         }
 
         // The Race Condition Fix:
         // Update ONLY if `deliveryBoy` is currently null/undefined.
+        const earning = existingOrder
+            ? await calculateDeliveryPartnerEarning(existingOrder, normalizedDeliveryBoyId)
+            : undefined;
         const updatedOrder = await Order.findOneAndUpdate(
             {
                 _id: orderId,
@@ -543,11 +562,18 @@ export async function handleOrderAcceptance(
             {
                 $set: {
                     deliveryBoy: new mongoose.Types.ObjectId(normalizedDeliveryBoyId),
+                     deliveryProvider: 'Personal',
                     deliveryBoyStatus: 'Assigned',
                     assignedAt: new Date(),
                     status: 'Processed',
                     deliveryAssignmentStatus: 'Assigned',
-                    deliveryAssignmentResolvedAt: new Date()
+                     deliveryAssignmentResolvedAt: new Date(),
+                     ...(earning ? {
+                         deliveryPartnerEarning: earning.amount,
+                         deliveryPartnerEarningLockedAt: existingOrder?.deliveryPartnerEarningLockedAt || new Date(),
+                         deliveryPartnerEarningCalculation: earning.mode,
+                         deliveryPartnerEarningRate: earning.rate,
+                     } : {}),
                 }
             },
             { new: true } // Return the updated document

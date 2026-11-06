@@ -17,6 +17,7 @@ import DeliveryAssignment from "../../../models/DeliveryAssignment";
 import Coupon from "../../../models/Coupon";
 import Reel from "../../../models/Reel";
 import Shipment from "../../../models/Shipment";
+import { calculateDeliveryPartnerEarning } from "../../../services/deliveryPartnerEarningService";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
@@ -916,6 +917,21 @@ export const createOrder = async (req: Request, res: Response) => {
     newOrder.items = orderItemIds;
     newOrder.shipping = deliveryFee; // Update with calculated fee
     newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
+
+    // Instant distance earnings can be finalized before a partner is assigned.
+    // Store the snapshot now so later settings changes cannot alter the offer or payout.
+    const deliveryEarning = await calculateDeliveryPartnerEarning(
+      newOrder,
+      undefined,
+      settings,
+      false,
+    );
+    if (deliveryEarning.mode === "DISTANCE") {
+      newOrder.deliveryPartnerEarning = deliveryEarning.amount;
+      newOrder.deliveryPartnerEarningLockedAt = new Date();
+      newOrder.deliveryPartnerEarningCalculation = deliveryEarning.mode;
+      newOrder.deliveryPartnerEarningRate = deliveryEarning.rate;
+    }
 
     if (session) {
       await newOrder.save({ session });

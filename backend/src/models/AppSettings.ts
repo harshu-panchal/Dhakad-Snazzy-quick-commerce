@@ -76,6 +76,10 @@ export interface IAppSettings extends Document {
     baseDistance: number;
     kmRate: number;
     deliveryBoyKmRate?: number;
+    /** Guaranteed earning for an Instant delivery within the configured distance. */
+    minimumDeliveryPartnerEarning?: number;
+    /** Inclusive distance limit (km) for the guaranteed Instant-delivery earning. */
+    minimumDeliveryPartnerEarningDistanceKm?: number;
     /** Max customer-to-seller distance (km, straight-line) eligible for Instant delivery.
      * Beyond this (up to the seller's own serviceRadiusKm) only Standard is allowed.
      * null/undefined = feature off, both options always available. */
@@ -320,6 +324,16 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       baseDistance: { type: Number, default: 0 },
       kmRate: { type: Number, default: 0 },
       deliveryBoyKmRate: { type: Number, default: 0 },
+      minimumDeliveryPartnerEarning: {
+        type: Number,
+        default: 0,
+        min: [0, "Minimum delivery partner earning cannot be negative"],
+      },
+      minimumDeliveryPartnerEarningDistanceKm: {
+        type: Number,
+        default: 0,
+        min: [0, "Minimum delivery partner earning distance cannot be negative"],
+      },
       instantDeliveryRadiusKm: {
         type: Number,
         default: null,

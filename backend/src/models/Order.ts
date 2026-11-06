@@ -81,6 +81,11 @@ export interface IOrder extends Document {
   deliveryOtpVerified?: boolean;
   invoiceEnabled?: boolean;
   deliveryDistanceKm?: number;
+  /** Final delivery-partner earning snapshot. Once set it is reused for settlement. */
+  deliveryPartnerEarning?: number;
+  deliveryPartnerEarningLockedAt?: Date;
+  deliveryPartnerEarningCalculation?: "DISTANCE" | "PERCENTAGE";
+  deliveryPartnerEarningRate?: number;
 
   // Seller Pickups (for multi-seller orders)
   sellerPickups?: Array<{
@@ -346,6 +351,21 @@ const OrderSchema = new Schema<IOrder>(
     },
     deliveryDistanceKm: {
       type: Number,
+    },
+    deliveryPartnerEarning: {
+      type: Number,
+      min: [0, "Delivery partner earning cannot be negative"],
+    },
+    deliveryPartnerEarningLockedAt: {
+      type: Date,
+    },
+    deliveryPartnerEarningCalculation: {
+      type: String,
+      enum: ["DISTANCE", "PERCENTAGE"],
+    },
+    deliveryPartnerEarningRate: {
+      type: Number,
+      min: [0, "Delivery partner earning rate cannot be negative"],
     },
 
     // Seller Pickups (for multi-seller orders)
