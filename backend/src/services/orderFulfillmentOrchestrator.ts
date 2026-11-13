@@ -185,6 +185,21 @@ export async function recomputeOrderFulfillment(
     };
   }
 
+  // Standard delivery is assigned manually by an admin. Only Instant orders
+  // enter the automatic delivery-partner search and broadcast flow.
+  if (order.deliveryOption !== "Instant") {
+    order.deliveryAssignmentStatus = order.deliveryBoy ? "Assigned" : "NotStarted";
+    order.deliveryAssignmentResolvedAt = order.deliveryBoy ? new Date() : undefined;
+    await order.save();
+
+    return {
+      outcome: "ready_for_delivery",
+      allHaveResponded: true,
+      anyAccepted: true,
+      allRejected: false,
+    };
+  }
+
   const shouldTriggerAssignment = await tryStartDeliveryAssignment(order._id as mongoose.Types.ObjectId);
 
   if (io && state.rejectedSellerIds.length > 0) {

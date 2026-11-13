@@ -195,6 +195,7 @@ export async function getDeliveryPendingOrderAlerts(
   const orderIds = Array.from(orderIdSet).map((id) => new mongoose.Types.ObjectId(id));
   const orders = await Order.find({
     _id: { $in: orderIds },
+    deliveryOption: "Instant",
     $or: [
       { deliveryBoy: { $exists: false } },
       { deliveryBoy: null },

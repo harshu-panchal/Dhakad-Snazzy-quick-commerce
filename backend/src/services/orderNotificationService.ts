@@ -372,7 +372,14 @@ export async function notifyDeliveryBoysOfNewOrder(
         console.log(`\n🚀 [NOTIFICATION] Starting broadcast for Order: ${order.orderNumber} (ID: ${order._id})`);
         console.log(`📍 [NOTIFICATION] Delivery Option: ${order.deliveryOption}`);
 
-        // Every order — Instant included — is targeted purely by each delivery boy's last
+        // Broadcast offers are exclusive to Instant delivery. Standard orders
+        // must remain in the admin's manual-assignment queue.
+        if (order.deliveryOption !== 'Instant') {
+            console.log(`ℹ️ [NOTIFICATION] Skipping broadcast for non-Instant order ${order.orderNumber}.`);
+            return;
+        }
+
+        // Instant orders are targeted by each delivery boy's last
         // known live location falling within a seller's service radius. City is not a factor.
         // findDeliveryBoysNearSellerLocations already falls back to every online & active
         // delivery boy if nobody currently qualifies, so the order never gets stuck unassigned.
@@ -523,6 +530,13 @@ export async function handleOrderAcceptance(
         const existingOrder = await Order.findById(orderId).select(
             'deliveryBoy status deliveryAssignmentStatus deliveryAssignmentResolvedAt subtotal deliveryOption deliveryDistanceKm deliveryPartnerEarning deliveryPartnerEarningLockedAt deliveryPartnerEarningCalculation deliveryPartnerEarningRate',
         );
+        if (existingOrder && existingOrder.deliveryOption !== 'Instant') {
+            await expireDeliveryOffersForOrder(orderId).catch(() => undefined);
+            return {
+                success: false,
+                message: 'Standard delivery orders must be assigned manually by an admin',
+            };
+        }
         if (existingOrder && existingOrder.deliveryBoy && existingOrder.deliveryBoy.toString() === normalizedDeliveryBoyId) {
             console.log(`✅ [ACCEPT] Idempotent success. Order already assigned to this driver.`);
             await markDeliveryOfferAccepted(orderId, normalizedDeliveryBoyId).catch(() => undefined);
@@ -556,6 +570,7 @@ export async function handleOrderAcceptance(
         const updatedOrder = await Order.findOneAndUpdate(
             {
                 _id: orderId,
+                deliveryOption: 'Instant',
                 deliveryBoy: { $exists: false } // Check strictly for unassigned 
                 // Or: deliveryBoy: null 
             },
