@@ -17,16 +17,14 @@ function getSmsApiKey(): string | undefined {
 }
 
 /**
- * SMS India HUB `password` param:
- * - Prefer panel password when set (this account rejects API key as password)
- * - Else fall back to API key
- * Override with SMS_INDIA_HUB_AUTH=api_key to force API key as password.
+ * SMS India HUB accepts the API key in the `password` parameter for API calls.
+ * Use the panel password only when explicitly requested.
  */
 function getSmsAuthPassword(): string | undefined {
-  if (process.env.SMS_INDIA_HUB_AUTH === "api_key") {
-    return getSmsApiKey() || process.env.SMS_INDIA_HUB_PASSWORD?.trim();
+  if (process.env.SMS_INDIA_HUB_AUTH === "panel_password") {
+    return process.env.SMS_INDIA_HUB_PASSWORD?.trim() || getSmsApiKey();
   }
-  return process.env.SMS_INDIA_HUB_PASSWORD?.trim() || getSmsApiKey();
+  return getSmsApiKey() || process.env.SMS_INDIA_HUB_PASSWORD?.trim();
 }
 
 function getSmsSenderId(): string | undefined {
@@ -320,7 +318,9 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       data &&
       String((data as SmsIndiaHubResponse).ErrorCode) === "007");
 
-  // Fallback to alternate auth method if invalid login
+  // Fallback to alternate auth method if invalid login. When APIKey= is
+  // rejected, buildParams("password") now sends the API key as the password,
+  // which is the authentication format used by pushsms.aspx.
   if (isInvalidLogin) {
     const fallbackAuth = initialAuth === "APIKey" ? "password" : "APIKey";
     debugLog(`SMS India HUB retry with ${fallbackAuth}`, {});
