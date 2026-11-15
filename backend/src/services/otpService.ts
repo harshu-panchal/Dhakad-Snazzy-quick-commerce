@@ -16,15 +16,20 @@ function getSmsApiKey(): string | undefined {
   return process.env.SMS_INDIA_HUB_API_KEY?.trim();
 }
 
+function getSmsPanelPassword(): string | undefined {
+  return process.env.SMS_INDIA_HUB_PASSWORD?.trim();
+}
+
 /**
- * SMS India HUB accepts the API key in the `password` parameter for API calls.
- * Use the panel password only when explicitly requested.
+ * The password-style request uses the panel password when available. Accounts
+ * that require the API key in the password field can opt in explicitly with
+ * SMS_INDIA_HUB_AUTH=api_key_as_password.
  */
 function getSmsAuthPassword(): string | undefined {
-  if (process.env.SMS_INDIA_HUB_AUTH === "panel_password") {
-    return process.env.SMS_INDIA_HUB_PASSWORD?.trim() || getSmsApiKey();
+  if (process.env.SMS_INDIA_HUB_AUTH === "api_key_as_password") {
+    return getSmsApiKey() || getSmsPanelPassword();
   }
-  return getSmsApiKey() || process.env.SMS_INDIA_HUB_PASSWORD?.trim();
+  return getSmsPanelPassword() || getSmsApiKey();
 }
 
 function getSmsSenderId(): string | undefined {
@@ -45,9 +50,18 @@ function getSmsUsername(): string {
 
 function getDltTemplateText(): string | undefined {
   return (
+    process.env.SMS_INDIA_HUB_TEMPLATE_TEXT?.trim() ||
     process.env.SMS_INDIA_HUB_DLT_TEMPLATE_TEXT?.trim() ||
     process.env.SMS_INDIA_HUB_OTP_TEMPLATE?.trim()
   );
+}
+
+function getSmsGatewayId(): string {
+  return process.env.SMS_INDIA_HUB_GWID?.trim() || "2";
+}
+
+function getSmsPoweredBy(): string {
+  return process.env.SMS_POWERED_BY?.trim() || "Appzeto";
 }
 
 /**
@@ -128,25 +142,47 @@ function normalizeMobileNumber(mobile: string): string {
 
 /**
  * Build DLT-compliant message. Must match approved template exactly.
- * Template: Welcome to the ##var## powered by Appzeto.Your OTP for registration is ##var##.BGADEC
+ * Supports named placeholders ({APP_NAME}, {POWERED_BY}, {OTP}) and DLT
+ * positional placeholders (##var##). Two positional variables map to app name
+ * and OTP; three map to app name, powered-by name, and OTP.
  */
-function buildOtpMessage(otp: string, customTemplate?: string): string {
+export function buildOtpMessage(otp: string, customTemplate?: string): string {
   const appName = (
     process.env.SMS_INDIA_HUB_OTP_APP_NAME?.trim() ||
     process.env.APP_NAME?.trim() ||
     getSmsUsername() ||
     "Dhakad Snazzy"
   ).trim();
+  const poweredBy = getSmsPoweredBy();
   const otpTrimmed = String(otp).trim().replace(/\s/g, "");
   const template =
     customTemplate ||
     getDltTemplateText() ||
     "Welcome to the {APP_NAME} powered by Appzeto. Your OTP for registration is {OTP}.";
 
-  return template
+  const namedMessage = template
     .replace(/\{APP_NAME\}/g, appName)
+    .replace(/\{POWERED_BY\}/g, poweredBy)
     .replace(/\{OTP\}/g, otpTrimmed)
     .trim();
+
+  const positionalCount = (namedMessage.match(/##var##/gi) || []).length;
+  if (positionalCount === 0) return namedMessage;
+
+  const positionalValues =
+    positionalCount === 2
+      ? [appName, otpTrimmed]
+      : [
+          appName,
+          ...Array(Math.max(0, positionalCount - 2)).fill(poweredBy),
+          otpTrimmed,
+        ];
+  let positionalIndex = 0;
+
+  return namedMessage.replace(
+    /##var##/gi,
+    () => positionalValues[positionalIndex++] || "",
+  );
 }
 
 /**
@@ -167,7 +203,7 @@ function handleSmsResponse(
       const reasonLower = reason.toLowerCase();
       if (reasonLower.includes("invalid login")) {
         throw new Error(
-          "SMS India HUB: Invalid login. Use SMS_INDIA_HUB_API_KEY as API password (default), or set SMS_INDIA_HUB_AUTH=panel_password with SMS_INDIA_HUB_PASSWORD.",
+          "SMS India HUB: Invalid login. Check SMS_INDIA_HUB_API_KEY, SMS_INDIA_HUB_USERNAME, and SMS_INDIA_HUB_PASSWORD.",
         );
       }
       if (reasonLower.includes("sender")) {
@@ -228,7 +264,7 @@ function handleSmsResponse(
 
 /**
  * Send SMS via SMS India HUB — official pushsms.aspx:
- * user + password + msisdn + sid + msg + fl=0 + gwid=2 + DLT_TE_ID + EntityId
+ * user + password + msisdn + sid + msg + fl=0 + gwid + DLT_TE_ID + EntityId
  */
 async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
   const username = getSmsUsername();
@@ -250,7 +286,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       sid: senderId,
       msg: message,
       fl: "0",
-      gwid: "2",
+      gwid: getSmsGatewayId(),
     };
     if (auth === "APIKey") {
       params.APIKey = apiKey || password;
@@ -293,6 +329,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
     msisdn,
     DLT_TE_ID: params.DLT_TE_ID || "(not set)",
     EntityId: params.EntityId || "(not set)",
+    gwid: params.gwid,
     msg: message,
     auth: initialAuth,
   });
@@ -318,9 +355,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       data &&
       String((data as SmsIndiaHubResponse).ErrorCode) === "007");
 
-  // Fallback to alternate auth method if invalid login. When APIKey= is
-  // rejected, buildParams("password") now sends the API key as the password,
-  // which is the authentication format used by pushsms.aspx.
+  // Fall back between the APIKey parameter and panel-password authentication.
   if (isInvalidLogin) {
     const fallbackAuth = initialAuth === "APIKey" ? "password" : "APIKey";
     debugLog(`SMS India HUB retry with ${fallbackAuth}`, {});
@@ -348,7 +383,9 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
     console.warn(
       "[SMS India HUB] DLT Error 006 encountered. Attempting gateway route and DLT parameter fallbacks...",
     );
-    const gwidCandidates = ["1", "3", "2"];
+    const gwidCandidates = Array.from(
+      new Set([getSmsGatewayId(), "1", "3", "2"]),
+    );
     const dltKeyCandidates = ["DLT_TE_ID", "templateid", "tempid", "none"];
 
     for (const gw of gwidCandidates) {
