@@ -7,7 +7,34 @@ export interface CalculatedPrice {
   hasDiscount: boolean;
 }
 
-export const calculateProductPrice = (product: any, variationSelector?: number | string): CalculatedPrice => {
+const resolveVariation = (product: any, variationSelector?: unknown) => {
+  const variations = Array.isArray(product?.variations) ? product.variations : [];
+
+  if (typeof variationSelector === 'number' && Number.isInteger(variationSelector)) {
+    return variations[variationSelector];
+  }
+
+  const rawSelector = variationSelector && typeof variationSelector === 'object'
+    ? (variationSelector as any)._id ??
+      (variationSelector as any).id ??
+      (variationSelector as any).value ??
+      (variationSelector as any).title ??
+      (variationSelector as any).pack
+    : variationSelector;
+
+  if (rawSelector == null || rawSelector === '') {
+    return variations[0];
+  }
+
+  const normalizedSelector = String(rawSelector);
+  return variations.find((variation: any) =>
+    [variation?._id, variation?.id, variation?.value, variation?.title, variation?.pack]
+      .filter((value) => value != null)
+      .some((value) => String(value) === normalizedSelector),
+  );
+};
+
+export const calculateProductPrice = (product: any, variationSelector?: unknown): CalculatedPrice => {
   if (!product) {
     return {
       displayPrice: 0,
@@ -17,19 +44,7 @@ export const calculateProductPrice = (product: any, variationSelector?: number |
     };
   }
 
-  let variation;
-  if (typeof variationSelector === 'number') {
-    variation = product.variations?.[variationSelector];
-  } else if (typeof variationSelector === 'string') {
-    variation = product.variations?.find((v: any) => (v._id === variationSelector || v.id === variationSelector));
-  }
-
-  // Fallback to first variation if no specific one selected/found but variations exist
-  // Only if variationSelector was NOT provided (undefined). If it was provided but not found, we probably shouldn't default to 0?
-  // Current behavior was: if index undefined, use index 0.
-  if (!variation && product.variations?.length > 0 && variationSelector === undefined) {
-    variation = product.variations[0];
-  }
+  const variation = resolveVariation(product, variationSelector);
 
   const displayPrice = (variation?.discPrice && variation.discPrice > 0)
     ? variation.discPrice

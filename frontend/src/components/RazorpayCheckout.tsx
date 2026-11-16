@@ -3,7 +3,6 @@ import { createRazorpayOrder, verifyPayment } from '../services/api/paymentServi
 
 interface RazorpayCheckoutProps {
     orderId: string;
-    amount: number;
     onSuccess: (paymentId: string) => void;
     onFailure: (error: string) => void;
     customerDetails: {
@@ -21,7 +20,6 @@ declare global {
 
 const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
     orderId,
-    amount,
     onSuccess,
     onFailure,
     customerDetails,
@@ -55,12 +53,14 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                     return;
                 }
 
-                const { razorpayOrderId, razorpayKey } = orderResponse.data;
+                const { razorpayOrderId, razorpayKey, amount: backendAmount } = orderResponse.data;
 
                 // Razorpay options
                 const options = {
                     key: razorpayKey, // Get key from backend response
-                    amount: amount * 100, // Amount in paise
+                    // Razorpay orders are server-created and denominated in paise.
+                    // Never mix the earlier client preview into this authoritative order.
+                    amount: Number(backendAmount),
                     currency: 'INR',
                     name: 'Dhakad Snazzy',
                     description: `Order #${orderId}`,
@@ -109,7 +109,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
         };
 
         initiatePayment();
-    }, [orderId, amount, customerDetails, onSuccess, onFailure]);
+    }, [orderId, customerDetails, onSuccess, onFailure]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

@@ -8,35 +8,7 @@ import mongoose from 'mongoose';
 import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
-
-// Helper to calculate item price matching frontend logic
-const calculateItemPrice = (product: any, variationSelector: any) => {
-    let variation = null;
-    let variationId = variationSelector;
-
-    // Handle if variationSelector is an object (some implementations store it differently)
-    if (variationSelector && typeof variationSelector === 'object' && variationSelector._id) {
-        variationId = variationSelector._id;
-    }
-
-    if (variationId && product.variations?.length) {
-        variation = product.variations.find((v: any) =>
-            (v._id && v._id.toString() === variationId.toString()) ||
-            (v.id && v.id === variationId)
-        );
-    }
-
-    let finalPrice = variation?.price || product.price || 0;
-
-    // Priority: Variation Discount -> Product Discount -> Variation Price -> Product Price
-    if (variation?.discPrice && variation.discPrice > 0) {
-        finalPrice = variation.discPrice;
-    } else if (product.discPrice && product.discPrice > 0) {
-        finalPrice = product.discPrice;
-    }
-
-    return finalPrice;
-};
+import { calculateProductUnitPrice } from '../../../utils/productPricing';
 
 // Helper to calculate cart total with location filtering
 const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.ObjectId[] = []) => {
@@ -52,7 +24,7 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
             // Check if seller is in range
             const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
             if (isAvailable) {
-                const price = calculateItemPrice(product, item.variation);
+                const price = calculateProductUnitPrice(product, item.variation);
                 total += price * item.quantity;
             }
         }
@@ -220,14 +192,14 @@ export const getCart = async (req: Request, res: Response) => {
                 // If no location provided, include all items
                 if (!hasValidLocation) {
                     filteredItems.push(item);
-                    const price = calculateItemPrice(product, item.variation);
+                    const price = calculateProductUnitPrice(product, item.variation);
                     total += price * item.quantity;
                 } else {
                     // Check if available at location
                     const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
                     if (isAvailable) {
                         filteredItems.push(item);
-                        const price = calculateItemPrice(product, item.variation);
+                        const price = calculateProductUnitPrice(product, item.variation);
                         total += price * item.quantity;
                     } else {
                         unavailableItems.push(item);

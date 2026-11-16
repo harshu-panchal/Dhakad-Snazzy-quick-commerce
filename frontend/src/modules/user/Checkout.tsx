@@ -2954,7 +2954,6 @@ export default function Checkout() {
       {showRazorpayCheckout && pendingOrderId && user && (
         <RazorpayCheckout
           orderId={pendingOrderId}
-          amount={grandTotal}
           customerDetails={{
             name: user.name || "Customer",
             email: user.email || "",

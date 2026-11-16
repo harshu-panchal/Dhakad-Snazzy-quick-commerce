@@ -18,6 +18,7 @@ import Coupon from "../../../models/Coupon";
 import Reel from "../../../models/Reel";
 import Shipment from "../../../models/Shipment";
 import { calculateDeliveryPartnerEarning } from "../../../services/deliveryPartnerEarningService";
+import { calculateProductUnitPrice } from "../../../utils/productPricing";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
@@ -570,31 +571,7 @@ export const createOrder = async (req: Request, res: Response) => {
       }
 
       // Determine the price based on variation and discounts
-      let selectedVariation;
-      if (variationValue && product.variations) {
-        selectedVariation = product.variations.find(
-          (v: any) =>
-            (v._id && v._id.toString() === variationValue) ||
-            v.value === variationValue ||
-            v.title === variationValue ||
-            v.pack === variationValue,
-        );
-      }
-      if (
-        !selectedVariation &&
-        product.variations &&
-        product.variations.length > 0
-      ) {
-        // Fallback to first if no variation spec or not found (consistent with stock fallback)
-        selectedVariation = product.variations[0];
-      }
-
-      const itemPrice =
-        selectedVariation?.discPrice && selectedVariation.discPrice > 0
-          ? selectedVariation.discPrice
-          : product.discPrice && product.discPrice > 0
-            ? product.discPrice
-            : selectedVariation?.price || product.price || 0;
+      const itemPrice = calculateProductUnitPrice(product, variationValue);
       const itemTotal = itemPrice * qty;
       calculatedSubtotal += itemTotal;
 

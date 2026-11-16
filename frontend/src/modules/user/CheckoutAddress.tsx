@@ -498,7 +498,7 @@ export default function CheckoutAddress() {
           {/* Cart Items */}
           <div className="space-y-2 mb-3">
             {cart.items.map((item) => {
-              const { displayPrice } = calculateProductPrice(item.product);
+              const { displayPrice } = calculateProductPrice(item.product, item.variant);
               return (
                 <div key={item.product.id} className="flex items-center justify-between text-xs">
                   <div className="flex-1 min-w-0">
