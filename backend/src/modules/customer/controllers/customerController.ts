@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import Customer from "../../../models/Customer";
 import ReelCommission from "../../../models/ReelCommission";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import ProductExplorationEvent from "../../../models/ProductExplorationEvent";
+import ProductInterest from "../../../models/ProductInterest";
+import ProductReminderRecipient from "../../../models/ProductReminderRecipient";
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -108,6 +111,9 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
       state: customer.state,
       pincode: customer.pincode,
       locationUpdatedAt: customer.locationUpdatedAt,
+      notificationPreferences: customer.notificationPreferences,
+      privacyPreferences: customer.privacyPreferences,
+      accountPrivacy: customer.accountPrivacy,
     },
   });
 });
@@ -118,7 +124,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 export const updateProfile = asyncHandler(
   async (req: Request, res: Response) => {
     const userId = req.user?.userId;
-    const { name, email, dateOfBirth, notificationPreferences, accountPrivacy } = req.body;
+    const { name, email, dateOfBirth, notificationPreferences, privacyPreferences, accountPrivacy } = req.body;
 
 
     if (!userId || (req as any).user?.userType !== "Customer") {
@@ -156,11 +162,45 @@ export const updateProfile = asyncHandler(
       customer.email = email;
     }
     if (dateOfBirth) customer.dateOfBirth = new Date(dateOfBirth);
-    if (notificationPreferences) customer.notificationPreferences = { ...customer.notificationPreferences, ...notificationPreferences };
+    if (notificationPreferences) {
+      const allowed = ["email", "sms", "push", "productMarketingPush"] as const;
+      const next = { ...(customer.notificationPreferences || {}) } as any;
+      for (const key of allowed) {
+        if (typeof notificationPreferences[key] === "boolean") next[key] = notificationPreferences[key];
+      }
+      customer.notificationPreferences = next;
+    }
+    if (privacyPreferences && typeof privacyPreferences.shareProductExplorationWithSellers === "boolean") {
+      const sharing = privacyPreferences.shareProductExplorationWithSellers;
+      customer.privacyPreferences = {
+        ...(customer.privacyPreferences || {}),
+        shareProductExplorationWithSellers: sharing,
+        consentVersion: "product-exploration-v1",
+        ...(sharing
+          ? { consentGrantedAt: new Date(), consentWithdrawnAt: undefined }
+          : { consentWithdrawnAt: new Date() }),
+      };
+    }
     if (accountPrivacy) customer.accountPrivacy = { ...customer.accountPrivacy, ...accountPrivacy };
 
 
     await customer.save();
+
+    if (privacyPreferences?.shareProductExplorationWithSellers === false) {
+      await Promise.all([
+        ProductExplorationEvent.deleteMany({ customer: customer._id }),
+        ProductInterest.deleteMany({ customer: customer._id }),
+        ProductReminderRecipient.updateMany(
+          { customer: customer._id, status: "Pending" },
+          { status: "SkippedOptOut", processedAt: new Date(), failureReason: "Customer disabled product activity sharing" },
+        ),
+      ]);
+    } else if (notificationPreferences?.productMarketingPush === false) {
+      await ProductReminderRecipient.updateMany(
+        { customer: customer._id, status: "Pending" },
+        { status: "SkippedOptOut", processedAt: new Date(), failureReason: "Customer disabled product reminders" },
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -184,6 +224,7 @@ export const updateProfile = asyncHandler(
         state: customer.state,
         pincode: customer.pincode,
         notificationPreferences: customer.notificationPreferences,
+        privacyPreferences: customer.privacyPreferences,
         accountPrivacy: customer.accountPrivacy,
         donationStats: customer.donationStats,
       },

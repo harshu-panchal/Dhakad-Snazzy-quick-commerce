@@ -24,6 +24,8 @@ import {
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { isVideoUrl } from '../../utils/media';
 import { setReelAttribution } from '../../utils/reelAttribution';
+import { useAuth } from '../../context/AuthContext';
+import { recordProductView, ProductViewSource } from '../../services/api/productEngagementService';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
@@ -32,6 +34,8 @@ export default function ProductDetail() {
   const { cart, addToCart, updateQuantity } = useCart();
   const { location } = useLocation();
   const { startLoading, stopLoading } = useLoading();
+  const { user, isAuthenticated } = useAuth();
+  const trackedEntryRef = useRef<string | null>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const [isProductDetailsExpanded, setIsProductDetailsExpanded] =
     useState(false);
@@ -141,6 +145,20 @@ export default function ProductDetail() {
 
     fetchProduct();
   }, [id, location?.latitude, location?.longitude]);
+
+  useEffect(() => {
+    if (!id || !product || String(product.id || product._id) !== id || !isAuthenticated || user?.userType !== "Customer") return;
+    const entryKey = `${routerLocation.key}:${id}`;
+    if (trackedEntryRef.current === entryKey) return;
+    trackedEntryRef.current = entryKey;
+    const params = new URLSearchParams(routerLocation.search);
+    const campaignId = params.get("campaign") || undefined;
+    const stateSource = (routerLocation.state as any)?.productSource as ProductViewSource | undefined;
+    const source: ProductViewSource = campaignId ? "promotion" : stateSource || "direct";
+    void recordProductView(id, source, campaignId).catch((trackingError) => {
+      console.warn("Product exploration tracking failed", trackingError);
+    });
+  }, [id, product, isAuthenticated, user?.userType, routerLocation.key, routerLocation.search, routerLocation.state]);
 
   useEffect(() => {
     const fetchReviews = async () => {

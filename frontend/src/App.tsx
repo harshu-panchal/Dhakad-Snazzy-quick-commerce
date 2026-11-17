@@ -137,6 +137,7 @@ const SellerDashboard = lazyWithRetry(
 );
 const SellerOrders = lazyWithRetry(() => import("./modules/seller/pages/SellerOrders"), "SellerOrders");
 const SellerNotifications = lazyWithRetry(() => import("./modules/seller/pages/SellerNotifications"), "SellerNotifications");
+const SellerCustomerInsights = lazyWithRetry(() => import("./modules/seller/pages/SellerCustomerInsights"), "SellerCustomerInsights");
 const SellerOrderDetail = lazyWithRetry(
   () => import("./modules/seller/pages/SellerOrderDetail"), "SellerOrderDetail"
 );
@@ -210,6 +211,9 @@ const AdminManageSellerList = lazyWithRetry(
 const AdminCoupon = lazyWithRetry(() => import("./modules/admin/pages/AdminCoupon"), "AdminCoupon");
 const AdminNotification = lazyWithRetry(
   () => import("./modules/admin/pages/AdminNotification"), "AdminNotification"
+);
+const AdminNotificationTemplates = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminNotificationTemplates"), "AdminNotificationTemplates"
 );
 const AdminSellerLocation = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSellerLocation"), "AdminSellerLocation"
@@ -613,6 +617,10 @@ function App() {
                                         element={<SellerNotifications />}
                                       />
                                       <Route
+                                        path="customer-insights"
+                                        element={<SellerCustomerInsights />}
+                                      />
+                                      <Route
                                         path="settlement"
                                         element={<SellerSettlement />}
                                       />
@@ -769,6 +777,10 @@ function App() {
                                       <Route
                                         path="notification"
                                         element={<AdminNotification />}
+                                      />
+                                      <Route
+                                        path="notification-templates"
+                                        element={<AdminNotificationTemplates />}
                                       />
                                       <Route
                                         path="orders"

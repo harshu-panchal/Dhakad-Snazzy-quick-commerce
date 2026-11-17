@@ -15,6 +15,7 @@ const sections: { heading: string; body: string[] }[] = [
       'Order information: items purchased, order value, payment method, and order history.',
       'Location information: your delivery location and, with permission, your device location to show nearby sellers and enable accurate delivery.',
       'Device and usage information: app version, device type, and how you interact with our platform, used to improve our services.',
+      'Product exploration information: when a logged-in customer opens a product page, we retain that activity for up to seven days.',
     ],
   },
   {
@@ -23,6 +24,7 @@ const sections: { heading: string; body: string[] }[] = [
       'To process and deliver your orders, including sharing your name, address, and phone number with the seller and delivery partner fulfilling your order.',
       'To send order updates, OTPs for verification, and important account or service notifications via SMS, email, or push notification.',
       'To improve our app, personalize your experience, and offer relevant promotions or recommendations.',
+      'To let the seller of an explored product send approved product reminders or back-in-stock alerts, subject to notification limits and your account preferences.',
       'To detect and prevent fraud, abuse, or violations of our Terms and Conditions.',
     ],
   },
@@ -30,6 +32,7 @@ const sections: { heading: string; body: string[] }[] = [
     heading: '4. Sharing of Information',
     body: [
       'We share your order details with the seller/restaurant and delivery partner assigned to fulfill your order, to the extent necessary to complete delivery.',
+      'For products you explore, we may show that product\'s seller your full account name, a masked customer identifier, view count, and recent view time for up to seven days. We do not provide the seller your phone number, email address, delivery address, or notification token for this purpose.',
       'We share payment information with our payment gateway partner (Razorpay) to process transactions securely; we do not store your full card details on our servers.',
       'We do not sell your personal information to third parties. We may share information with service providers who help us operate our platform (such as cloud hosting and SMS/notification providers), bound by confidentiality obligations, or when required by law.',
     ],
@@ -45,6 +48,7 @@ const sections: { heading: string; body: string[] }[] = [
     body: [
       'You can review and update your account information at any time from the Account section of the app.',
       'You may disable location or notification permissions through your device settings, though this may limit certain features.',
+      'You can disable seller-visible product exploration and promotional product reminders, or clear recent product activity, from the Account section.',
       'To request deletion of your account and associated data, contact us at help@dhakadsnazzy.com.',
     ],
   },
@@ -103,7 +107,7 @@ export default function PrivacyPolicy() {
 
       <div className="px-4 md:px-6 lg:px-8 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          <p className="text-xs text-neutral-500">Last updated: August 2026</p>
+          <p className="text-xs text-neutral-500">Last updated: November 2026</p>
           {sections.map((s) => (
             <div key={s.heading}>
               <h2 className="text-base md:text-lg font-semibold text-neutral-900 mb-2">

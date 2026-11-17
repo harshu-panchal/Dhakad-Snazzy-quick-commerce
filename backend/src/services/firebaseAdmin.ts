@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import path from 'path';
+import FcmDeviceToken from '../models/FcmDeviceToken';
 
 // Initialize Firebase Admin SDK
 let firebaseInitialized = false;
@@ -154,40 +155,33 @@ export async function sendNotificationToUser(
             throw new Error(`User not found: ${userId}`);
         }
 
-        // Collect tokens
-        let tokens: string[] = [];
+        const tokenDocs = await FcmDeviceToken.find({
+            userId,
+            userType,
+            ...(includeMobile ? {} : { platform: "web" }),
+        }).select('token').lean();
+        const safeTokens = tokenDocs.map((entry) => entry.token);
 
-        if (user.fcmTokens && user.fcmTokens.length > 0) {
-            tokens = [...tokens, ...user.fcmTokens];
-        }
-
-        if (includeMobile && user.fcmTokenMobile && user.fcmTokenMobile.length > 0) {
-            tokens = [...tokens, ...user.fcmTokenMobile];
-        }
-
-        // Remove duplicates
-        const uniqueTokens = [...new Set(tokens)];
-
-        if (uniqueTokens.length === 0) {
+        if (safeTokens.length === 0) {
             console.log(`No FCM tokens found for user ${userId}`);
             return;
         }
 
-        console.log(`Sending notification to ${uniqueTokens.length} device(s) for user ${userId}`);
+        console.log(`Sending notification to ${safeTokens.length} device(s) for user ${userId}`);
 
         // Send notification
-        const response = await sendPushNotification(uniqueTokens, payload);
+        const response = await sendPushNotification(safeTokens, payload);
 
         // Clean up invalid tokens
         if (response.failureCount > 0) {
             const invalidTokens: string[] = [];
             response.responses.forEach((resp: any, idx: number) => {
-                if (!resp.success && uniqueTokens[idx]) {
+                if (!resp.success && safeTokens[idx]) {
                     // Check if error is due to invalid token
                     const errorCode = (resp.error as any)?.code;
                     if (errorCode === 'messaging/invalid-registration-token' ||
                         errorCode === 'messaging/registration-token-not-registered') {
-                        invalidTokens.push(uniqueTokens[idx]);
+                        invalidTokens.push(safeTokens[idx]);
                     }
                 }
             });
@@ -197,7 +191,7 @@ export async function sendNotificationToUser(
                 console.log(`Removing ${invalidTokens.length} invalid token(s) from database`);
                 user.fcmTokens = user.fcmTokens?.filter((t: string) => !invalidTokens.includes(t)) || [];
                 user.fcmTokenMobile = user.fcmTokenMobile?.filter((t: string) => !invalidTokens.includes(t)) || [];
-                await user.save();
+                await Promise.all([user.save(), FcmDeviceToken.deleteMany({ token: { $in: invalidTokens } })]);
             }
         }
 

@@ -1,7 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { getProfile, CustomerProfile } from '../../services/api/customerService';
+import { getProfile, updateProfile, CustomerProfile } from '../../services/api/customerService';
+import { clearProductActivity } from '../../services/api/productEngagementService';
+import { registerFCMToken } from '../../services/pushNotificationService';
 
 export default function Account() {
   const navigate = useNavigate();
@@ -11,6 +13,11 @@ export default function Account() {
   const [error, setError] = useState('');
   const [showGstModal, setShowGstModal] = useState(false);
   const [gstNumber, setGstNumber] = useState('');
+  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [preferenceMessage, setPreferenceMessage] = useState('');
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() =>
+    typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
+  );
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -55,6 +62,41 @@ export default function Account() {
   const handleGstSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowGstModal(false);
+  };
+
+  const updatePreference = async (kind: 'sharing' | 'marketing', enabled: boolean) => {
+    if (!profile || preferenceSaving) return;
+    setPreferenceSaving(true);
+    setPreferenceMessage('');
+    try {
+      const payload = kind === 'sharing'
+        ? { privacyPreferences: { shareProductExplorationWithSellers: enabled } }
+        : { notificationPreferences: { productMarketingPush: enabled } };
+      const response = await updateProfile(payload);
+      setProfile(response.data);
+      if (kind === 'marketing' && enabled) await registerFCMToken(true);
+      setPreferenceMessage('Preferences saved');
+    } catch (err: any) {
+      setPreferenceMessage(err.response?.data?.message || 'Could not save preferences');
+    } finally {
+      setPreferenceSaving(false);
+    }
+  };
+
+  const handleClearActivity = async () => {
+    if (!window.confirm('Clear your product exploration activity from the last 7 days?')) return;
+    try {
+      await clearProductActivity();
+      setPreferenceMessage('Recent product activity cleared');
+    } catch (err: any) {
+      setPreferenceMessage(err.response?.data?.message || 'Could not clear activity');
+    }
+  };
+
+  const enableBrowserNotifications = async () => {
+    const token = await registerFCMToken(true);
+    setNotificationPermission(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+    setPreferenceMessage(token ? 'Browser notifications enabled' : 'Browser notifications were not enabled');
   };
 
   // Show login/signup prompt for unregistered users
@@ -229,6 +271,40 @@ export default function Account() {
             <span className="text-neutral-400">›</span>
           </button>
         </div>
+      </div>
+
+      <div className="px-4 py-2.5">
+        <h2 className="text-xs font-bold text-neutral-900 mb-2 uppercase tracking-wide">Privacy & product reminders</h2>
+        <div className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-100">
+          <label className="flex items-start justify-between gap-4 px-3 py-4">
+            <span>
+              <span className="block text-[13px] font-semibold text-neutral-900">Share product exploration with sellers</span>
+              <span className="block text-[11px] text-neutral-500 mt-1">For 7 days, the product seller can see your full name and a masked customer ID.</span>
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 accent-teal-600" disabled={preferenceSaving}
+              checked={profile?.privacyPreferences?.shareProductExplorationWithSellers !== false}
+              onChange={(event) => void updatePreference('sharing', event.target.checked)} />
+          </label>
+          {notificationPermission !== 'granted' && notificationPermission !== 'unsupported' && (
+            <button onClick={() => void enableBrowserNotifications()} className="w-full text-left px-3 py-4">
+              <span className="block text-[13px] font-semibold text-teal-700">Enable browser notifications</span>
+              <span className="block text-[11px] text-neutral-500 mt-1">Current browser permission: {notificationPermission}</span>
+            </button>
+          )}
+          <label className="flex items-start justify-between gap-4 px-3 py-4">
+            <span>
+              <span className="block text-[13px] font-semibold text-neutral-900">Product reminders and offers</span>
+              <span className="block text-[11px] text-neutral-500 mt-1">Allow approved product reminders, including back-in-stock alerts.</span>
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 accent-teal-600" disabled={preferenceSaving}
+              checked={profile?.notificationPreferences?.productMarketingPush !== false}
+              onChange={(event) => void updatePreference('marketing', event.target.checked)} />
+          </label>
+          <button onClick={() => void handleClearActivity()} className="w-full text-left px-3 py-4 text-[13px] font-medium text-red-600 hover:bg-red-50">
+            Clear recent product activity
+          </button>
+        </div>
+        {preferenceMessage && <p className="text-xs text-neutral-600 mt-2">{preferenceMessage}</p>}
       </div>
 
       {showGstModal && (

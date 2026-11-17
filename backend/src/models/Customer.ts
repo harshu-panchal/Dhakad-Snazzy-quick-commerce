@@ -26,6 +26,13 @@ export interface ICustomer extends Document {
     email: boolean;
     sms: boolean;
     push: boolean;
+    productMarketingPush: boolean;
+  };
+  privacyPreferences?: {
+    shareProductExplorationWithSellers: boolean;
+    consentVersion?: string;
+    consentGrantedAt?: Date;
+    consentWithdrawnAt?: Date;
   };
   donationStats?: {
     totalDonated: number;
@@ -143,6 +150,13 @@ const CustomerSchema = new Schema<ICustomer>(
       email: { type: Boolean, default: true },
       sms: { type: Boolean, default: true },
       push: { type: Boolean, default: true },
+      productMarketingPush: { type: Boolean, default: true },
+    },
+    privacyPreferences: {
+      shareProductExplorationWithSellers: { type: Boolean, default: true },
+      consentVersion: { type: String, default: "product-exploration-v1" },
+      consentGrantedAt: { type: Date, default: Date.now },
+      consentWithdrawnAt: Date,
     },
     donationStats: {
       totalDonated: { type: Number, default: 0 },

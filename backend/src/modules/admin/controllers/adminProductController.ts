@@ -8,6 +8,7 @@ import Inventory from "../../../models/Inventory";
 import Seller from "../../../models/Seller";
 import HeaderCategory from "../../../models/HeaderCategory";
 import { cache } from "../../../utils/cache";
+import { isProductAvailable, scheduleBackInStockCampaign } from "../../../services/productReminderService";
 
 // ==================== Category Controllers ====================
 
@@ -1022,6 +1023,9 @@ export const updateProduct = asyncHandler(
     const { id } = req.params;
     const updateData = req.body;
 
+    const previousProduct = await Product.findById(id).select("stock variations").lean();
+    const wasAvailable = isProductAvailable(previousProduct);
+
     const product = await Product.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
@@ -1047,6 +1051,11 @@ export const updateProduct = asyncHandler(
           availableStock: updateData.stock,
         }
       );
+    }
+
+    if (!wasAvailable && isProductAvailable(product)) {
+      const updatedAt = (product as any).updatedAt instanceof Date ? (product as any).updatedAt.getTime() : Date.now();
+      void scheduleBackInStockCampaign(id, String(updatedAt));
     }
 
     return res.status(200).json({
@@ -1237,6 +1246,12 @@ export const bulkUpdateProducts = asyncHandler(
       });
     }
 
+    const previousAvailability = new Map<string, boolean>();
+    if (updateData.stock !== undefined || updateData.variations !== undefined) {
+      const previousProducts = await Product.find({ _id: { $in: productIds } }).select("stock variations").lean();
+      for (const previous of previousProducts) previousAvailability.set(previous._id.toString(), isProductAvailable(previous));
+    }
+
     const result = await Product.updateMany(
       { _id: { $in: productIds } },
       { $set: updateData }
@@ -1251,6 +1266,15 @@ export const bulkUpdateProducts = asyncHandler(
           availableStock: updateData.stock,
         }
       );
+    }
+
+    if (previousAvailability.size) {
+      const updatedProducts = await Product.find({ _id: { $in: productIds } }).select("stock variations updatedAt").lean();
+      for (const updated of updatedProducts) {
+        if (previousAvailability.get(updated._id.toString()) === false && isProductAvailable(updated)) {
+          void scheduleBackInStockCampaign(updated._id.toString(), updated.updatedAt.getTime().toString());
+        }
+      }
     }
 
     return res.status(200).json({

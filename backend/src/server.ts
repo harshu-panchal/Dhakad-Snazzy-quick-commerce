@@ -13,6 +13,8 @@ import { initializeSocket } from "./socket/socketService";
 import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
 import { isShiprocketConfigured, syncPendingSellerPickups } from "./services/shiprocketService";
 import { syncActiveShiprocketTracking } from "./services/shippingService";
+import { runProductReminderWorker } from "./services/productReminderService";
+import { seedProductReminderTemplates } from "./utils/seedProductReminderTemplates";
 
 
 // Load environment variables
@@ -145,9 +147,24 @@ async function startServer() {
   await connectDB();
   await ensureDefaultAdmin();
   await seedHeaderCategories();
+  await seedProductReminderTemplates();
 
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();
+
+  // Persistent reminder state lives in MongoDB; this small polling worker is
+  // restart-safe and only claims pending recipients/campaigns.
+  if (process.env.PRODUCT_REMINDER_WORKER_ENABLED !== "false") {
+    const runReminderWorker = () => runProductReminderWorker().catch((error) =>
+      console.error("Product reminder worker failed:", error),
+    );
+    void runReminderWorker();
+    const reminderTimer = setInterval(
+      runReminderWorker,
+      Number(process.env.PRODUCT_REMINDER_WORKER_INTERVAL_MS) || 5 * 60 * 1000,
+    );
+    reminderTimer.unref();
+  }
 
   // Retry pickup-location synchronization without blocking seller registration/profile updates.
   if (isShiprocketConfigured()) {

@@ -35,6 +35,11 @@ export default function Notifications() {
     }
   };
 
+  const handleNotificationClick = async (notification: CustomerNotification) => {
+    if (!notification.isRead) await handleMarkAsRead(notification._id);
+    if (notification.link) navigate(notification.link);
+  };
+
   const formatTime = (dateString?: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -95,8 +100,8 @@ export default function Notifications() {
             {notifications.map((notification) => (
               <div
                 key={notification._id}
-                onClick={() => !notification.isRead && handleMarkAsRead(notification._id)}
-                className={`bg-white rounded-xl p-4 shadow-sm border ${
+                onClick={() => void handleNotificationClick(notification)}
+                className={`bg-white rounded-xl p-4 shadow-sm border cursor-pointer ${
                   notification.isRead ? "border-neutral-200" : "border-orange-200 bg-orange-50"
                 }`}
               >

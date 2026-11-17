@@ -26,6 +26,7 @@ const buildPushPayload = (
       | "Error"
       | "Order"
       | "Payment"
+      | "Promotion"
       | "System";
     link?: string;
     actionLabel?: string;
@@ -67,6 +68,7 @@ const pushNotificationToRecipients = async (
       | "Error"
       | "Order"
       | "Payment"
+      | "Promotion"
       | "System";
     link?: string;
     actionLabel?: string;
@@ -119,6 +121,7 @@ export const sendNotification = async (
       | "Error"
       | "Order"
       | "Payment"
+      | "Promotion"
       | "System";
     link?: string;
     actionLabel?: string;

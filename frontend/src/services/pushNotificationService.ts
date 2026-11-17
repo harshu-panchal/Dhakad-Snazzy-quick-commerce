@@ -83,7 +83,7 @@ async function getFCMToken(): Promise<string | null> {
         });
 
         if (token) {
-            console.log('FCM Token obtained:', token);
+            console.log('FCM token obtained');
             return token;
         } else {
             console.log('No FCM token available');
@@ -210,14 +210,14 @@ export async function initializePushNotifications(): Promise<void> {
 /**
  * Remove FCM token from backend
  */
-export async function removeFCMToken(): Promise<void> {
+export async function removeFCMToken(authTokenOverride?: string | null): Promise<void> {
     try {
         const savedToken = localStorage.getItem('fcm_token_web');
         if (!savedToken) {
             return;
         }
 
-        const authToken = getAuthToken();
+        const authToken = authTokenOverride || getAuthToken();
         if (!authToken) {
             return;
         }

@@ -6,7 +6,7 @@ export interface CustomerNotification {
   recipientId?: string;
   title: string;
   message: string;
-  type: "Info" | "Success" | "Warning" | "Error" | "Order" | "Payment" | "System";
+  type: "Info" | "Success" | "Warning" | "Error" | "Order" | "Payment" | "Promotion" | "System";
   link?: string;
   actionLabel?: string;
   isRead: boolean;

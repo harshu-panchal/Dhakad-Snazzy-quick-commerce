@@ -25,6 +25,7 @@ import * as couponController from "../modules/admin/controllers/adminCouponContr
 
 // Notification Controllers
 import * as notificationController from "../modules/admin/controllers/adminNotificationController";
+import * as notificationTemplateController from "../modules/admin/controllers/adminNotificationTemplateController";
 
 // Wallet Controllers
 import * as walletController from "../modules/admin/controllers/adminWalletController";
@@ -246,6 +247,10 @@ router.delete("/coupons/:id", couponController.deleteCoupon);
 router.post("/coupons/validate", couponController.validateCoupon);
 
 // ==================== Notification Routes ====================
+router.post("/notification-templates", notificationTemplateController.createTemplate);
+router.get("/notification-templates", notificationTemplateController.getTemplates);
+router.put("/notification-templates/:id", notificationTemplateController.updateTemplate);
+router.patch("/notification-templates/:id/status", notificationTemplateController.updateTemplateStatus);
 router.post("/notifications", notificationController.createNotification);
 router.get("/notifications", notificationController.getNotifications);
 router.get("/notifications/:id", notificationController.getNotificationById);

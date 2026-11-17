@@ -494,6 +494,10 @@ const menuSections: MenuSection[] = [
           </svg>
         ),
       },
+      {
+        label: "Reminder Templates",
+        path: "/admin/notification-templates",
+      },
 
 
       {

@@ -12,6 +12,18 @@ export interface CustomerProfile {
   walletAmount: number;
   totalOrders: number;
   totalSpent: number;
+  notificationPreferences?: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+    productMarketingPush: boolean;
+  };
+  privacyPreferences?: {
+    shareProductExplorationWithSellers: boolean;
+    consentVersion?: string;
+    consentGrantedAt?: string;
+    consentWithdrawnAt?: string;
+  };
 }
 
 export interface GetProfileResponse {
@@ -24,6 +36,8 @@ export interface UpdateProfileData {
   name?: string;
   email?: string;
   dateOfBirth?: string;
+  notificationPreferences?: Partial<NonNullable<CustomerProfile["notificationPreferences"]>>;
+  privacyPreferences?: Partial<NonNullable<CustomerProfile["privacyPreferences"]>>;
 }
 
 export interface UpdateProfileResponse {

@@ -23,6 +23,7 @@ const menuItems: MenuItem[] = [
   { label: "Dashboard", path: "/seller" },
   { label: "Orders", path: "/seller/orders" },
   { label: "Reviews", path: "/seller/reviews" },
+  { label: "Customer Interest", path: "/seller/customer-insights" },
   {
     label: "Notifications",
     path: "/seller/notifications",

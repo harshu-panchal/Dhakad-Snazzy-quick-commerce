@@ -17,6 +17,7 @@ export interface INotification extends Document {
   | "Error"
   | "Order"
   | "Payment"
+  | "Promotion"
   | "System";
 
   // Link/Action
@@ -83,6 +84,7 @@ const NotificationSchema = new Schema<INotification>(
         "Error",
         "Order",
         "Payment",
+        "Promotion",
         "System",
       ],
       default: "Info",

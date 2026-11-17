@@ -42,6 +42,8 @@ import sellerNotificationRoutes from "./sellerNotificationRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
 import customerReelRoutes from "./customerReelRoutes";
+import productEngagementRoutes from "./productEngagementRoutes";
+import customerInsightRoutes from "./customerInsightRoutes";
 import { getPublicReelById, getReelConfig } from "../modules/customer/controllers/customerReelController";
 import { shiprocketWebhook } from "../modules/admin/controllers/adminShippingController";
 
@@ -140,6 +142,7 @@ router.use("/customer/wishlist", wishlistRoutes);
 router.use("/customer/reviews", productReviewRoutes);
 router.use("/customer/shops", customerShopRoutes);
 router.use("/customer/reels", customerReelRoutes);
+router.use("/customer/product-engagements", productEngagementRoutes);
 // Public reel config (commission rate shown in "why create a reel" copy).
 // Must be registered before /reels/:id so "config" isn't read as an id.
 router.get("/reels/config", getReelConfig);
@@ -150,6 +153,7 @@ router.use("/customer", customerRoutes);
 
 // Seller dashboard routes
 router.use("/seller/dashboard", dashboardRoutes);
+router.use("/seller/customer-insights", customerInsightRoutes);
 
 // Seller review routes (protected, seller only)
 router.use("/seller/reviews", sellerReviewRoutes);

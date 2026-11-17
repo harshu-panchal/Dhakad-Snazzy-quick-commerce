@@ -4,6 +4,7 @@ import Seller from "../../../models/Seller";
 import HeaderCategory from "../../../models/HeaderCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { isProductAvailable, scheduleBackInStockCampaign } from "../../../services/productReminderService";
 
 /**
  * Validate that the seller is allowed to add products in the given header category.
@@ -425,6 +426,8 @@ export const updateProduct = asyncHandler(
       });
     }
 
+    const wasAvailable = isProductAvailable(product);
+
     // Apply updates
     Object.assign(product, updateData);
 
@@ -434,6 +437,9 @@ export const updateProduct = asyncHandler(
     }
 
     await product.save();
+    if (!wasAvailable && isProductAvailable(product)) {
+      void scheduleBackInStockCampaign(product._id.toString(), product.updatedAt.getTime().toString());
+    }
 
     // Re-populate for response
     const populatedProduct = await Product.findById(product._id)
@@ -500,6 +506,7 @@ export const updateStock = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
+  const wasAvailable = isProductAvailable(product);
   const variation: any = product.variations?.find(
     (v: any) => v._id?.toString() === variationId
   );
@@ -526,6 +533,9 @@ export const updateStock = asyncHandler(async (req: Request, res: Response) => {
   // Mark variations as modified since we updated a sub-document field
   product.markModified("variations");
   await product.save();
+  if (!wasAvailable && isProductAvailable(product)) {
+    void scheduleBackInStockCampaign(product._id.toString(), product.updatedAt.getTime().toString());
+  }
 
   return res.status(200).json({
     success: true,
@@ -593,6 +603,7 @@ export const bulkUpdateStock = asyncHandler(
         seller: sellerId,
       });
       if (product) {
+        const wasAvailable = isProductAvailable(product);
         const variation: any = product.variations?.find(
           (v: any) => v._id?.toString() === variationId
         );
@@ -603,6 +614,9 @@ export const bulkUpdateStock = asyncHandler(
             variation.status = "In stock";
 
           await product.save();
+          if (!wasAvailable && isProductAvailable(product)) {
+            void scheduleBackInStockCampaign(product._id.toString(), product.updatedAt.getTime().toString());
+          }
           results.push({ productId, variationId, success: true });
         } else {
           results.push({

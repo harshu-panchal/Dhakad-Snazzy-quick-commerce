@@ -1,4 +1,4 @@
-// import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { Request, Response, NextFunction } from 'express';
 
 // TODO: Uncomment rate limiting when deploying to production
@@ -59,4 +59,13 @@ export const loginRateLimiter = (req: Request, _res: Response, next: NextFunctio
   }
   next();
 };
+
+export const productReminderRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.user?.userId || "unauthenticated",
+  message: { success: false, message: "Too many reminder campaign requests. Please try again later." },
+});
 

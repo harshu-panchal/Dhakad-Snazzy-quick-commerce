@@ -144,6 +144,7 @@ const OrderItemSchema = new Schema<IOrderItem>(
 OrderItemSchema.index({ order: 1 });
 OrderItemSchema.index({ product: 1 });
 OrderItemSchema.index({ seller: 1 });
+OrderItemSchema.index({ seller: 1, product: 1, status: 1 });
 
 const OrderItem = (mongoose.models.OrderItem as mongoose.Model<IOrderItem>) || mongoose.model<IOrderItem>("OrderItem", OrderItemSchema);
 

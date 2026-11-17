@@ -130,15 +130,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated || user?.userType !== "Customer" || typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    import("../services/pushNotificationService").then(({ registerFCMToken }) => {
+      void registerFCMToken(true);
+    });
+  }, [isAuthenticated, user?.id, user?.userType]);
+
   const login = useCallback((newToken: string, userData: User) => {
+    const inferredUserType = inferLegacyUserType(userData);
+    const normalizedUserData = inferredUserType && !userData.userType
+      ? { ...userData, userType: inferredUserType }
+      : userData;
     setToken(newToken);
-    setUser(userData);
+    setUser(normalizedUserData);
     setIsAuthenticated(true);
     setAuthToken(newToken);
-    localStorage.setItem("userData", JSON.stringify(userData));
+    localStorage.setItem("userData", JSON.stringify(normalizedUserData));
 
-    // Register FCM token for push notifications after successful login
-    import("../services/pushNotificationService").then(({ registerFCMToken }) => {
+    // Customer browser permission is requested only from the explicit Account
+    // setting. Operational seller/delivery/admin apps retain login registration.
+    const userType = inferredUserType;
+    if (userType !== "Customer" || (typeof Notification !== "undefined" && Notification.permission === "granted")) import("../services/pushNotificationService").then(({ registerFCMToken }) => {
       registerFCMToken(true)
         .then(() => {
           // Send test notification after successful token registration
@@ -169,18 +182,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    const currentToken = token;
+    // Start token removal while the old JWT is still available. The service
+    // receives it explicitly so clearing local storage cannot race the request.
+    import("../services/pushNotificationService").then(({ removeFCMToken }) => {
+      removeFCMToken(currentToken).catch((error) => {
+        console.error("Failed to remove FCM token:", error);
+      });
+    });
+
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
     removeAuthToken();
 
-    // Remove FCM token on logout
-    import("../services/pushNotificationService").then(({ removeFCMToken }) => {
-      removeFCMToken().catch((error) => {
-        console.error("Failed to remove FCM token:", error);
-      });
-    });
-  }, []);
+  }, [token]);
 
   const updateUser = useCallback((userData: User) => {
     setUser(userData);

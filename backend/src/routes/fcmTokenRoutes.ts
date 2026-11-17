@@ -4,6 +4,7 @@ import Customer from "../models/Customer";
 import Admin from "../models/Admin";
 import Seller from "../models/Seller";
 import Delivery from "../models/Delivery";
+import FcmDeviceToken from "../models/FcmDeviceToken";
 
 const router = Router();
 
@@ -57,6 +58,24 @@ router.post("/save", async (req: Request, res: Response): Promise<void> => {
         });
         return;
     }
+
+    // The unique registry makes token ownership O(1) instead of scanning all
+    // user collections on every registration.
+    const previousOwner = await FcmDeviceToken.findOne({ token }).lean();
+    if (previousOwner && (previousOwner.userId.toString() !== userId || previousOwner.userType !== userType)) {
+      const previousModel: any = previousOwner.userType === "Customer" ? Customer
+        : previousOwner.userType === "Admin" ? Admin
+          : previousOwner.userType === "Seller" ? Seller : Delivery;
+      await previousModel.updateOne(
+        { _id: previousOwner.userId },
+        { $pull: { fcmTokens: token, fcmTokenMobile: token } },
+      );
+    }
+    await FcmDeviceToken.findOneAndUpdate(
+      { token },
+      { userId, userType, platform, lastSeenAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
 
     const user = await UserModel.findById(userId);
 
@@ -191,6 +210,7 @@ router.delete("/remove", async (req: Request, res: Response): Promise<void> => {
     }
 
     await user.save();
+    await FcmDeviceToken.deleteOne({ token, userId, userType });
 
     console.log(
       `✅ FCM token removed for ${userType} user ${userId} (${platform})`,

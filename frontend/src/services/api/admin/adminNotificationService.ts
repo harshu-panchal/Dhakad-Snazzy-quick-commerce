@@ -16,6 +16,7 @@ export interface Notification {
   | "Error"
   | "Order"
   | "Payment"
+  | "Promotion"
   | "System";
   link?: string;
   actionLabel?: string;
@@ -40,6 +41,7 @@ export interface CreateNotificationData {
   | "Error"
   | "Order"
   | "Payment"
+  | "Promotion"
   | "System";
   link?: string;
   actionLabel?: string;
@@ -60,6 +62,7 @@ export interface GetNotificationsParams {
   | "Error"
   | "Order"
   | "Payment"
+  | "Promotion"
   | "System";
   priority?: "Low" | "Medium" | "High" | "Urgent";
 }
