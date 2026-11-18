@@ -94,6 +94,10 @@ const CommissionSchema = new Schema<ICommission>(
 // Indexes
 CommissionSchema.index({ seller: 1, status: 1 });
 CommissionSchema.index({ order: 1 });
+CommissionSchema.index(
+  { orderItem: 1, type: 1 },
+  { unique: true, partialFilterExpression: { orderItem: { $exists: true } } },
+);
 
 const Commission = (mongoose.models.Commission as mongoose.Model<ICommission>) || mongoose.model<ICommission>("Commission", CommissionSchema);
 

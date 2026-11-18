@@ -127,20 +127,35 @@ export const sendNotification = async (
     actionLabel?: string;
     priority?: "Low" | "Medium" | "High" | "Urgent";
     expiresAt?: Date;
+    deduplicationKey?: string;
   },
 ) => {
-  const notification = await Notification.create({
-    recipientType,
-    recipientId,
-    title,
-    message,
-    type: options?.type || "Info",
-    link: options?.link,
-    actionLabel: options?.actionLabel,
-    priority: options?.priority || "Medium",
-    expiresAt: options?.expiresAt,
-    isRead: false,
-  });
+  let notification = options?.deduplicationKey
+    ? await Notification.findOne({ deduplicationKey: options.deduplicationKey })
+    : null;
+  if (!notification) {
+    try {
+      notification = await Notification.create({
+        recipientType,
+        recipientId,
+        deduplicationKey: options?.deduplicationKey,
+        title,
+        message,
+        type: options?.type || "Info",
+        link: options?.link,
+        actionLabel: options?.actionLabel,
+        priority: options?.priority || "Medium",
+        expiresAt: options?.expiresAt,
+        isRead: false,
+      });
+    } catch (error: any) {
+      if (error?.code !== 11000 || !options?.deduplicationKey) throw error;
+      notification = await Notification.findOne({ deduplicationKey: options.deduplicationKey });
+      if (!notification) throw error;
+    }
+  }
+
+  if (notification.sentAt) return notification;
 
   await pushNotificationToRecipients(
     recipientType,

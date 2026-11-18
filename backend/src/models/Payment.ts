@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IPayment extends Document {
+  paymentAttempt?: mongoose.Types.ObjectId;
   order: mongoose.Types.ObjectId;
   customer: mongoose.Types.ObjectId;
 
@@ -58,6 +59,10 @@ export interface IPayment extends Document {
 
 const PaymentSchema = new Schema<IPayment>(
   {
+    paymentAttempt: {
+      type: Schema.Types.ObjectId,
+      ref: "RazorpayPaymentAttempt",
+    },
     order: {
       type: Schema.Types.ObjectId,
       ref: "Order",
@@ -187,9 +192,9 @@ const PaymentSchema = new Schema<IPayment>(
 // Indexes for faster queries
 PaymentSchema.index({ order: 1 });
 PaymentSchema.index({ customer: 1 });
-PaymentSchema.index({ transactionId: 1 });
 PaymentSchema.index({ status: 1 });
 PaymentSchema.index({ paymentDate: -1 });
+PaymentSchema.index({ paymentAttempt: 1 }, { unique: true, sparse: true });
 
 const Payment = (mongoose.models.Payment as mongoose.Model<IPayment>) || mongoose.model<IPayment>("Payment", PaymentSchema);
 

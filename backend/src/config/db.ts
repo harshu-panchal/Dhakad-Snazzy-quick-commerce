@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import '../models/RazorpayPaymentAttempt';
+import '../models/RazorpayWebhookEvent';
+import '../models/PaymentOutboxEvent';
+import '../models/Notification';
+import '../models/Payment';
 
 dotenv.config();
 
@@ -10,7 +15,7 @@ dotenv.config();
 // syncIndexes(), it never drops an index it doesn't recognize, so it's safe
 // to run on every boot even against a DB that already has extra indexes.
 const ensureCustomerFacingIndexes = async (): Promise<void> => {
-  const modelNames = ['Seller', 'Shop', 'Product', 'Category', 'SubCategory'];
+  const modelNames = ['Seller', 'Shop', 'Product', 'Category', 'SubCategory', 'Commission'];
   for (const name of modelNames) {
     try {
       const model = mongoose.models[name];
@@ -20,6 +25,23 @@ const ensureCustomerFacingIndexes = async (): Promise<void> => {
     } catch (error) {
       console.error(`   \x1b[33m!\x1b[0m Failed to ensure indexes for ${name}:`, error);
     }
+  }
+};
+
+// Financial idempotency depends on these unique indexes. Unlike performance
+// indexes, they must exist before the API accepts payments or webhooks.
+const ensurePaymentIntegrityIndexes = async (): Promise<void> => {
+  const modelNames = [
+    'RazorpayPaymentAttempt',
+    'RazorpayWebhookEvent',
+    'PaymentOutboxEvent',
+    'Notification',
+    'Payment',
+  ];
+  for (const name of modelNames) {
+    const model = mongoose.models[name];
+    if (!model) throw new Error(`Payment integrity model ${name} is not registered`);
+    await model.createIndexes();
   }
 };
 
@@ -35,6 +57,8 @@ const connectDB = async (): Promise<void> => {
     console.log('\n\x1b[32m✓\x1b[0m \x1b[1mMongoDB Connected Successfully\x1b[0m');
     console.log(`   \x1b[36mHost:\x1b[0m ${conn.connection.host}`);
     console.log(`   \x1b[36mDatabase:\x1b[0m ${conn.connection.name}\n`);
+
+    await ensurePaymentIntegrityIndexes();
 
     // Fire-and-forget: don't block server startup on index creation.
     void ensureCustomerFacingIndexes();

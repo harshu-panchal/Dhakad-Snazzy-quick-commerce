@@ -4,7 +4,7 @@ import { createRazorpayOrder, verifyPayment } from '../services/api/paymentServi
 interface RazorpayCheckoutProps {
     orderId: string;
     onSuccess: (paymentId: string) => void;
-    onFailure: (error: string) => void;
+    onFailure: (error: string, paymentMayHaveSucceeded?: boolean) => void;
     customerDetails: {
         name: string;
         email: string;
@@ -86,11 +86,17 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                             if (verificationResponse.success) {
                                 onSuccess(response.razorpay_payment_id);
                             } else {
-                                onFailure(verificationResponse.message || 'Payment verification failed');
+                                onFailure(
+                                    verificationResponse.message || 'Payment confirmation is pending',
+                                    true,
+                                );
                             }
                         } catch (error: any) {
                             console.error('Payment verification error:', error);
-                            onFailure(error.response?.data?.message || 'Payment verification failed');
+                            onFailure(
+                                error.response?.data?.message || 'Payment confirmation is pending',
+                                true,
+                            );
                         }
                     },
                     modal: {

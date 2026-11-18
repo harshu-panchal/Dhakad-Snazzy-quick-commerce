@@ -19,6 +19,7 @@ import Reel from "../../../models/Reel";
 import Shipment from "../../../models/Shipment";
 import { calculateDeliveryPartnerEarning } from "../../../services/deliveryPartnerEarningService";
 import { calculateProductUnitPrice } from "../../../utils/productPricing";
+import { calculateDeliveryCharge } from "../../../utils/deliveryPricing";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
@@ -160,6 +161,7 @@ export const restoreOrderInventoryAndCoupon = async (
       await Coupon.findOneAndUpdate(
         { code: order.couponCode, usageCount: { $gt: 0 } },
         { $inc: { usageCount: -1 } },
+        session ? { session } : undefined,
       );
       console.log(`📢 Restored coupon usage count for ${order.couponCode}`);
     } catch (couponError) {
@@ -217,7 +219,7 @@ export const createOrder = async (req: Request, res: Response) => {
       session = null;
     }
 
-    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging } = req.body;
+    const { items, address, paymentMethod, deliveryOption, couponCode, tipAmount, giftPackaging } = req.body;
     const userId = req.user!.userId;
 
     // Request diagnostics are opt-in; serializing every checkout request adds
@@ -431,8 +433,8 @@ export const createOrder = async (req: Request, res: Response) => {
       deliveryOption: deliveryOption || "Standard",
       subtotal: 0,
       tax: 0,
-      shipping: fees?.deliveryFee || 0,
-      platformFee: fees?.platformFee || 0,
+      shipping: 0,
+      platformFee: 0,
       discount: 0,
       total: 0,
       items: [],
@@ -648,6 +650,8 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
+    let deliveryDistanceKm = 0;
+
     // Validate all sellers can deliver to user's location
     if (sellerIds.size > 0) {
       const uniqueSellerIds = Array.from(sellerIds).map(
@@ -661,24 +665,36 @@ export const createOrder = async (req: Request, res: Response) => {
         location: { $exists: true, $ne: null },
       });
 
-      // Check each seller can deliver to user's location
-      for (const seller of sellers) {
-        if (!seller.location || !seller.location.coordinates) {
-          if (session) await session.abortTransaction();
-          return res.status(403).json({
-            success: false,
-            message: `Seller ${seller.storeName} does not have a valid location. Order cannot be placed.`,
-          });
-        }
+      const sellersWithLocations = sellers.map((seller) => {
+        const coordinates = seller.location?.coordinates;
+        if (!coordinates || coordinates.length !== 2) return null;
+        return {
+          seller,
+          location: { lat: coordinates[1], lng: coordinates[0] },
+        };
+      }).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
 
-        const sellerLng = seller.location.coordinates[0];
-        const sellerLat = seller.location.coordinates[1];
+      const roadDistances = sellersWithLocations.length > 0
+        ? await getRoadDistances(
+            sellersWithLocations.map((entry) => entry.location),
+            { lat: deliveryLat, lng: deliveryLng },
+            settings.deliveryConfig?.googleMapsKey,
+          )
+        : [];
+
+      // Check each seller can deliver to user's location. Serviceability keeps
+      // its existing straight-line radius, while option eligibility and price
+      // share the exact same road-distance result.
+      for (let sellerIndex = 0; sellerIndex < sellersWithLocations.length; sellerIndex += 1) {
+        const { seller, location: sellerLocation } = sellersWithLocations[sellerIndex];
         const distance = calculateDistance(
           deliveryLat,
           deliveryLng,
-          sellerLat,
-          sellerLng,
+          sellerLocation.lat,
+          sellerLocation.lng,
         );
+        const optionDistance = roadDistances[sellerIndex] ?? distance;
+        deliveryDistanceKm = Math.max(deliveryDistanceKm, optionDistance);
         const serviceRadius = seller.serviceRadiusKm || 10;
 
         if (distance > serviceRadius) {
@@ -694,7 +710,7 @@ export const createOrder = async (req: Request, res: Response) => {
         // ineligible option as a UX convenience.
         const instantDeliveryRadiusKm = settings.deliveryConfig?.instantDeliveryRadiusKm;
         const { instantAllowed, standardAllowed } = getDeliveryEligibility(
-          distance,
+          optionDistance,
           instantDeliveryRadiusKm,
         );
         const effectiveDeliveryOption = deliveryOption || "Standard";
@@ -703,7 +719,7 @@ export const createOrder = async (req: Request, res: Response) => {
           if (session) await session.abortTransaction();
           return res.status(400).json({
             success: false,
-            message: `Instant delivery is only available within ${instantDeliveryRadiusKm} km of ${seller.storeName}. Your address is ${distance.toFixed(2)} km away - please select Standard delivery.`,
+            message: `Instant delivery is only available within ${instantDeliveryRadiusKm} km of ${seller.storeName}. Your road distance is ${optionDistance.toFixed(2)} km - please select Standard delivery.`,
           });
         }
 
@@ -718,92 +734,16 @@ export const createOrder = async (req: Request, res: Response) => {
     }
 
     // Apply fees
-    let platformFee = Number(fees?.platformFee) || 0;
-    let deliveryFee = Number(fees?.deliveryFee) || 0;
-    let deliveryDistanceKm = 0;
+    // Fees are server-authoritative. Never trust amounts submitted by the app.
+    const platformFee = Number(settings.platformFee ?? 0);
+    let deliveryFee = 0;
 
-    // --- Delivery Charge Calculation (Standard vs Instant) ---
-    try {
-      const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
-
-      // Check for Free Delivery eligibility first
-      if (
-        freeDeliveryThreshold > 0 &&
-        calculatedSubtotal >= freeDeliveryThreshold
-      ) {
-        deliveryFee = 0;
-      }
-      // Standard Delivery flow: Always Fixed Price
-      else if (deliveryOption === "Standard") {
-        deliveryFee = settings.deliveryCharges ?? 0;
-      }
-      // Instant Delivery flow: Distance Based calculation
-      else if (deliveryOption === "Instant" && settings.deliveryConfig) {
-        const config = settings.deliveryConfig;
-
-        // Collect seller locations
-        const sellerLocations: { lat: number; lng: number }[] = [];
-        const uniqueSellerIds = Array.from(sellerIds).map(
-          (id) => new mongoose.Types.ObjectId(id),
-        );
-        const sellers = await Seller.find({
-          _id: { $in: uniqueSellerIds },
-        }).select("location latitude longitude storeName");
-
-        sellers.forEach((seller) => {
-          let lat, lng;
-          if (seller.location?.coordinates?.length === 2) {
-            lng = seller.location.coordinates[0];
-            lat = seller.location.coordinates[1];
-          } else if (seller.latitude && seller.longitude) {
-            lat = parseFloat(seller.latitude);
-            lng = parseFloat(seller.longitude);
-          }
-
-          if (lat && lng) {
-            sellerLocations.push({ lat, lng });
-          }
-        });
-
-        if (sellerLocations.length > 0 && deliveryLat && deliveryLng) {
-          // Get distances (Road or Air based on API Key presence)
-          const distances = await getRoadDistances(
-            sellerLocations,
-            { lat: deliveryLat, lng: deliveryLng },
-            config.googleMapsKey,
-          );
-
-          // Take the maximum distance (furthest seller)
-          deliveryDistanceKm = Math.max(...distances);
-
-          // Calculate Fee
-          // Formula: BaseCharge + (Max(0, Distance - BaseDistance) * KmRate)
-          const extraKm = Math.max(0, deliveryDistanceKm - config.baseDistance);
-          const calculatedDeliveryFee =
-            config.baseCharge + extraKm * config.kmRate;
-
-          // Override the delivery fee
-          deliveryFee = Math.ceil(calculatedDeliveryFee);
-
-          console.log(
-            `DEBUG: Instant Delivery (Distance-based): MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`,
-          );
-        }
-      } else {
-        // Fallback: If no settings or unhandled option, use provided fee or default
-        const providedDeliveryFee = Number(fees?.deliveryFee);
-        deliveryFee = Number.isFinite(providedDeliveryFee)
-          ? providedDeliveryFee
-          : settings?.deliveryCharges ?? 0;
-      }
-    } catch (calcError) {
-      console.error("Error calculating delivery fee:", calcError);
-      // Fallback to provided fee or settings default (using pre-fetched settings)
-      const providedDeliveryFee = Number(fees?.deliveryFee);
-      deliveryFee = Number.isFinite(providedDeliveryFee)
-        ? providedDeliveryFee
-        : settings?.deliveryCharges ?? 0;
-    }
+    deliveryFee = calculateDeliveryCharge({
+      subtotal: calculatedSubtotal,
+      deliveryOption: deliveryOption || "Standard",
+      distanceKm: deliveryDistanceKm,
+      settings,
+    });
 
     const finalTipAmount = Number(tipAmount) || 0;
     const giftPackagingFee = giftPackaging ? 30 : 0;
@@ -893,6 +833,7 @@ export const createOrder = async (req: Request, res: Response) => {
     newOrder.grandTotal = Number(finalTotal.toFixed(2)); // Sync grandTotal alias
     newOrder.items = orderItemIds;
     newOrder.shipping = deliveryFee; // Update with calculated fee
+    newOrder.platformFee = platformFee;
     newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
 
     // Instant distance earnings can be finalized before a partner is assigned.

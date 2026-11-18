@@ -258,13 +258,16 @@ export const calculateOrderCommissions = async (orderId: string) => {
 /**
  * Create Pending Commissions (called on Order Payment)
  */
-export const createPendingCommissions = async (orderId: string) => {
+export const createPendingCommissions = async (
+  orderId: string,
+  session?: mongoose.ClientSession,
+) => {
   try {
-    const order = await Order.findById(orderId).populate("items");
+    const order = await Order.findById(orderId).session(session || null).populate("items");
     if (!order) throw new Error("Order not found");
 
     // Check if commissions already exist
-    const existingCommissions = await Commission.find({ order: orderId });
+    const existingCommissions = await Commission.find({ order: orderId }).session(session || null);
     if (existingCommissions.length > 0) {
       console.log(`Commissions already exist for order ${orderId}`);
       return;
@@ -275,10 +278,10 @@ export const createPendingCommissions = async (orderId: string) => {
     // We'll calculate per item as per original logic
 
     for (const itemId of items) {
-      const item = await OrderItem.findById(itemId);
+      const item = await OrderItem.findById(itemId).session(session || null);
       if (!item) continue;
 
-      const seller = await Seller.findById(item.seller);
+      const seller = await Seller.findById(item.seller).session(session || null);
       if (!seller) continue;
 
       const commissionRate = await getOrderItemCommissionRate(
@@ -293,7 +296,7 @@ export const createPendingCommissions = async (orderId: string) => {
       );
 
       // Create commission record as PAID immediately
-      const commission = await Commission.create({
+      const [commission] = await Commission.create([{
         order: item.order,
         orderItem: item._id,
         seller: item.seller,
@@ -303,18 +306,22 @@ export const createPendingCommissions = async (orderId: string) => {
         commissionAmount,
         status: "Paid", // Set to Paid immediately
         paidAt: new Date(),
-      });
+      }], { session });
 
       // Credit Wallet Immediately
       if (seller) {
-        await creditWallet(
+        const walletResult = await creditWallet(
           seller._id.toString(),
           "SELLER",
           netEarning,
           `Sale proceeds from Order #${order.orderNumber}`,
           item.order.toString(),
           commission._id.toString(),
+          session,
         );
+        if (!walletResult.success) {
+          throw new Error(walletResult.message || "Failed to credit seller wallet");
+        }
       }
     }
 
@@ -694,7 +701,7 @@ export const processPendingCODPayouts = async (
         const netEarning =
           Math.round((comm.orderAmount - comm.commissionAmount) * 100) / 100;
         if (comm.seller) {
-          await creditWallet(
+          const walletCredit = await creditWallet(
             comm.seller.toString(),
             "SELLER",
             netEarning,
@@ -703,6 +710,9 @@ export const processPendingCODPayouts = async (
             comm._id.toString(),
             session,
           );
+          if (!walletCredit.success) {
+            throw new Error(walletCredit.message || "Failed to credit seller wallet");
+          }
 
           // Update platform wallet counters for this specifically processed order
           if (platformWallet) {
