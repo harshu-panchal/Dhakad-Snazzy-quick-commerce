@@ -3,12 +3,13 @@ import { Request, Response } from 'express';
 import Cart from '../../../models/Cart';
 import CartItem from '../../../models/CartItem';
 import Product from '../../../models/Product';
-import { findSellersWithinRange, calculateDistance, getDeliveryEligibility } from '../../../utils/locationHelper';
+import { findSellersWithinRange, getDeliveryEligibility } from '../../../utils/locationHelper';
 import mongoose from 'mongoose';
 import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
 import { calculateProductUnitPrice } from '../../../utils/productPricing';
+import { calculateDeliveryCharge } from '../../../utils/deliveryPricing';
 
 // Helper to calculate cart total with location filtering
 const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.ObjectId[] = []) => {
@@ -38,72 +39,69 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
     let platformFee = 0;
     let freeDeliveryThreshold = 0;
     let minimumOrderValue = 0;
+    let distanceKm: number | null = null;
+    let instantAllowed = true;
+    let standardAllowed = true;
+    let instantDeliveryRadiusKm: number | null = null;
 
     try {
         const settings = await AppSettings.getSettings();
         platformFee = settings.platformFee ?? 2;
         freeDeliveryThreshold = settings.freeDeliveryThreshold ?? 199;
         minimumOrderValue = settings.minimumOrderValue ?? 0;
+        instantDeliveryRadiusKm = settings.deliveryConfig?.instantDeliveryRadiusKm ?? null;
 
-        // Check free delivery threshold
-        if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
-            estimatedDeliveryFee = 0;
-        }
-        // Standard Delivery: Always Fixed Price
-        else if (deliveryOption === 'Standard') {
-            estimatedDeliveryFee = settings.deliveryCharges ?? 40;
-        }
-        // Instant Delivery: Distance Based (if config exists)
-        else if (deliveryOption === 'Instant' && settings.deliveryConfig) {
-            const config = settings.deliveryConfig;
-            // Default to base charge
-            estimatedDeliveryFee = config.baseCharge || 0;
+        // Resolve one distance and reuse it for both eligibility and pricing.
+        // This prevents a straight-line eligibility result from disagreeing
+        // with a road-distance delivery charge.
+        if (userLat !== null && userLng !== null) {
+            const sellerIds = new Set<string>();
+            items.forEach((item: any) => {
+                if (item.product?.seller) sellerIds.add(item.product.seller.toString());
+            });
 
-            if (userLat && userLng) {
-                // Get all sellers involved in the cart
-                const sellerIds = new Set<string>();
-                items.forEach((item: any) => {
-                    if (item.product?.seller) {
-                        sellerIds.add(item.product.seller.toString());
+            if (sellerIds.size > 0) {
+                const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
+                const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+                const sellerLocations: { lat: number; lng: number }[] = [];
+
+                sellers.forEach(seller => {
+                    let lat: number | undefined;
+                    let lng: number | undefined;
+                    if (seller.location?.coordinates?.length === 2) {
+                        lng = seller.location.coordinates[0];
+                        lat = seller.location.coordinates[1];
+                    } else if (seller.latitude && seller.longitude) {
+                        lat = parseFloat(seller.latitude);
+                        lng = parseFloat(seller.longitude);
+                    }
+                    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                        sellerLocations.push({ lat: lat!, lng: lng! });
                     }
                 });
 
-                if (sellerIds.size > 0) {
-                    const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
-                    const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
-
-                    const sellerLocations: { lat: number; lng: number }[] = [];
-                    sellers.forEach(seller => {
-                        let lat, lng;
-                        if (seller.location?.coordinates?.length === 2) {
-                            lng = seller.location.coordinates[0];
-                            lat = seller.location.coordinates[1];
-                        } else if (seller.latitude && seller.longitude) {
-                            lat = parseFloat(seller.latitude);
-                            lng = parseFloat(seller.longitude);
-                        }
-                        if (lat && lng) sellerLocations.push({ lat, lng });
-                    });
-
-                    if (sellerLocations.length > 0) {
-                        const distances = await getRoadDistances(
-                            sellerLocations,
-                            { lat: userLat, lng: userLng },
-                            config.googleMapsKey
-                        );
-
-                        if (distances && distances.length > 0) {
-                            const maxDistance = Math.max(...distances);
-                            const extraKm = Math.max(0, maxDistance - config.baseDistance);
-                            estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
-                        }
-                    }
+                if (sellerLocations.length > 0) {
+                    const distances = await getRoadDistances(
+                        sellerLocations,
+                        { lat: userLat, lng: userLng },
+                        settings.deliveryConfig?.googleMapsKey
+                    );
+                    if (distances.length > 0) distanceKm = Math.max(...distances);
                 }
             }
-        } else {
-            // Fallback for unknown options
-            estimatedDeliveryFee = settings.deliveryCharges ?? 40;
         }
+
+        ({ instantAllowed, standardAllowed } = getDeliveryEligibility(
+            distanceKm,
+            instantDeliveryRadiusKm
+        ));
+
+        estimatedDeliveryFee = calculateDeliveryCharge({
+            subtotal: total,
+            deliveryOption,
+            distanceKm,
+            settings,
+        });
     } catch (err) {
         console.error("Error calculating delivery stuff:", err);
     }
@@ -112,43 +110,11 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
         platformFee,
         freeDeliveryThreshold,
         minimumOrderValue,
+        distanceKm,
+        instantAllowed,
+        standardAllowed,
+        instantDeliveryRadiusKm,
     };
-};
-
-// Helper to compute customer-to-seller distance and which delivery options that distance allows
-const getCartDeliveryEligibility = async (
-    sellerId: mongoose.Types.ObjectId | null | undefined,
-    userLat: number | null,
-    userLng: number | null
-) => {
-    const openResult = { distanceKm: null as number | null, instantAllowed: true, standardAllowed: true, instantDeliveryRadiusKm: null as number | null };
-
-    if (!sellerId || userLat === null || userLng === null) {
-        return openResult;
-    }
-
-    const seller = await Seller.findById(sellerId).select('location latitude longitude');
-    let sellerLat: number | null = null;
-    let sellerLng: number | null = null;
-
-    if (seller?.location?.coordinates?.length === 2) {
-        sellerLng = seller.location.coordinates[0];
-        sellerLat = seller.location.coordinates[1];
-    } else if (seller?.latitude && seller?.longitude) {
-        sellerLat = parseFloat(seller.latitude);
-        sellerLng = parseFloat(seller.longitude);
-    }
-
-    if (sellerLat === null || sellerLng === null || isNaN(sellerLat) || isNaN(sellerLng)) {
-        return openResult;
-    }
-
-    const distanceKm = calculateDistance(userLat, userLng, sellerLat, sellerLng);
-    const settings = await AppSettings.getSettings();
-    const instantDeliveryRadiusKm = settings.deliveryConfig?.instantDeliveryRadiusKm ?? null;
-    const { instantAllowed, standardAllowed } = getDeliveryEligibility(distanceKm, instantDeliveryRadiusKm);
-
-    return { distanceKm, instantAllowed, standardAllowed, instantDeliveryRadiusKm };
 };
 
 // Get current user's cart
@@ -217,7 +183,6 @@ export const getCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng, deliveryOption);
-        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -226,8 +191,7 @@ export const getCart = async (req: Request, res: Response) => {
                 items: filteredItems,
                 unavailableItems: unavailableItems, // Include unavailable items
                 total,
-                ...fees,
-                ...deliveryEligibility
+                ...fees
             }
         });
     } catch (error: any) {
@@ -370,7 +334,6 @@ export const addToCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
-        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -379,8 +342,7 @@ export const addToCart = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees,
-                ...deliveryEligibility
+                ...fees
             }
         });
     } catch (error: any) {
@@ -460,7 +422,6 @@ export const updateCartItem = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
-        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -469,8 +430,7 @@ export const updateCartItem = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees,
-                ...deliveryEligibility
+                ...fees
             }
         });
     } catch (error: any) {
@@ -536,7 +496,6 @@ export const removeFromCart = async (req: Request, res: Response) => {
         // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
         const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
-        const deliveryEligibility = await getCartDeliveryEligibility(cart.seller, userLat, userLng);
 
         return res.status(200).json({
             success: true,
@@ -545,8 +504,7 @@ export const removeFromCart = async (req: Request, res: Response) => {
                 ...updatedCart?.toObject(),
                 items: filteredItems,
                 total: cart.total,
-                ...fees,
-                ...deliveryEligibility
+                ...fees
             }
         });
     } catch (error: any) {

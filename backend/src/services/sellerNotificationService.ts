@@ -76,13 +76,17 @@ export async function notifySellersOfOrderUpdate(
                          type === 'ORDER_CANCELLED' ? `Order #${order.orderNumber} has been cancelled` :
                          `Order #${order.orderNumber} status updated to ${order.status}`;
 
-            sendNotification('Seller', sellerId, title, body, {
+            await sendNotification('Seller', sellerId, title, body, {
                 type: 'Order',
                 link: `/seller/orders/${order._id}`,
-                priority: type === 'NEW_ORDER' ? 'High' : 'Medium'
-            }).catch(err => console.error(`❌ [Seller Notification Error] ${sellerId}:`, err?.message));
+                priority: type === 'NEW_ORDER' ? 'High' : 'Medium',
+                deduplicationKey: type === 'NEW_ORDER'
+                    ? `seller-new-order:${order._id}:${sellerId}`
+                    : undefined,
+            });
         }
     } catch (error) {
         console.error('Error in notifySellersOfOrderUpdate:', error);
+        throw error;
     }
 }

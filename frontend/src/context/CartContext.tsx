@@ -126,6 +126,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [lastAddEvent, setLastAddEvent] = useState<AddToCartEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const pendingOperationsRef = useRef<Set<string>>(new Set());
+  const cartRequestSequenceRef = useRef(0);
   const hasSyncedRef = useRef(false);
   const saveCartTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSnapshotsRef = useRef<Map<string, CartProductSnapshot>>(buildProductSnapshotMap(items));
@@ -220,6 +221,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const requestSequence = ++cartRequestSequenceRef.current;
+
     try {
       // Use provided coordinates or fallback to current location
       const queryLat = lat !== undefined ? lat : location?.latitude;
@@ -230,6 +233,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         longitude: queryLng,
         deliveryOption: deliveryOption
       });
+      // Address/option changes may overlap. Only the most recent response is
+      // allowed to update delivery eligibility or pricing.
+      if (requestSequence !== cartRequestSequenceRef.current) return;
       if (response && response.data && response.data.items) {
         const newItems = mapApiItemsToState(response.data.items);
         // Attach debug info to the new items array
@@ -268,11 +274,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setInstantDeliveryRadiusKm(undefined);
       }
     } catch (error) {
-      console.error("Failed to fetch cart:", error);
+      if (requestSequence === cartRequestSequenceRef.current) {
+        console.error("Failed to fetch cart:", error);
+      }
     } finally {
-      setLoading(false);
+      if (requestSequence === cartRequestSequenceRef.current) setLoading(false);
     }
-  }, [isAuthenticated, user?.userType]);
+  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude, mapApiItemsToState]);
 
   // Load cart on auth change
   useEffect(() => {

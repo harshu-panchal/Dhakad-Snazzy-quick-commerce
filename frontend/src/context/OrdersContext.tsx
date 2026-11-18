@@ -9,7 +9,7 @@ import { useAuth } from "./AuthContext";
 import { Order } from "../types/order";
 import { createOrder, getMyOrders } from "../services/api/customerOrderService";
 import { getReelAttribution, clearReelAttributions } from "../utils/reelAttribution";
-import { OrdersContext } from "./ordersContext.types";
+import { CreatedOrderResult, OrdersContext } from "./ordersContext.types";
 
 // Type for API response order (with _id from MongoDB)
 interface ApiOrder {
@@ -98,7 +98,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.userType, user?.id]);
 
-  const addOrder = useCallback(async (order: Order): Promise<string | undefined> => {
+  const addOrder = useCallback(async (order: Order): Promise<CreatedOrderResult | undefined> => {
     try {
       // Construct payload
       const payload = {
@@ -149,10 +149,29 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         await fetchOrders();
       }
 
-      // Return the created order ID from response
+      // Return the server-authoritative price with the ID so checkout can
+      // prevent a payment modal from opening with a different amount.
       if (response && response.data) {
-        const orderData = response.data as { _id?: string; id?: string };
-        return orderData._id || orderData.id;
+        const orderData = response.data as {
+          _id?: string;
+          id?: string;
+          total?: number;
+          grandTotal?: number;
+          subtotal?: number;
+          platformFee?: number;
+          shipping?: number;
+        };
+        const id = orderData._id || orderData.id;
+        if (!id) return undefined;
+        return {
+          id,
+          totalAmount: Number(orderData.total ?? orderData.grandTotal ?? 0),
+          subtotal: Number(orderData.subtotal ?? 0),
+          fees: {
+            platformFee: Number(orderData.platformFee ?? 0),
+            deliveryFee: Number(orderData.shipping ?? 0),
+          },
+        };
       }
       return undefined;
     } catch (error: unknown) {

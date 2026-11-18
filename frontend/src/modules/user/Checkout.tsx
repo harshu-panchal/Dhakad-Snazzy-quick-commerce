@@ -75,16 +75,9 @@ export default function Checkout() {
   const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
     "Standard",
   );
-  const hasSkippedInitialCartRefreshRef = useRef(false);
-
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
     if (selectedAddress?.latitude && selectedAddress?.longitude) {
-      if (!hasSkippedInitialCartRefreshRef.current) {
-        hasSkippedInitialCartRefreshRef.current = true;
-        return;
-      }
-
       refreshCart(
         selectedAddress.latitude,
         selectedAddress.longitude,
@@ -701,8 +694,32 @@ export default function Checkout() {
     setIsProcessingOrder(true);
     try {
       // Create the order
-      const placedId = await addOrder(order);
-      if (placedId) {
+      const placedOrder = await addOrder(order);
+      if (placedOrder) {
+        const placedId = placedOrder.id;
+        const priceChanged = Math.abs(placedOrder.totalAmount - grandTotal) >= 0.01;
+
+        // Online payments must never open with an amount different from the
+        // checkout button. Release the pending order, refresh the authoritative
+        // cart quote, and let the customer review the updated amount first.
+        if (priceChanged && paymentMethod !== "COD") {
+          await cancelPendingOrder(
+            placedId,
+            "Checkout price changed before payment confirmation",
+          );
+          await refreshCart(
+            addressWithLocation.latitude,
+            addressWithLocation.longitude,
+            deliveryOption,
+          );
+          setSelectedCoupon(null);
+          showGlobalToast(
+            `Delivery pricing was updated. Please review the new total before paying.`,
+            "info",
+          );
+          return;
+        }
+
         if (paymentMethod === "Cashfree") {
           setPendingOrderId(placedId);
           setShowCashfreeCheckout(true);
@@ -2973,10 +2990,28 @@ export default function Checkout() {
             setShowOrderSuccess(true);
             showGlobalToast("Payment successful! Order placed.", "success");
           }}
-          onFailure={(error) => {
+          onFailure={(error, paymentMayHaveSucceeded) => {
             const failedId = pendingOrderId;
             setShowRazorpayCheckout(false);
             setPendingOrderId(null);
+            if (paymentMayHaveSucceeded) {
+              // The gateway callback completed, but our confirmation request was
+              // inconclusive. Keep the order reserved; webhook/reconciliation will
+              // settle it without risking cancellation of a successful payment.
+              if (failedId) {
+                setPlacedOrderId(failedId);
+                clearCart();
+                fetchOrders().catch((err) =>
+                  console.error("Failed to refresh pending payment order:", err),
+                );
+                navigate(`/orders/${failedId}`);
+              }
+              showGlobalToast(
+                "Payment received. Confirmation is pending and will update automatically.",
+                "info",
+              );
+              return;
+            }
             if (failedId) {
               cancelPendingOrder(failedId, error).catch((err) =>
                 console.error("Failed to cancel pending order:", err),
