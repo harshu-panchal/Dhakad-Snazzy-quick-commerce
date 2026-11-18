@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireUserType } from '../middleware/auth';
 import { Request, Response } from 'express';
-import { createRazorpayOrder, capturePayment, handleWebhook } from '../services/paymentService';
+import { createRazorpayOrder, verifyAndSettleRazorpayCallback } from '../services/paymentService';
 import Order from '../models/Order';
 import AppSettings from '../models/AppSettings';
 
@@ -52,7 +52,13 @@ router.post('/create-order', authenticate, requireUserType('Customer'), async (r
             });
         }
 
-        const result = await createRazorpayOrder(orderId, order.total);
+        const result = await createRazorpayOrder({
+            purpose: 'CUSTOMER_ORDER',
+            ownerId: req.user!.userId,
+            localEntityId: order._id.toString(),
+            amount: order.total,
+            receipt: order._id.toString(),
+        });
 
         if (!result.success) {
             return res.status(400).json(result);
@@ -99,17 +105,17 @@ router.post('/verify', authenticate, requireUserType('Customer'), async (req: Re
         }
 
         const io = req.app.get('io');
-        const result = await capturePayment(
-            orderId,
+        const result = await verifyAndSettleRazorpayCallback({
+            expected: {
+                purpose: 'CUSTOMER_ORDER',
+                ownerId: req.user!.userId,
+                localEntityId: order._id.toString(),
+            },
             razorpayOrderId,
             razorpayPaymentId,
             razorpaySignature,
-            io
-        );
-
-        if (!result.success) {
-            return res.status(400).json(result);
-        }
+            io,
+        });
 
         return res.status(200).json(result);
     } catch (error: any) {
@@ -117,37 +123,6 @@ router.post('/verify', authenticate, requireUserType('Customer'), async (req: Re
         return res.status(500).json({
             success: false,
             message: error.message || 'Failed to verify payment',
-        });
-    }
-});
-
-/**
- * Razorpay webhook endpoint
- */
-router.post('/webhook', async (req: Request, res: Response) => {
-    try {
-        const signature = req.headers['x-razorpay-signature'] as string;
-
-        if (!signature) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing webhook signature',
-            });
-        }
-
-        const io = req.app.get('io');
-        const result = await handleWebhook(req.body, signature, io);
-
-        if (!result.success) {
-            return res.status(400).json(result);
-        }
-
-        return res.status(200).json(result);
-    } catch (error: any) {
-        console.error('Error handling webhook:', error);
-        return res.status(500).json({
-            success: false,
-            message: error.message || 'Failed to handle webhook',
         });
     }
 });

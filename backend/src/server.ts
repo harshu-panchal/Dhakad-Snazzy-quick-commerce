@@ -14,6 +14,8 @@ import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
 import { isShiprocketConfigured, syncPendingSellerPickups } from "./services/shiprocketService";
 import { syncActiveShiprocketTracking } from "./services/shippingService";
 import { runProductReminderWorker } from "./services/productReminderService";
+import { runRazorpayPaymentWorkers } from "./services/paymentService";
+import { razorpayWebhookHandler } from "./routes/razorpayWebhookRoute";
 import { seedProductReminderTemplates } from "./utils/seedProductReminderTemplates";
 
 
@@ -89,6 +91,14 @@ app.use(cors(corsOptions));
 
 import path from "path";
 
+// Razorpay signs the exact request bytes. This route must be registered before
+// express.json() so webhook authentication never depends on re-serialized JSON.
+app.post(
+  "/api/v1/payment/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  razorpayWebhookHandler,
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -151,6 +161,20 @@ async function startServer() {
 
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();
+
+  // Durable webhook inbox, payment reconciliation and notification outbox.
+  // Work is bounded and overlap-protected inside the service for a single instance.
+  if (process.env.RAZORPAY_PAYMENT_WORKER_ENABLED !== "false") {
+    const runPaymentWorkers = () => runRazorpayPaymentWorkers(io).catch((error) =>
+      console.error("Razorpay payment worker failed:", error),
+    );
+    void runPaymentWorkers();
+    const paymentWorkerTimer = setInterval(
+      runPaymentWorkers,
+      Number(process.env.RAZORPAY_PAYMENT_WORKER_INTERVAL_MS) || 5 * 60 * 1000,
+    );
+    paymentWorkerTimer.unref();
+  }
 
   // Persistent reminder state lives in MongoDB; this small polling worker is
   // restart-safe and only claims pending recipients/campaigns.

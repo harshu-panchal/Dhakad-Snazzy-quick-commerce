@@ -12,7 +12,7 @@ import {
 import Delivery from "../../../models/Delivery";
 import {
   createRazorpayOrder,
-  verifyPaymentSignature,
+  verifyAndSettleRazorpayCallback,
 } from "../../../services/paymentService";
 import {
   createCashfreePayoutOrder,
@@ -83,8 +83,14 @@ export const createAdminPayoutOrder = async (req: Request, res: Response) => {
       });
     }
 
-    const receipt = `PAYOUT-ADMIN-${Date.now()}`;
-    const result = await createRazorpayOrder(receipt, amount);
+    const receipt = `PAYOUT-ADMIN-${deliveryBoyId}-${Date.now()}`;
+    const result = await createRazorpayOrder({
+      purpose: "DELIVERY_ADMIN_PAYOUT",
+      ownerId: deliveryBoyId,
+      localEntityId: deliveryBoyId,
+      amount,
+      receipt,
+    });
 
     if (!result.success) {
       return res.status(400).json(result);
@@ -103,7 +109,8 @@ export const createAdminPayoutOrder = async (req: Request, res: Response) => {
 /**
  * Verify admin payout payment
  */
-export const verifyAdminPayout = async (req: Request, res: Response) => {
+/* Removed insecure legacy verification flow. Kept temporarily in source history only.
+const verifyAdminPayoutLegacy = async (req: Request, res: Response) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
@@ -214,6 +221,41 @@ export const verifyAdminPayout = async (req: Request, res: Response) => {
     });
   } finally {
     session.endSession();
+  }
+};
+void verifyAdminPayoutLegacy;
+*/
+
+// Verify against the persisted attempt and Razorpay's API. The client-provided
+// amount is deliberately ignored because it is not an authoritative value.
+export const verifyAdminPayout = async (req: Request, res: Response) => {
+  try {
+    const deliveryBoyId = req.user!.userId;
+    const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+    if (!razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing Razorpay verification parameters",
+      });
+    }
+    const result = await verifyAndSettleRazorpayCallback({
+      expected: {
+        purpose: "DELIVERY_ADMIN_PAYOUT",
+        ownerId: deliveryBoyId,
+        localEntityId: deliveryBoyId,
+      },
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      io: req.app.get("io"),
+    });
+    return res.status(200).json({ success: true, message: "Payout successful", data: result });
+  } catch (error: any) {
+    console.error("Error verifying Razorpay admin payout:", error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to verify payout",
+    });
   }
 };
 
