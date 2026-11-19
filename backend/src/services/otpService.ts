@@ -593,10 +593,17 @@ function isMockMode(): boolean {
 /**
  * Check if developer bypass OTP
  */
-function isDeveloperBypass(otp: string): boolean {
+function isDeveloperBypass(otp: string, userType: UserType): boolean {
+  const allowAdminProductionBypass =
+    userType === "Admin" &&
+    process.env.ALLOW_ADMIN_FIXED_OTP_IN_PRODUCTION === "true";
+  const bypassEnabled =
+    process.env.NODE_ENV !== "production" ||
+    process.env.USE_MOCK_OTP === "true" ||
+    allowAdminProductionBypass;
+
   return (
-    (process.env.NODE_ENV !== "production" ||
-      process.env.USE_MOCK_OTP === "true") &&
+    bypassEnabled &&
     (otp === "999999" || otp === "9999" || otp === process.env.DEFAULT_OTP)
   );
 }
@@ -679,7 +686,7 @@ export async function verifySmsOtp(
   mobile?: string,
   userType: "Customer" | "Delivery" = "Delivery",
 ): Promise<boolean> {
-  if (isDeveloperBypass(otpInput)) {
+  if (isDeveloperBypass(otpInput, userType)) {
     return true;
   }
 
@@ -791,7 +798,7 @@ export async function verifyOTP(
   otpInput: string,
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
 ): Promise<boolean> {
-  if (isDeveloperBypass(otpInput)) {
+  if (isDeveloperBypass(otpInput, userType)) {
     return true;
   }
 
