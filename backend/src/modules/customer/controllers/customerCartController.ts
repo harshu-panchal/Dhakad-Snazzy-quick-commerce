@@ -34,7 +34,10 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
 };
 
 // Helper to calculate delivery fee
-const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null, deliveryOption: string = 'Standard') => {
+const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null, deliveryOption: string = 'Instant') => {
+    // STANDARD DELIVERY DISABLED (temporary): always price as Instant,
+    // ignoring whatever option the client sent.
+    deliveryOption = 'Instant';
     let estimatedDeliveryFee = 0;
     let platformFee = 0;
     let freeDeliveryThreshold = 0;

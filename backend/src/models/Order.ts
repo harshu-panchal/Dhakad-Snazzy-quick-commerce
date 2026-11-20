@@ -478,7 +478,10 @@ const OrderSchema = new Schema<IOrder>(
     deliveryOption: {
       type: String,
       enum: ["Instant", "Standard"],
-      default: "Standard",
+      // STANDARD DELIVERY DISABLED (temporary): default is Instant. "Standard"
+      // stays in the enum so historical orders still validate.
+      // default: "Standard",
+      default: "Instant",
     },
     deliveryPreference: {
       type: String,

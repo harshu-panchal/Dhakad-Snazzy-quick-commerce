@@ -430,7 +430,9 @@ export const createOrder = async (req: Request, res: Response) => {
       paymentMethod: paymentMethod || "COD",
       paymentStatus: "Pending",
       status: isCod ? "Received" : "Pending",
-      deliveryOption: deliveryOption || "Standard",
+      // STANDARD DELIVERY DISABLED (temporary): all orders are Instant.
+      // deliveryOption: deliveryOption || "Standard",
+      deliveryOption: "Instant",
       subtotal: 0,
       tax: 0,
       shipping: 0,
@@ -713,23 +715,27 @@ export const createOrder = async (req: Request, res: Response) => {
           optionDistance,
           instantDeliveryRadiusKm,
         );
-        const effectiveDeliveryOption = deliveryOption || "Standard";
+        // STANDARD DELIVERY DISABLED (temporary): always Instant.
+        // const effectiveDeliveryOption = deliveryOption || "Standard";
+        const effectiveDeliveryOption = "Instant";
 
         if (effectiveDeliveryOption === "Instant" && !instantAllowed) {
           if (session) await session.abortTransaction();
           return res.status(400).json({
             success: false,
-            message: `Instant delivery is only available within ${instantDeliveryRadiusKm} km of ${seller.storeName}. Your road distance is ${optionDistance.toFixed(2)} km - please select Standard delivery.`,
+            message: `Instant delivery is only available within ${instantDeliveryRadiusKm} km of ${seller.storeName}. Your road distance is ${optionDistance.toFixed(2)} km - we can't deliver to this address right now.`,
           });
         }
 
-        if (effectiveDeliveryOption === "Standard" && !standardAllowed) {
-          if (session) await session.abortTransaction();
-          return res.status(400).json({
-            success: false,
-            message: `Your address is within ${instantDeliveryRadiusKm} km of ${seller.storeName}, so only Instant delivery is available for this distance.`,
-          });
-        }
+        // STANDARD DELIVERY DISABLED (temporary): Standard is never selected.
+        // if (effectiveDeliveryOption === "Standard" && !standardAllowed) {
+        //   if (session) await session.abortTransaction();
+        //   return res.status(400).json({
+        //     success: false,
+        //     message: `Your address is within ${instantDeliveryRadiusKm} km of ${seller.storeName}, so only Instant delivery is available for this distance.`,
+        //   });
+        // }
+        void standardAllowed;
       }
     }
 
@@ -740,7 +746,8 @@ export const createOrder = async (req: Request, res: Response) => {
 
     deliveryFee = calculateDeliveryCharge({
       subtotal: calculatedSubtotal,
-      deliveryOption: deliveryOption || "Standard",
+      // deliveryOption: deliveryOption || "Standard",
+      deliveryOption: "Instant",
       distanceKm: deliveryDistanceKm,
       settings,
     });

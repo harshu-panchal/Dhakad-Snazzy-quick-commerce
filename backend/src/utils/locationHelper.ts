@@ -127,18 +127,33 @@ export function getDeliveryEligibility(
   distanceKm: number | null,
   instantDeliveryRadiusKm: number | null | undefined
 ): { instantAllowed: boolean; standardAllowed: boolean } {
+  // STANDARD DELIVERY DISABLED (temporary): every order is delivered via
+  // Instant delivery regardless of distance. The original radius-based split
+  // is kept below, commented out, so it can be restored later.
+  // Orders beyond the admin-configured instant radius are NOT allowed
+  // (Standard is disabled, so there is no fallback option).
   if (
     distanceKm === null ||
     instantDeliveryRadiusKm === null ||
     instantDeliveryRadiusKm === undefined ||
     instantDeliveryRadiusKm <= 0
   ) {
-    return { instantAllowed: true, standardAllowed: true };
-  }
-
-  if (distanceKm <= instantDeliveryRadiusKm) {
     return { instantAllowed: true, standardAllowed: false };
   }
+  return { instantAllowed: distanceKm <= instantDeliveryRadiusKm, standardAllowed: false };
 
-  return { instantAllowed: false, standardAllowed: true };
+  // if (
+  //   distanceKm === null ||
+  //   instantDeliveryRadiusKm === null ||
+  //   instantDeliveryRadiusKm === undefined ||
+  //   instantDeliveryRadiusKm <= 0
+  // ) {
+  //   return { instantAllowed: true, standardAllowed: true };
+  // }
+  //
+  // if (distanceKm <= instantDeliveryRadiusKm) {
+  //   return { instantAllowed: true, standardAllowed: false };
+  // }
+  //
+  // return { instantAllowed: false, standardAllowed: true };
 }

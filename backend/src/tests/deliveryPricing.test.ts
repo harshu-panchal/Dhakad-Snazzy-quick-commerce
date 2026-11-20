@@ -14,10 +14,19 @@ const distanceSettings = {
   },
 };
 
-test("standard delivery becomes available beyond the instant radius", () => {
+// STANDARD DELIVERY DISABLED (temporary): restore together with the original
+// getDeliveryEligibility logic in utils/locationHelper.ts.
+// test("standard delivery becomes available beyond the instant radius", () => {
+//   assert.deepEqual(getDeliveryEligibility(12.01, 12), {
+//     instantAllowed: false,
+//     standardAllowed: true,
+//   });
+// });
+
+test("orders beyond the instant radius are not allowed", () => {
   assert.deepEqual(getDeliveryEligibility(12.01, 12), {
     instantAllowed: false,
-    standardAllowed: true,
+    standardAllowed: false,
   });
 });
 

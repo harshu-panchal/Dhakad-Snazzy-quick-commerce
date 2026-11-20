@@ -72,8 +72,10 @@ export default function Checkout() {
   const [showOrderSuccess, setShowOrderSuccess] = useState(false);
 
   // Delivery Option State
+  // STANDARD DELIVERY DISABLED (temporary): all orders go via Instant delivery.
   const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
-    "Standard",
+    // "Standard",
+    "Instant",
   );
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
@@ -91,22 +93,24 @@ export default function Checkout() {
   // selected option ineligible for this address's distance, auto-switch to
   // whichever option is actually available instead of leaving the customer
   // stuck on a disabled choice.
-  useEffect(() => {
-    if (cart.instantDeliveryAllowed === false && deliveryOption === "Instant") {
-      setDeliveryOption("Standard");
-      showGlobalToast(
-        "Instant delivery isn't available for this address. Switched to Standard delivery.",
-        "info",
-      );
-    } else if (cart.standardDeliveryAllowed === false && deliveryOption === "Standard") {
-      setDeliveryOption("Instant");
-      showGlobalToast(
-        "This address is within the instant delivery zone, so only Instant delivery is available.",
-        "info",
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart.instantDeliveryAllowed, cart.standardDeliveryAllowed]);
+  // STANDARD DELIVERY DISABLED (temporary): auto-switch between options is
+  // not needed while only Instant exists.
+  // useEffect(() => {
+  //   if (cart.instantDeliveryAllowed === false && deliveryOption === "Instant") {
+  //     setDeliveryOption("Standard");
+  //     showGlobalToast(
+  //       "Instant delivery isn't available for this address. Switched to Standard delivery.",
+  //       "info",
+  //     );
+  //   } else if (cart.standardDeliveryAllowed === false && deliveryOption === "Standard") {
+  //     setDeliveryOption("Instant");
+  //     showGlobalToast(
+  //       "This address is within the instant delivery zone, so only Instant delivery is available.",
+  //       "info",
+  //     );
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [cart.instantDeliveryAllowed, cart.standardDeliveryAllowed]);
 
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [availableCoupons, setAvailableCoupons] = useState<ApiCoupon[]>([]);
@@ -614,6 +618,14 @@ export default function Checkout() {
         paymentConfigLoaded
           ? "No payment method is currently available. Please try again later."
           : "Payment methods are still loading. Please wait a moment.",
+        "error",
+      );
+      return;
+    }
+
+    if (cart.instantDeliveryAllowed === false) {
+      showGlobalToast(
+        `Delivery is only available within ${cart.instantDeliveryRadiusKm} km of the seller. Please choose a closer address.`,
         "error",
       );
       return;
@@ -1811,7 +1823,9 @@ export default function Checkout() {
           const instantDisabled = cart.instantDeliveryAllowed === false;
           return (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              {/* STANDARD DELIVERY DISABLED (temporary): only Instant is offered. Grid was grid-cols-2. */}
+              <div className="grid grid-cols-1 gap-3">
+                {/* STANDARD DELIVERY OPTION (commented out)
                 <button
                   onClick={() => !standardDisabled && setDeliveryOption("Standard")}
                   disabled={standardDisabled}
@@ -1848,6 +1862,7 @@ export default function Checkout() {
                       : "(Expected in 2-4 days)"}
                   </p>
                 </button>
+                */}
 
                 <button
                   onClick={() => !instantDisabled && setDeliveryOption("Instant")}
@@ -1877,7 +1892,7 @@ export default function Checkout() {
                   <span className="text-xs font-bold">Instant Delivery</span>
                   <p className="text-[8px] mt-0.5 opacity-70">
                     {instantDisabled
-                      ? `Only within ${cart.instantDeliveryRadiusKm} km`
+                      ? `Not available beyond ${cart.instantDeliveryRadiusKm} km`
                       : "(Expected in 10-15 mins)"}
                   </p>
                 </button>
@@ -2789,12 +2804,14 @@ export default function Checkout() {
               cart.items.length === 0 ||
               isProcessingOrder ||
               !meetsMinimumOrder ||
+              cart.instantDeliveryAllowed === false ||
               !paymentConfigLoaded ||
               !paymentMethod
             }
             className={`w-full py-3 px-4 font-bold text-sm uppercase tracking-wide transition-colors ${
               cart.items.length > 0 &&
               !isProcessingOrder &&
+              cart.instantDeliveryAllowed !== false &&
               meetsMinimumOrder &&
               paymentConfigLoaded &&
               paymentMethod
@@ -2807,6 +2824,8 @@ export default function Checkout() {
                 ? "Loading payment methods..."
                 : !paymentMethod
                   ? "Payment unavailable"
+              : cart.instantDeliveryAllowed === false
+                ? "Address out of delivery range"
               : !meetsMinimumOrder
                 ? `Add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more`
                 : `Pay ₹${grandTotal.toFixed(0)}`}
