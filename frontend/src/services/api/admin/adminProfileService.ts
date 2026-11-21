@@ -57,6 +57,8 @@ export interface AdminMeResponse {
         user: AdminMeUser;
         /** `<pageKey>:<tier>` strings, or ["*"] for Super Admin. */
         permissions: string[];
+        /** Which towns this admin may see. `all` is every town. */
+        cityScope?: { all: boolean; cityIds: string[] };
     };
 }
 

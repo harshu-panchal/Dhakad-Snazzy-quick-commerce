@@ -130,7 +130,7 @@ test("text matching two towns is ambiguous and not mapped", () => {
   ];
   const [row] = classifySellers([seller("1", "Shared")], clashing);
   assert.equal(row.status, "ambiguous");
-  assert.match(row.detail!, /Alpha and Beta/);
+  assert.match(row.detail!, /Alpha .* and Beta/);
 });
 
 /* --------------------------------- outliers ------------------------------- */

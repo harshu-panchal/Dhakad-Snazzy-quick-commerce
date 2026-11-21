@@ -148,6 +148,9 @@ export const auditAdminRequests = (req: Request, res: Response, next: NextFuncti
       pageKey: req.grantedPageKey,
       resourceId: typeof req.params?.id === "string" ? req.params.id : undefined,
       statusCode: res.statusCode,
+      // Recorded so an entry shows which towns the admin could see at the time,
+      // which stays true even after their scope is later changed.
+      adminScope: ctx?.scope ? { all: ctx.scope.all, cityIds: ctx.scope.cityIds } : undefined,
       requestBody: body,
       ip: clientIp(req),
       userAgent: req.headers["user-agent"],

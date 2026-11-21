@@ -16,6 +16,16 @@ import {
  * the admin document read fresh.
  */
 
+/**
+ * The towns an admin may see. `all` means every town (cityIds is then
+ * empty and irrelevant); otherwise only the listed towns, and an empty
+ * list means none.
+ */
+export interface AdminScope {
+  all: boolean;
+  cityIds: string[];
+}
+
 export interface AdminContext {
   adminId: string;
   email: string;
@@ -24,6 +34,7 @@ export interface AdminContext {
   isActive: boolean;
   tokenVersion: number;
   permissions: Set<string>;
+  scope: AdminScope;
 }
 
 interface CachedRole {
@@ -91,7 +102,7 @@ export async function resolveAdminContext(
   adminId: string,
 ): Promise<AdminContext | null> {
   const admin = await Admin.findById(adminId)
-    .select("email role isActive tokenVersion")
+    .select("email role isActive tokenVersion cityScope")
     .lean();
 
   if (!admin) return null;
@@ -108,7 +119,33 @@ export async function resolveAdminContext(
     isActive: admin.isActive !== false && role.isActive,
     tokenVersion: admin.tokenVersion ?? 0,
     permissions: role.isActive ? role.permissions : new Set<string>(),
+    scope: resolveScope(role.isSuperAdmin, admin.cityScope),
   };
+}
+
+/**
+ * Resolve the stored scope into what applies to a request.
+ *
+ * Super Admin is always unrestricted. Anything missing or malformed resolves
+ * to "no towns", never "all": a scope that was never set must not grant
+ * access to everything.
+ */
+export function resolveScope(
+  isSuperAdmin: boolean,
+  stored?: { mode?: string; cityIds?: unknown[] } | null,
+): AdminScope {
+  if (isSuperAdmin) return { all: true, cityIds: [] };
+  if (stored?.mode === "all") return { all: true, cityIds: [] };
+
+  const ids = Array.isArray(stored?.cityIds) ? stored!.cityIds! : [];
+  return { all: false, cityIds: [...new Set(ids.map((id) => String(id)))] };
+}
+
+/** Does this scope include the given town? An unset town is only visible to `all`. */
+export function scopeIncludes(scope: AdminScope, cityId: unknown): boolean {
+  if (scope.all) return true;
+  if (!cityId) return false;
+  return scope.cityIds.includes(String(cityId));
 }
 
 /** Does this context hold `pageKey:tier`? Super Admin always does. */

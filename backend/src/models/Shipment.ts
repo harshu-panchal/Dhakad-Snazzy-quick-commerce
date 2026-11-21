@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { townScopePlugin, byOrder } from "../services/townScope";
 
 export interface IShipment extends Document {
   order: mongoose.Types.ObjectId;
@@ -99,6 +100,9 @@ ShipmentSchema.index({ awb: 1 }, { unique: true, sparse: true });
 ShipmentSchema.index({ shiprocketShipmentId: 1 }, { unique: true, sparse: true });
 ShipmentSchema.index({ provider: 1, status: 1 });
 ShipmentSchema.index({ codRemittanceStatus: 1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+ShipmentSchema.plugin(townScopePlugin, byOrder());
 
 const Shipment =
   (mongoose.models.Shipment as mongoose.Model<IShipment>) ||

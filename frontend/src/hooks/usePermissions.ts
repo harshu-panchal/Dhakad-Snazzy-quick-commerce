@@ -9,7 +9,7 @@ import { PAGES, type Tier } from "../modules/admin/permissions/catalog";
  * hiding a button is a courtesy, not a control.
  */
 export function usePermissions() {
-  const { can, permissions, isSuperAdmin, permissionsLoading, refreshPermissions } = useAuth();
+  const { can, permissions, cityScope, isSuperAdmin, permissionsLoading, refreshPermissions } = useAuth();
 
   const canView = useCallback((pageKey: string) => can(pageKey, "view"), [can]);
   const canManage = useCallback((pageKey: string) => can(pageKey, "manage"), [can]);
@@ -38,6 +38,7 @@ export function usePermissions() {
     canViewGroup,
     firstVisiblePath,
     permissions,
+    cityScope,
     isSuperAdmin,
     permissionsLoading,
     refreshPermissions,

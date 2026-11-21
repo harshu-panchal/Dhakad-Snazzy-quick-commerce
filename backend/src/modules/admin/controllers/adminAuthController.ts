@@ -107,6 +107,7 @@ async function buildSession(
       isSuperAdmin: ctx?.isSuperAdmin ?? false,
     },
     permissions: ctx ? serializePermissions(ctx) : [],
+    cityScope: ctx ? ctx.scope : { all: false, cityIds: [] },
   };
 }
 

@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { townScopePlugin, byTown } from "../services/townScope";
 
 export interface IOrder extends Document {
   // Order Info
@@ -535,6 +536,9 @@ OrderSchema.index({ sellerConfirmationStatus: 1, deliveryAssignmentStatus: 1 });
 OrderSchema.index({ deliveryBoy: 1 });
 OrderSchema.index({ cityId: 1, orderDate: -1 });
 OrderSchema.index({ customer: 1, cityId: 1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+OrderSchema.plugin(townScopePlugin, byTown());
 
 const Order =
   (mongoose.models.Order as mongoose.Model<IOrder>) ||

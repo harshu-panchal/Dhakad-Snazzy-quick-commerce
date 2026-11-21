@@ -11,6 +11,7 @@ import {
 } from "../../../services/api/admin/adminCityService";
 import { usePermissions } from "../../../hooks/usePermissions";
 import { getApiErrorMessage } from "../../../utils/apiError";
+import { INDIAN_STATES } from "../permissions/indianStates";
 
 /**
  * Towns.
@@ -49,6 +50,7 @@ const STATUS_LABEL: Record<string, string> = {
   "no-matching-town": "No matching town",
   "no-city-text": "No city entered",
   ambiguous: "Matches two towns",
+  "state-mismatch": "Different state",
   "location-outlier": "Location doesn't fit",
 };
 
@@ -57,6 +59,7 @@ export default function AdminCities() {
   const canEdit = canManage("settings.cities");
 
   const [towns, setTowns] = useState<City[]>([]);
+  const [search, setSearch] = useState("");
   const [report, setReport] = useState<MappingReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +119,11 @@ export default function AdminCities() {
     if (!draft) return;
     if (!draft.name.trim()) {
       setError("Town name is required");
+      return;
+    }
+    // A town is its name plus its state: "Aurangabad" alone could be two places.
+    if (!draft.state.trim()) {
+      setError("State is required");
       return;
     }
 
@@ -223,12 +231,21 @@ export default function AdminCities() {
       ) : null}
 
       {/* ------------------------------ town list ----------------------------- */}
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search towns, districts or states"
+        aria-label="Search towns"
+        className="mb-3 w-full max-w-sm rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
+      />
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-sm">
             <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Town</th>
+                <th className="px-4 py-3 font-semibold">State</th>
                 <th className="px-4 py-3 font-semibold">District</th>
                 <th className="px-4 py-3 font-semibold">Also matches</th>
                 <th className="px-4 py-3 font-semibold">Sellers</th>
@@ -237,9 +254,20 @@ export default function AdminCities() {
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
-              {towns.map((town) => (
+              {towns
+                .filter((t) => {
+                  const q = search.trim().toLowerCase();
+                  return (
+                    !q ||
+                    [t.name, t.district, t.state, ...t.aliases].some((v) =>
+                      (v || "").toLowerCase().includes(q),
+                    )
+                  );
+                })
+                .map((town) => (
                 <tr key={town._id} className="hover:bg-neutral-50">
                   <td className="px-4 py-3 font-medium text-neutral-800">{town.name}</td>
+                  <td className="px-4 py-3 text-neutral-600">{town.state || "—"}</td>
                   <td className="px-4 py-3 text-neutral-600">{town.district || "—"}</td>
                   <td className="px-4 py-3">
                     <div className="flex max-w-xs flex-wrap gap-1">
@@ -408,11 +436,12 @@ export default function AdminCities() {
                   <label
                     htmlFor="town-state"
                     className="mb-1.5 block text-sm font-medium text-neutral-700">
-                    State
+                    State <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="town-state"
                     type="text"
+                    list="indian-states"
                     value={draft.state}
                     onChange={(e) => setDraft({ ...draft, state: e.target.value })}
                     placeholder="e.g. Madhya Pradesh"
@@ -420,6 +449,12 @@ export default function AdminCities() {
                   />
                 </div>
               </div>
+
+              <datalist id="indian-states">
+                {INDIAN_STATES.map((state) => (
+                  <option key={state} value={state} />
+                ))}
+              </datalist>
 
               <div>
                 <label
@@ -465,7 +500,7 @@ export default function AdminCities() {
               </button>
               <button
                 onClick={save}
-                disabled={saving || !draft.name.trim()}
+                disabled={saving || !draft.name.trim() || !draft.state.trim()}
                 className="rounded-lg bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
                 {saving ? "Saving..." : draft.id ? "Save changes" : "Add town"}
               </button>

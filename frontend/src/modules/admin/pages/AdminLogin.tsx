@@ -53,6 +53,7 @@ export default function AdminLogin() {
           response.data.token,
           { ...response.data.user, userType: 'Admin' },
           response.data.permissions,
+          response.data.cityScope,
         );
         navigate('/admin');
       }
@@ -110,6 +111,7 @@ export default function AdminLogin() {
           response.data.token,
           { ...response.data.user, userType: 'Admin' },
           response.data.permissions,
+          response.data.cityScope,
         );
         navigate('/admin');
       }
@@ -159,10 +161,10 @@ export default function AdminLogin() {
             />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1 -mt-12">
-            Admin Login
+            {mode === 'password' ? 'Staff Login' : 'Admin Login'}
           </h1>
           <p className="text-green-50 text-sm -mt-2">
-            Access your admin dashboard
+            {mode === 'password' ? 'Sign in with your staff account' : 'Access your admin dashboard'}
           </p>
         </div>
 
@@ -293,7 +295,7 @@ export default function AdminLogin() {
                   type="button"
                   onClick={() => switchMode('password')}
                   className="mt-3 text-xs font-medium text-neutral-500 hover:text-teal-700">
-                  Sign in with email and password instead
+                  Sign in as staff
                 </button>
               </div>
             </div>

@@ -22,6 +22,7 @@ function ctx(permissions: string[], overrides: Partial<AdminContext> = {}): Admi
     isActive: true,
     tokenVersion: 0,
     permissions: new Set(permissions),
+    scope: { all: false, cityIds: [] },
     ...overrides,
   };
 }

@@ -1,6 +1,7 @@
 import { useState, ReactNode } from 'react';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
+import TownScopeNotice from './TownScopeNotice';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -38,6 +39,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       }`}>
         {/* Header */}
         <AdminHeader onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+
+        {/* Which towns this admin is limited to, if any */}
+        <TownScopeNotice />
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-neutral-50">{children}</main>

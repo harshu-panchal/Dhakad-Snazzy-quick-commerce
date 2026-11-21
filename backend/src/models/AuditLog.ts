@@ -27,6 +27,8 @@ export interface IAuditLog extends Document {
   /** req.params.id when present, for filtering by affected record. */
   resourceId?: string;
   statusCode: number;
+  /** The towns the admin was limited to when they made the request. */
+  adminScope?: { all: boolean; cityIds: string[] };
   /** Short machine-readable outcome for auth events, e.g. "login.success". */
   event?: string;
   /** Redacted, size-capped request body. */
@@ -49,6 +51,10 @@ const auditLogSchema = new Schema<IAuditLog>(
     pageKey: { type: String },
     resourceId: { type: String },
     statusCode: { type: Number, required: true },
+    adminScope: {
+      all: { type: Boolean },
+      cityIds: [{ type: String }],
+    },
     event: { type: String },
     requestBody: { type: Schema.Types.Mixed },
     ip: { type: String },

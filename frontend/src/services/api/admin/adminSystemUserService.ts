@@ -11,9 +11,19 @@ export interface SystemUser {
   role: string;
   /** false blocks sign-in and revokes existing sessions. */
   isActive?: boolean;
+  /**
+   * Towns this admin is limited to. "all" is every town; "selected" with no
+   * ids means none. Super Admin is never limited whatever is stored.
+   */
+  cityScope?: CityScope;
   lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface CityScope {
+  mode: "all" | "selected";
+  cityIds: string[];
 }
 
 export interface GetSystemUsersParams {
@@ -34,6 +44,7 @@ export interface CreateSystemUserData {
   email: string;
   password: string;
   role?: string;
+  cityScope?: CityScope;
 }
 
 export interface UpdateSystemUserData {
@@ -44,6 +55,7 @@ export interface UpdateSystemUserData {
   password?: string;
   role?: string;
   isActive?: boolean;
+  cityScope?: CityScope;
 }
 
 /**

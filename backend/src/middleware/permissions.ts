@@ -39,14 +39,14 @@ declare global {
  */
 export const RBAC_GUARD = Symbol.for("rbac.guard");
 
-export type GuardKind = "pages" | "tiered" | "super-admin" | "allowlist";
+export type GuardKind = "pages" | "tiered" | "super-admin" | "allowlist" | "town-scoped" | "all-towns";
 
 export interface GuardMeta {
   kind: GuardKind;
   pages: readonly string[];
 }
 
-function tag<T extends Function>(fn: T, meta: GuardMeta): T {
+export function tag<T extends Function>(fn: T, meta: GuardMeta): T {
   Object.defineProperty(fn, RBAC_GUARD, { value: meta, enumerable: false });
   return fn;
 }

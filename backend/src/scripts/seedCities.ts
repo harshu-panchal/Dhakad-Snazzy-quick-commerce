@@ -1,4 +1,4 @@
-import City, { normalizeCityText, slugifyCity } from "../models/City";
+import City, { normalizeCityText, slugifyCity, townSlug } from "../models/City";
 
 /**
  * Seeds the six live towns. Idempotent and safe to re-run.
@@ -38,13 +38,17 @@ export async function seedCities(): Promise<SeedCitiesResult> {
   const result: SeedCitiesResult = { created: [], aliasesAdded: {}, unchanged: [] };
 
   for (const seed of TOWN_SEEDS) {
-    const slug = slugifyCity(seed.name);
+    // Towns made before slugs included the state have a name-only slug, so look
+    // for either. Looking only for the new form would create a second Biaora on
+    // every server start.
+    const slug = townSlug(seed.name, seed.state);
+    const legacySlug = slugifyCity(seed.name);
     const wanted = [...new Set(seed.aliases.map(normalizeCityText).filter(Boolean))].filter(
       // The town's own name is always matched, so listing it as an alias is noise.
       (alias) => alias !== normalizeCityText(seed.name),
     );
 
-    const existing = await City.findOne({ slug });
+    const existing = await City.findOne({ slug: { $in: [slug, legacySlug] } });
 
     if (!existing) {
       await City.create({

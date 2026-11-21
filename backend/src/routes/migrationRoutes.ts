@@ -15,9 +15,10 @@ import { updateImageUrlsDomain } from "../scripts/fixImageDomain";
  * previously mounted at /admin with NO authentication of any kind, making them
  * callable by anyone on the internet. They are now Super Admin only.
  */
-router.use(authenticate);
-router.use(requireUserType("Admin"));
-router.use(requireSuperAdmin());
+// Applied per route, NOT with router.use: this router is mounted at /admin, so a
+// router-level guard would intercept every /admin request that no earlier router
+// handled (including /admin/withdrawals) and answer it 401/403.
+const superAdminOnly = [authenticate, requireUserType("Admin"), requireSuperAdmin()];
 
 /**
  * GET /api/v1/admin/migrate-images
@@ -25,6 +26,7 @@ router.use(requireSuperAdmin());
  */
 router.get(
   "/migrate-images",
+  ...superAdminOnly,
   asyncHandler(async (_req: Request, res: Response) => {
     const result = await runMigration();
     return res.status(200).json({
@@ -41,6 +43,7 @@ router.get(
  */
 router.get(
   "/fix-image-domain",
+  ...superAdminOnly,
   asyncHandler(async (req: Request, res: Response) => {
     const domain = (req.query.domain as string) || "https://api.dhakadsnazzy.com";
     const result = await updateImageUrlsDomain(domain);

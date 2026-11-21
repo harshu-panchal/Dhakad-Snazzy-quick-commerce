@@ -21,6 +21,7 @@ import {
   type TodaySales,
 } from "../../../services/api/admin/adminDashboardService";
 import { getFinancialDashboard, WalletStats } from "../../../services/api/admin/adminWalletService";
+import { getApiErrorCode } from "../../../utils/apiError";
 
 export default function AdminDashboard() {
   const { isAuthenticated, token } = useAuth();
@@ -77,7 +78,13 @@ export default function AdminDashboard() {
           getOrderAnalytics("month"),
           getOrderAnalytics("day"),
           getTodaySales(),
-          getFinancialDashboard(),
+          // Platform-wide money is refused to an admin limited to some towns. That
+          // must not take the whole dashboard down, so treat that one refusal as
+          // "no finance numbers" and let any other failure surface as before.
+          getFinancialDashboard().catch((err: unknown) => {
+            if (getApiErrorCode(err) === "ALL_TOWNS_REQUIRED") return null;
+            throw err;
+          }),
         ]);
 
         if (statsResponse.success) {
@@ -115,7 +122,7 @@ export default function AdminDashboard() {
           setTodaySales(todaySalesResponse.data);
         }
 
-        if (financeStatsResponse.success) {
+        if (financeStatsResponse?.success) {
           setFinanceStats(financeStatsResponse.data);
         }
       } catch (err: any) {
@@ -544,7 +551,9 @@ export default function AdminDashboard() {
         />
       </div>
 
-      {/* Financial Overview Cards */}
+      {/* Financial Overview Cards. Absent for an admin limited to some towns:
+          platform-wide money cannot be split by town, and "₹0" would mislead. */}
+      {financeStats && (
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <DashboardCard
           icon={<DollarSignIcon />}
@@ -571,6 +580,7 @@ export default function AdminDashboard() {
           accentColor="#ef4444"
         />
       </div>
+      )}
 
       {/* Sales Section - Top Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

@@ -6,6 +6,9 @@ import {
   sendNotification as createAndSendNotification,
 } from "../../../services/notificationService";
 import crypto from "crypto";
+import mongoose from "mongoose";
+import Seller from "../../../models/Seller";
+import Customer from "../../../models/Customer";
 
 /**
  * Create a new notification
@@ -29,6 +32,29 @@ export const createNotification = asyncHandler(
         success: false,
         message: "Recipient type, title, and message are required",
       });
+    }
+
+    // A town-limited admin may reach only their towns. Sellers and customers are
+    // already filtered by their town scope (a broadcast to "Seller" only finds
+    // theirs); what cannot be limited is a broadcast to delivery boys or to
+    // "All", and a message to one named seller or customer outside their towns.
+    const scope = req.adminContext?.scope;
+    if (scope && !scope.all) {
+      const isBroadcast =
+        recipientId === undefined || recipientId === null || (typeof recipientId === "string" && recipientId.trim() === "");
+
+      if (isBroadcast && (recipientType === "All" || recipientType === "Delivery")) {
+        return res.status(403).json({
+          success: false,
+          code: "ALL_TOWNS_REQUIRED",
+          message: "Delivery partners and \"All\" cannot be limited to a town. Choose Sellers or Customers.",
+        });
+      }
+
+      const model = recipientType === "Seller" ? Seller : recipientType === "Customer" ? Customer : null;
+      if (!isBroadcast && model && !(mongoose.isValidObjectId(recipientId) && (await model.exists({ _id: recipientId })))) {
+        return res.status(404).json({ success: false, message: `${recipientType} not found` });
+      }
     }
 
     const notificationType = type || "Info";

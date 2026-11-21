@@ -91,6 +91,9 @@ async function refreshAccessToken(): Promise<string | null> {
               JSON.stringify(payload.permissions),
             );
           }
+          if (payload.cityScope) {
+            localStorage.setItem("adminCityScope", JSON.stringify(payload.cityScope));
+          }
           return payload.token as string;
         }
         return null;
@@ -185,6 +188,7 @@ api.interceptors.response.use(
         localStorage.removeItem("authToken");
         localStorage.removeItem("userData");
         localStorage.removeItem("adminPermissions");
+        localStorage.removeItem("adminCityScope");
         window.location.href = redirectPath;
       }
       // If no token was present, user is just browsing as guest - don't redirect
@@ -208,6 +212,7 @@ export const removeAuthToken = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userData");
   localStorage.removeItem("adminPermissions");
+  localStorage.removeItem("adminCityScope");
 };
 
 export default api;

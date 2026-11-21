@@ -341,3 +341,104 @@ Checked afterwards directly in the database: every order's town agrees with its 
 
 **Side finding, not part of this work.** 23 sellers are stuck in Shiprocket pickup `Failed` with errors such as *"Seller pickup is missing: state, pincode"*. 14 of them are real, mapped sellers (for example "Chetak collection"), so they cannot ship through Shiprocket until the missing address fields are filled in.
 
+---
+
+## 17. Phase C: built
+
+Each admin now carries a town scope. **Nothing is filtered by it yet** (that is Phase D), so this changes no behaviour for anyone.
+
+**What was added**
+- `Admin.cityScope`: `{ mode: "all" | "selected", cityIds }`. A new admin defaults to "selected" with no towns. Super Admin is never limited, whatever is stored.
+- **Fail closed everywhere.** A missing, malformed or unknown scope resolves to *no towns*, never *all*. An account from before the field existed has no scope and is treated that way. (The three live admins are all Super Admin, so none is affected.)
+- The scope is resolved on every request alongside permissions, so a change applies on the admin's very next request. It is returned by `GET /admin/me` and by the sign-in and refresh responses.
+- System User form: a town picker (All towns / Only selected towns), with a "Select all in Rajgarh" shortcut per district, and a Towns column in the table.
+- The audit log records the towns an admin was limited to when they made each request.
+- A town that an admin is limited to cannot be deleted.
+
+**Who may grant towns**
+- Super Admin, and an admin granted every town, may grant anything.
+- Anyone else may grant only towns they can see themselves, may not grant "all towns", may not change their own towns, and may not edit an admin who has towns they cannot see. Without this, whoever holds the System User page could widen their own limit and the limit would mean nothing.
+- Resending an unchanged scope is a no-op, so saving your own form still works.
+
+**A gap I closed while building it:** a Super Admin is stored as "all", so demoting one would have left them able to see every town. A demotion now resets the scope to none unless the same request chooses towns, and a promotion stores "all".
+
+**Phase D must flip a switch.** The form shows a notice that town limits are saved but not enforced yet, controlled by `CITY_SCOPE_ENFORCED` in `frontend/src/modules/admin/permissions/cityScopeConfig.ts`. Set it to true in the same change that ships enforcement, and delete the notice, or the form will keep saying a working limit is not working.
+
+**Tests:** 32 new (107 town tests, 197 backend in total): resolution and fail-closed defaults, what `/admin/me` and sign-in report, validation, every grant rule, demotion and promotion, deleting a town in use, and the audit record.
+
+---
+
+## 18. Phase D: built
+
+A town-limited admin now only ever sees records in their towns. Super Admin and an admin granted every town are unaffected.
+
+**How (a change from §5.1, which planned an explicit helper in each controller).** A Mongoose plugin on nine models adds the town condition to every query while a limited admin's request runs inside a `townScoped` route (`backend/src/services/townScope.ts`). It covers find, findOne, update, delete, count, distinct and aggregate, so a handler cannot forget to filter, and a record outside the towns simply comes back as `null`, which the existing handlers turn into a 404 (not a 403, so its existence is not revealed). With no scope the hooks do nothing, so customer and seller traffic is unchanged.
+
+| Model | Visible when |
+|---|---|
+| Order, Seller | its `cityId` is in the admin's towns (an order or seller with no town is never visible to a limited admin) |
+| Product | its seller is in the towns |
+| Return, Commission, Shipment | its order is in the towns |
+| Customer | they have an order in the towns (a customer who never ordered is not visible) |
+| WalletTransaction, WithdrawRequest | a seller's only if that seller is in the towns; a delivery boy's stay visible |
+
+**Scoped route groups:** dashboard, products, sellers (and the open seller and product pickers), orders, shipping, settlement, returns, customers, wallet, withdrawals, notifications. Everything else is declared global in `TOWN_GLOBAL_PREFIXES` (delivery, cash collection, catalogue, settings, content, administration).
+
+**Also done**
+- Platform-wide money is refused to a limited admin outright (`403 ALL_TOWNS_REQUIRED`): `/financial` and `POST /wallet/transfer`.
+- A limited admin cannot broadcast to delivery boys or to "All", and cannot message a named seller or customer outside their towns. A seller or customer broadcast reaches only their towns.
+- The audit log already records the towns in force (Phase C).
+- The "limits are not enforced yet" notice and its flag were deleted from the System User form.
+
+**The coverage test (§5.6)** is in `routeCoverage.test.ts`: every admin route must sit under a `townScoped` or all-towns guard, or under a prefix in `TOWN_GLOBAL_PREFIXES`. A new endpoint cannot ship without that decision, and the list cannot go stale.
+
+**A regression from Phase 0, found and fixed here.** When the migration endpoints were locked to Super Admin the guard was applied to the whole router, which is mounted at `/admin` ahead of the withdrawals router. So every `/admin/...` request that no earlier router handled got a 401 or 403, including `GET /admin/withdrawals` for anyone but Super Admin. The frontend does not call that path, so nobody was affected, but it is now guarded per route instead.
+
+**Tests:** 48 new for scoping (249 backend in total): every query kind on the plugin, every scoped model, every list endpoint with a positive and a negative check, by-id reads and writes, the two-town, no-town and all-towns cases, platform money, delivery, notifications, and an immediate effect when an admin's towns change.
+
+**Found along the way, not changed**
+- `PUT /admin/products/bulk-update` is unreachable: `PUT /products/:id` is registered first and swallows it. Its `Inventory` write is now limited to visible products, but nothing can call it until the order is fixed.
+- Cancelling or retrying a shipment for an order the admin cannot see answers 200 with no data rather than 404. Nothing is acted on (the service finds no shipment and returns before calling Shiprocket); the message is just misleading.
+- Work a request starts in the background (notifications, syncs) inherits that request's scope. For an in-scope order that is what is wanted; a job that should see every town must not be started from a limited admin's request.
+
+**Not checked:** every admin handler's success path as a limited admin (the tests prove nothing leaks and nothing out of town changes, not that every in-town action still works), and performance beyond a few thousand orders (the ids are materialised per request).
+
+---
+
+## 19. Phase E: built
+
+Frontend only. The server already filters everything (Phase D); this makes that visible and fixes what Phase D broke for limited admins.
+
+**A Phase D break, fixed here.** The dashboard is the default landing page and loads its data in one `Promise.all` that includes the platform finance call. Phase D made that call return `403 ALL_TOWNS_REQUIRED` for an admin limited to some towns, so **their whole dashboard failed to load**. The dashboard now treats that one refusal as "no finance numbers" (any other failure still surfaces) and hides the four platform-money cards instead of showing "₹0". Phase D's tests proved nothing leaked, but not that this page still worked; it did not.
+
+**What was added**
+- **A strip under the header** (`TownScopeNotice`): "Showing data for: Biaora, Khujner" for an admin limited to towns, and an amber warning for one limited to none ("No towns are assigned to your account..."), because every list is empty for them and that otherwise looks like nothing has happened. Nothing is shown to Super Admin or an admin with every town. It stays hidden until permissions are known, so it cannot flash a false "no towns" warning at someone who has them.
+- **Wallet page:** when the platform totals are refused it says so in one line instead of showing zeros; the transactions and withdrawals for the admin's towns still load.
+- **Notification form:** for a limited admin, "All Users" and "Delivery" are disabled and the default moves to Seller, with a line saying why, so they are not offered something the server will refuse.
+
+**Not done, deliberately**
+- *"Limit town filters to the admin's towns."* There is none to limit. The only town filter in the admin is on Lowest Prices, a global marketing page whose city list drives which customers see a section, not which data an admin may see. Restricting it would be wrong.
+- The two transfer pages (fund transfer, seller transactions) are unchanged: they already show the server's message, "This is only available to admins with access to every town."
+- No frontend test framework exists in this project, so none was added; the changes were type-checked, built and linted, and **not tried in a browser**.
+
+---
+
+## 20. Towns across India
+
+Built so the system can grow past Madhya Pradesh without a redesign. **Nothing in the live database changed**: a read-only check found all six existing towns by their old slugs (so no duplicate is created on the next start) and all 31 mapped sellers unaffected.
+
+**What changed**
+- **A town is its name plus its state.** Aurangabad in Maharashtra and in Bihar are two towns. A state is now required to add a town, and the same name twice in one state is refused (typed differently or not). Names and aliases may repeat across states but not within one.
+- **State names are understood however they are typed.** Seller sign-up takes state as free text, so "MP", "M.P." and "madhya pradesh" all mean Madhya Pradesh (all 28 states and 8 territories, with common short forms such as "J&K" and "Orissa"). Towns store the official name.
+- **One matching rule, shared** by the sign-up hook and the mapping script. A seller gets the town of that name in *their* state. If two towns share the name and the seller has no state, it is ambiguous and nothing is assigned. If the city exists only in another state, the seller is reported as a **different-state** mismatch instead of being put in the wrong state's town.
+- **No cap on the town list** (it was 500).
+- **The pickers**: the Towns page has a State column, a required State field with the official names offered, and search. The admin town picker groups by district *and* state, has search, and shows how many are selected; "Select all in …" acts on the towns shown.
+
+**Limits that remain**
+- Seller sign-up is still a free-text state box. It works with the short forms above, but a typo ("Madya Pradesh") leaves that seller reported as unassigned. Making it a dropdown of the official names would close this; it is a seller-app change and was not made.
+- A seller edit that changes only the city does not know the state, so a name shared by two states stays unassigned until the mapping is run.
+- The list still loads whole (fine to a few thousand towns; past that, search and page on the server), and the picker has no state-level "select all".
+- Towns made before this change keep their name-only slug. The slug is just an identifier; nothing reads it.
+
+**Tests:** 23 new (178 town tests, 273 backend in total), plus a parity test that fails if the Towns form's state list drifts from the backend's.
+

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { PAGES, PAGE_KEYS } from "../../config/permissions";
+import { INDIAN_STATES } from "../../models/City";
 
 /**
  * Keeps the backend permission catalog, the frontend mirror of it, and the
@@ -212,3 +213,15 @@ test("db.ts builds indexes for the RBAC models (autoIndex is off in production)"
     assert.match(source, new RegExp(`'${model}'`), `db.ts does not create indexes for ${model}`);
   }
 });
+
+test("the Towns form's state list matches the backend's", () => {
+  // The backend knows short forms as well; the form only offers official names.
+  // If the lists drift, a state typed in the form would not match a seller's.
+  const file = path.join(FRONTEND, "modules/admin/permissions/indianStates.ts");
+  const source = read(file);
+  assert.ok(source, "frontend indianStates.ts not found");
+
+  const front = [...source!.matchAll(/^\s+"([^"]+)",\s*$/gm)].map((m) => m[1]);
+  assert.deepEqual(front, [...INDIAN_STATES]);
+});
+

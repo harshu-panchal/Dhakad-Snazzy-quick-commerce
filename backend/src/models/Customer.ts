@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { townScopePlugin, byCustomer } from "../services/townScope";
 
 export interface ICustomer extends Document {
   name: string;
@@ -199,6 +200,9 @@ CustomerSchema.pre('save', async function (next) {
   }
   next();
 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+CustomerSchema.plugin(townScopePlugin, byCustomer);
 
 const Customer = (mongoose.models.Customer as mongoose.Model<ICustomer>) || mongoose.model<ICustomer>('Customer', CustomerSchema);
 

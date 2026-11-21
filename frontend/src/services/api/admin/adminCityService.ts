@@ -37,6 +37,7 @@ export type MappingStatus =
   | "no-city-text"
   | "no-matching-town"
   | "ambiguous"
+  | "state-mismatch"
   | "location-outlier";
 
 export interface MappingAttentionRow {

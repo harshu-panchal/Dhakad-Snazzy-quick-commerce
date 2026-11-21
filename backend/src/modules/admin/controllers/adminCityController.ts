@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import City, { normalizeCityText, slugifyCity } from "../../../models/City";
+import City, { normalizeCityText, slugifyCity, canonicalState, stateKey, townSlug } from "../../../models/City";
 import Seller from "../../../models/Seller";
+import Admin from "../../../models/Admin";
 import { mapSellers } from "../../../services/townMappingService";
 
 /**
@@ -22,18 +23,23 @@ function cleanAliases(input: unknown, ownName: string): string[] {
 
 /**
  * Every normalised text that would match this town: its name and aliases.
- * Two towns must never share one, or a seller's text would map to both.
+ * Two towns IN THE SAME STATE must never share one, or a seller's text would map to
+ * both. The same name in different states is fine (Aurangabad in Bihar and in
+ * Maharashtra): the seller's state tells them apart (see pickTown).
  */
 async function findClash(
   names: string[],
+  state: string,
   excludeId?: string,
 ): Promise<{ text: string; town: string } | null> {
   const wanted = new Set(names);
+  const here = stateKey(state);
   const others = await City.find(excludeId ? { _id: { $ne: excludeId } } : {})
-    .select("name aliases")
+    .select("name aliases state")
     .lean();
 
   for (const other of others) {
+    if (stateKey(other.state) !== here) continue;
     const theirs = [normalizeCityText(other.name), ...(other.aliases ?? [])];
     const hit = theirs.find((t) => wanted.has(t));
     if (hit) return { text: hit, town: other.name };
@@ -61,7 +67,9 @@ export const getCities = asyncHandler(async (req: Request, res: Response) => {
   if (includeInactive !== "true") query.isActive = { $ne: false };
 
   const [towns, counts] = await Promise.all([
-    City.find(query).sort({ name: 1 }).limit(500).lean(),
+    // Every town, no cap: the picker needs the whole list. shortcut: fine to a few
+    // thousand towns; past that, search and page on the server.
+    City.find(query).sort({ state: 1, name: 1 }).lean(),
     Seller.aggregate<{ _id: mongoose.Types.ObjectId; n: number }>([
       { $match: { cityId: { $exists: true, $ne: null } } },
       { $group: { _id: "$cityId", n: { $sum: 1 } } },
@@ -84,10 +92,16 @@ export const createCity = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: "Town name is required" });
   }
 
-  const trimmed = name.trim();
-  const slug = slugifyCity(trimmed);
+  // A town is its name plus its state: without a state, "Aurangabad" could be two places.
+  if (typeof state !== "string" || !state.trim()) {
+    return res.status(400).json({ success: false, message: "State is required" });
+  }
 
-  if (!slug) {
+  const trimmed = name.trim();
+  const cleanState = canonicalState(state);
+  const slug = townSlug(trimmed, cleanState);
+
+  if (!slugifyCity(trimmed)) {
     return res.status(400).json({
       success: false,
       message: "Town name must contain Latin letters or digits so a slug can be made. Add the local spelling as an alias.",
@@ -96,7 +110,7 @@ export const createCity = asyncHandler(async (req: Request, res: Response) => {
 
   const cleaned = cleanAliases(aliases, trimmed);
 
-  const clash = await findClash([normalizeCityText(trimmed), ...cleaned]);
+  const clash = await findClash([normalizeCityText(trimmed), ...cleaned], cleanState);
   if (clash) {
     return res.status(409).json({
       success: false,
@@ -108,7 +122,7 @@ export const createCity = asyncHandler(async (req: Request, res: Response) => {
   if (await City.exists({ slug })) {
     return res.status(409).json({
       success: false,
-      message: "A town with this name already exists",
+      message: `${trimmed} in ${cleanState} already exists`,
     });
   }
 
@@ -117,7 +131,7 @@ export const createCity = asyncHandler(async (req: Request, res: Response) => {
     slug,
     aliases: cleaned,
     district: typeof district === "string" ? district.trim() : undefined,
-    state: typeof state === "string" ? state.trim() : undefined,
+    state: cleanState,
     isActive: true,
   });
 
@@ -144,9 +158,15 @@ export const updateCity = asyncHandler(async (req: Request, res: Response) => {
   const nextName = typeof name === "string" && name.trim() ? name.trim() : town.name;
   const nextAliases = aliases !== undefined ? cleanAliases(aliases, nextName) : town.aliases;
 
-  // Re-check clashes whenever the matching texts change.
-  if (nextName !== town.name || aliases !== undefined) {
-    const clash = await findClash([normalizeCityText(nextName), ...nextAliases], id);
+  // A town always has a state; it can be corrected but not blanked.
+  if (state !== undefined && (typeof state !== "string" || !state.trim())) {
+    return res.status(400).json({ success: false, message: "State cannot be empty" });
+  }
+  const nextState = state !== undefined ? canonicalState(state) : (town.state ?? "");
+
+  // Re-check clashes whenever what matches this town, or the state it is in, changes.
+  if (nextName !== town.name || aliases !== undefined || nextState !== (town.state ?? "")) {
+    const clash = await findClash([normalizeCityText(nextName), ...nextAliases], nextState, id);
     if (clash) {
       return res.status(409).json({
         success: false,
@@ -161,7 +181,7 @@ export const updateCity = asyncHandler(async (req: Request, res: Response) => {
   town.name = nextName;
   town.aliases = nextAliases;
   if (district !== undefined) town.district = typeof district === "string" ? district.trim() : undefined;
-  if (state !== undefined) town.state = typeof state === "string" ? state.trim() : undefined;
+  if (state !== undefined) town.state = nextState;
   if (isActive !== undefined) town.isActive = Boolean(isActive);
 
   await town.save();
@@ -199,6 +219,20 @@ export const deleteCity = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
+  // An admin limited to this town would be left pointing at nothing, silently
+  // losing access. Make someone reassign them first.
+  const scopedAdmins = await Admin.countDocuments({ "cityScope.cityIds": town._id });
+  if (scopedAdmins > 0) {
+    return res.status(409).json({
+      success: false,
+      code: "TOWN_IN_USE",
+      message: `Cannot delete: ${scopedAdmins} admin${scopedAdmins === 1 ? "" : "s"} ${
+        scopedAdmins === 1 ? "is" : "are"
+      } limited to this town. Change their towns first, or deactivate the town instead.`,
+      data: { adminCount: scopedAdmins },
+    });
+  }
+
   await City.findByIdAndDelete(id);
 
   return res.status(200).json({ success: true, message: "Town deleted successfully" });
@@ -219,7 +253,7 @@ export const getMappingReport = asyncHandler(async (_req: Request, res: Response
       unmatchedTexts: report.unmatchedTexts,
       // Only the rows that need attention; the clean ones are in `counts`.
       attention: report.rows.filter((r) =>
-        ["location-outlier", "ambiguous", "no-matching-town", "no-city-text"].includes(r.status),
+        ["location-outlier", "ambiguous", "state-mismatch", "no-matching-town", "no-city-text"].includes(r.status),
       ),
     },
   });

@@ -4,6 +4,7 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 import Admin, { validatePasswordStrength } from "../../../models/Admin";
 import AdminSession from "../../../models/AdminSession";
 import Role from "../../../models/Role";
+import City from "../../../models/City";
 import { SUPER_ADMIN_ROLE } from "../../../config/permissions";
 
 /**
@@ -24,10 +25,107 @@ const serialize = (admin: any) => ({
   email: admin.email,
   role: admin.role,
   isActive: admin.isActive !== false,
+  // A missing value (an account from before this field existed) is reported
+  // as what it means: selected, with no towns.
+  cityScope: {
+    mode: admin.cityScope?.mode === "all" ? "all" : "selected",
+    cityIds: (admin.cityScope?.cityIds ?? []).map((id: unknown) => String(id)),
+  },
   lastLoginAt: admin.lastLoginAt,
   createdAt: admin.createdAt,
   updatedAt: admin.updatedAt,
 });
+
+type StoredScope = { mode: "all" | "selected"; cityIds: mongoose.Types.ObjectId[] };
+
+/**
+ * Validate a submitted town scope. Returns the value to store, or an error
+ * message. Every town id must exist; duplicates are dropped; "all" carries no
+ * ids.
+ */
+async function parseCityScope(
+  input: unknown,
+): Promise<{ ok: true; value: StoredScope } | { ok: false; error: string }> {
+  if (!input || typeof input !== "object") {
+    return { ok: false, error: "cityScope must be an object like { mode, cityIds }" };
+  }
+
+  const { mode, cityIds } = input as { mode?: unknown; cityIds?: unknown };
+
+  if (mode !== "all" && mode !== "selected") {
+    return { ok: false, error: 'cityScope.mode must be "all" or "selected"' };
+  }
+
+  if (mode === "all") return { ok: true, value: { mode: "all", cityIds: [] } };
+
+  if (cityIds !== undefined && !Array.isArray(cityIds)) {
+    return { ok: false, error: "cityScope.cityIds must be an array" };
+  }
+
+  const ids = [...new Set(((cityIds as unknown[]) ?? []).map((id) => String(id)))];
+
+  if (ids.some((id) => !mongoose.isValidObjectId(id))) {
+    return { ok: false, error: "cityScope.cityIds contains an invalid town id" };
+  }
+
+  if (ids.length > 0) {
+    const found = await City.countDocuments({ _id: { $in: ids } });
+    if (found !== ids.length) {
+      return { ok: false, error: "cityScope.cityIds refers to a town that does not exist" };
+    }
+  }
+
+  return { ok: true, value: { mode: "selected", cityIds: ids.map((id) => new mongoose.Types.ObjectId(id)) } };
+}
+
+/**
+ * Granting town access is itself limited. Without this, anyone holding the
+ * System User page could widen their own (or anyone's) scope to every town,
+ * which would make the limit meaningless.
+ *
+ * Super Admin and an admin with access to every town may grant anything.
+ * Anyone else may only grant towns they can see themselves, and may only
+ * edit an admin whose current towns are all within their own.
+ *
+ * Returns an error message, or null when the grant is allowed.
+ */
+function scopeGrantError(
+  req: Request,
+  requested: StoredScope,
+  current?: { mode?: string; cityIds?: unknown[] } | null,
+): string | null {
+  const ctx = req.adminContext;
+  if (!ctx || ctx.scope.all) return null;
+
+  const mine = new Set(ctx.scope.cityIds);
+
+  if (requested.mode === "all") {
+    return "Only an admin with access to every town can grant access to every town.";
+  }
+  if (requested.cityIds.some((id) => !mine.has(String(id)))) {
+    return "You can only grant towns that you can access yourself.";
+  }
+  if (current) {
+    if (current.mode === "all") return "You cannot change the towns of an admin who has access to every town.";
+    if ((current.cityIds ?? []).some((id) => !mine.has(String(id)))) {
+      return "You cannot change the towns of an admin who has towns you cannot access.";
+    }
+  }
+  return null;
+}
+
+/** Same mode and same set of towns? Order and duplicates do not matter. */
+function sameScope(
+  a: StoredScope,
+  b?: { mode?: string; cityIds?: unknown[] } | null,
+): boolean {
+  const bMode = b?.mode === "all" ? "all" : "selected";
+  if (a.mode !== bMode) return false;
+  if (a.mode === "all") return true;
+  const left = new Set(a.cityIds.map((id) => String(id)));
+  const right = new Set((b?.cityIds ?? []).map((id) => String(id)));
+  return left.size === right.size && [...left].every((id) => right.has(id));
+}
 
 /** Only Super Admin may create or promote to Super Admin. */
 function blocksSuperAdminAssignment(req: Request, role?: string): boolean {
@@ -185,6 +283,22 @@ export const createSystemUser = asyncHandler(
       });
     }
 
+    // Towns. Defaults to none (fail closed). Super Admin is never limited, so
+    // its scope is stored as "all" for clarity.
+    let cityScope: StoredScope = { mode: "selected", cityIds: [] };
+    if (req.body?.cityScope !== undefined) {
+      const parsed = await parseCityScope(req.body.cityScope);
+      if (!parsed.ok) {
+        return res.status(400).json({ success: false, message: parsed.error });
+      }
+      const denied = scopeGrantError(req, parsed.value);
+      if (denied) {
+        return res.status(403).json({ success: false, code: "SCOPE_NOT_GRANTABLE", message: denied });
+      }
+      cityScope = parsed.value;
+    }
+    if (role === SUPER_ADMIN_ROLE) cityScope = { mode: "all", cityIds: [] };
+
     const admin = await Admin.create({
       firstName,
       lastName,
@@ -192,6 +306,7 @@ export const createSystemUser = asyncHandler(
       email,
       password,
       role,
+      cityScope,
     });
 
     return res.status(201).json({
@@ -332,9 +447,39 @@ export const updateSystemUser = asyncHandler(
       }
     }
 
+    // Towns. Validated up front so a bad value changes nothing.
+    let nextScope: StoredScope | undefined;
+    if (req.body?.cityScope !== undefined) {
+      const parsed = await parseCityScope(req.body.cityScope);
+      if (!parsed.ok) {
+        return res.status(400).json({ success: false, message: parsed.error });
+      }
+
+      // The form always sends the scope. Resending the current value changes
+      // nothing, so it must not trip the checks below.
+      if (!sameScope(parsed.value, admin.cityScope as any)) {
+      // Same rule as for roles: you cannot edit your own reach, or it would not
+      // be a limit at all. Super Admin may.
+      if (isSelf && !req.adminContext?.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          code: "SELF_SCOPE_EDIT",
+          message: "You cannot change your own towns. Ask a Super Admin.",
+        });
+      }
+
+      const denied = scopeGrantError(req, parsed.value, admin.cityScope as any);
+      if (denied) {
+        return res.status(403).json({ success: false, code: "SCOPE_NOT_GRANTABLE", message: denied });
+      }
+      nextScope = parsed.value;
+      }
+    }
+
     // Captured before the assignments below, so the comparison is against the
     // stored role rather than the one just written.
     const roleChanged = Boolean(role) && role !== admin.role;
+    const previousRole = admin.role;
 
     if (firstName) admin.firstName = firstName;
     if (lastName) admin.lastName = lastName;
@@ -342,6 +487,18 @@ export const updateSystemUser = asyncHandler(
     if (mobile) admin.mobile = mobile;
     if (role) admin.role = role;
     if (isActive !== undefined) admin.isActive = Boolean(isActive);
+    if (nextScope) admin.cityScope = nextScope as any;
+
+    // Super Admin is stored as "all". Demoting one must NOT leave that behind, or a
+    // demoted admin would keep seeing every town: fall back to none unless the
+    // same request chose towns. Promoting one to Super Admin stores "all".
+    if (roleChanged) {
+      if (role === SUPER_ADMIN_ROLE) {
+        admin.cityScope = { mode: "all", cityIds: [] } as any;
+      } else if (previousRole === SUPER_ADMIN_ROLE && !nextScope) {
+        admin.cityScope = { mode: "selected", cityIds: [] } as any;
+      }
+    }
 
     // A role change, a password reset or a deactivation must take effect
     // immediately rather than when the target's token happens to expire.

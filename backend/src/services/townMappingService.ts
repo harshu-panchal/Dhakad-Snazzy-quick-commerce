@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import Seller from "../models/Seller";
-import City, { normalizeCityText } from "../models/City";
+import City, { normalizeCityText, pickTown } from "../models/City";
 
 /**
  * Maps sellers to towns by their own free-text `city`.
@@ -25,6 +25,7 @@ export type MappingStatus =
   | "no-city-text"
   | "no-matching-town"
   | "ambiguous"
+  | "state-mismatch"
   | "location-outlier";
 
 export interface SellerMappingRow {
@@ -47,13 +48,14 @@ export interface MappingReport {
 }
 
 interface TownIndexEntry {
-  id: string;
+  _id: string;
   name: string;
+  state?: string | null;
 }
 
 /** normalised text -> the towns it names (more than one means it is ambiguous) */
 export function buildTownIndex(
-  towns: Array<{ _id: unknown; name: string; aliases?: string[] }>,
+  towns: Array<{ _id: unknown; name: string; aliases?: string[]; state?: string | null }>,
 ): Map<string, TownIndexEntry[]> {
   const index = new Map<string, TownIndexEntry[]>();
 
@@ -61,12 +63,12 @@ export function buildTownIndex(
     const key = normalizeCityText(text);
     if (!key) return;
     const list = index.get(key) ?? [];
-    if (!list.some((e) => e.id === entry.id)) list.push(entry);
+    if (!list.some((e) => e._id === entry._id)) list.push(entry);
     index.set(key, list);
   };
 
   for (const town of towns) {
-    const entry = { id: String(town._id), name: town.name };
+    const entry = { _id: String(town._id), name: town.name, state: town.state };
     add(town.name, entry);
     (town.aliases ?? []).forEach((alias) => add(alias, entry));
   }
@@ -96,6 +98,7 @@ interface SellerLike {
   _id: unknown;
   storeName?: string;
   city?: string | null;
+  state?: string | null;
   cityId?: unknown;
   location?: { coordinates?: number[] };
 }
@@ -106,7 +109,7 @@ interface SellerLike {
  */
 export function classifySellers(
   sellers: SellerLike[],
-  towns: Array<{ _id: unknown; name: string; aliases?: string[] }>,
+  towns: Array<{ _id: unknown; name: string; aliases?: string[]; state?: string | null }>,
 ): SellerMappingRow[] {
   const index = buildTownIndex(towns);
 
@@ -126,8 +129,9 @@ export function classifySellers(
     }
 
     const hits = index.get(normalizeCityText(base.cityText)) ?? [];
+    const pick = pickTown(hits, seller.state);
 
-    if (hits.length === 0) {
+    if (pick.kind === "none") {
       return {
         ...base,
         status: "no-matching-town" as const,
@@ -135,19 +139,27 @@ export function classifySellers(
       };
     }
 
-    if (hits.length > 1) {
+    if (pick.kind === "state-mismatch") {
+      return {
+        ...base,
+        status: "state-mismatch" as const,
+        detail: `"${base.cityText}" exists in ${pick.towns.map((t) => t.state || "an unknown state").join(" and ")}, but the seller's state is "${seller.state}"`,
+      };
+    }
+
+    if (pick.kind === "ambiguous") {
       return {
         ...base,
         status: "ambiguous" as const,
-        detail: `"${base.cityText}" matches ${hits.map((h) => h.name).join(" and ")}`,
+        detail: `"${base.cityText}" matches ${pick.towns.map((t) => `${t.name} (${t.state || "no state"})`).join(" and ")}${seller.state ? "" : "; the seller has no state to tell them apart"}`,
       };
     }
 
     return {
       ...base,
       status: "matched" as const,
-      townId: hits[0].id,
-      townName: hits[0].name,
+      townId: pick.town._id,
+      townName: pick.town.name,
     };
   });
 
@@ -193,6 +205,7 @@ export function summarize(rows: SellerMappingRow[]): Pick<MappingReport, "counts
     "no-city-text": 0,
     "no-matching-town": 0,
     ambiguous: 0,
+    "state-mismatch": 0,
     "location-outlier": 0,
   };
   const texts = new Map<string, number>();
@@ -221,8 +234,8 @@ export function summarize(rows: SellerMappingRow[]): Pick<MappingReport, "counts
  */
 export async function mapSellers({ apply = false }: { apply?: boolean } = {}): Promise<MappingReport> {
   const [towns, sellers] = await Promise.all([
-    City.find({ isActive: true }).select("name aliases").lean(),
-    Seller.find({}).select("storeName city cityId location").lean(),
+    City.find({ isActive: true }).select("name aliases state").lean(),
+    Seller.find({}).select("storeName city state cityId location").lean(),
   ]);
 
   const rows = classifySellers(sellers as SellerLike[], towns);

@@ -1,5 +1,6 @@
 
 import mongoose, { Document, Schema } from "mongoose";
+import { townScopePlugin, byOrder } from "../services/townScope";
 
 export interface IReturn extends Document {
   order: mongoose.Types.ObjectId;
@@ -127,6 +128,9 @@ const ReturnSchema = new Schema<IReturn>(
 ReturnSchema.index({ order: 1 });
 ReturnSchema.index({ customer: 1 });
 ReturnSchema.index({ status: 1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+ReturnSchema.plugin(townScopePlugin, byOrder());
 
 const Return = (mongoose.models.Return as mongoose.Model<IReturn>) || mongoose.model<IReturn>("Return", ReturnSchema);
 

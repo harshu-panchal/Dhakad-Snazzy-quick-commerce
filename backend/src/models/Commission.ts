@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { townScopePlugin, byOrder } from "../services/townScope";
 
 export interface ICommission extends Document {
   order: mongoose.Types.ObjectId;
@@ -98,6 +99,9 @@ CommissionSchema.index(
   { orderItem: 1, type: 1 },
   { unique: true, partialFilterExpression: { orderItem: { $exists: true } } },
 );
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+CommissionSchema.plugin(townScopePlugin, byOrder());
 
 const Commission = (mongoose.models.Commission as mongoose.Model<ICommission>) || mongoose.model<ICommission>("Commission", CommissionSchema);
 

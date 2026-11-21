@@ -10,9 +10,12 @@ import {
 } from '../../../services/api/admin/adminSystemUserService';
 import { getRoles, type Role } from '../../../services/api/admin/adminRoleService';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { getCities, type City } from '../../../services/api/admin/adminCityService';
+import type { CityScope } from '../../../services/api/admin/adminSystemUserService';
+import TownScopePicker from '../components/TownScopePicker';
 
 export default function AdminSystemUser() {
-  const { canManage, isSuperAdmin } = usePermissions();
+  const { canManage, isSuperAdmin, cityScope: myScope } = usePermissions();
   const canEdit = canManage('settings.system_user');
 
   const [formData, setFormData] = useState({
@@ -24,6 +27,9 @@ export default function AdminSystemUser() {
     password: '',
     confirmPassword: '',
   });
+  // Towns the admin may see. A new account starts with none (fail closed).
+  const [scope, setScope] = useState<CityScope>({ mode: 'selected', cityIds: [] });
+  const [towns, setTowns] = useState<City[]>([]);
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -36,6 +42,13 @@ export default function AdminSystemUser() {
   const [error, setError] = useState('');
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
+
+  // The town list is open to every admin (pickers on other pages use it).
+  useEffect(() => {
+    getCities(true)
+      .then((res) => setTowns(res.data || []))
+      .catch(() => setError('Could not load the list of towns.'));
+  }, []);
 
   // Roles come from the Role collection now, not a hardcoded pair, so a
   // custom role is assignable the moment it is created.
@@ -101,6 +114,15 @@ export default function AdminSystemUser() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // What the Towns column shows for an admin.
+  const townsLabel = (user: SystemUserType) => {
+    if (user.role === 'Super Admin' || user.cityScope?.mode === 'all') return 'All towns';
+    const ids = user.cityScope?.cityIds ?? [];
+    if (ids.length === 0) return 'None';
+    const names = new Map(towns.map((t) => [t._id, t.name]));
+    return ids.map((id) => names.get(id) ?? 'Removed town').join(', ');
+  };
+
   const resetForm = () => {
     setFormData({
       role: '',
@@ -111,6 +133,7 @@ export default function AdminSystemUser() {
       password: '',
       confirmPassword: '',
     });
+    setScope({ mode: 'selected', cityIds: [] });
     setEditingId(null);
   };
 
@@ -179,6 +202,7 @@ export default function AdminSystemUser() {
           mobile: formData.mobile,
           email: formData.email,
           role: formData.role,
+          cityScope: scope,
         };
         if (formData.password.trim()) {
           updateData.password = formData.password;
@@ -201,6 +225,7 @@ export default function AdminSystemUser() {
           email: formData.email,
           password: formData.password,
           role: formData.role,
+          cityScope: scope,
         };
 
         const response = await createSystemUser(createData);
@@ -231,6 +256,11 @@ export default function AdminSystemUser() {
         password: '',
         confirmPassword: '',
       });
+      setScope(
+        user.cityScope
+          ? { mode: user.cityScope.mode, cityIds: user.cityScope.cityIds }
+          : { mode: 'selected', cityIds: [] },
+      );
       setEditingId(id);
     }
   };
@@ -493,6 +523,15 @@ export default function AdminSystemUser() {
                     />
                   </div>
                 </div>
+
+                <TownScopePicker
+                  value={scope}
+                  onChange={setScope}
+                  towns={towns}
+                  disabled={loading || !canEdit}
+                  roleIsSuperAdmin={formData.role === 'Super Admin'}
+                  grantable={{ all: isSuperAdmin || myScope.all, cityIds: myScope.cityIds }}
+                />
               </div>
 
               <div className="mt-auto pt-4">
@@ -626,13 +665,14 @@ export default function AdminSystemUser() {
                             <SortIcon column="role" />
                           </div>
                         </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Towns</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-neutral-700">Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {displayedUsers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-sm text-neutral-500">
+                          <td colSpan={7} className="px-4 py-8 text-center text-sm text-neutral-500">
                             No system users found
                           </td>
                         </tr>
@@ -646,6 +686,7 @@ export default function AdminSystemUser() {
                             <td className="px-4 py-3 text-sm text-neutral-700">{user.mobile}</td>
                             <td className="px-4 py-3 text-sm text-neutral-700">{user.email}</td>
                             <td className="px-4 py-3 text-sm text-neutral-700">{user.role}</td>
+                            <td className="px-4 py-3 text-sm text-neutral-700">{townsLabel(user)}</td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2">
                                 <button

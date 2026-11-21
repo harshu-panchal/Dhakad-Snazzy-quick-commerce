@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { townScopePlugin, byWalletOwner } from "../services/townScope";
 
 export interface IWithdrawRequest extends Document {
     userId: mongoose.Types.ObjectId; // Generic user reference (seller or delivery boy)
@@ -71,6 +72,9 @@ const WithdrawRequestSchema = new Schema<IWithdrawRequest>(
 WithdrawRequestSchema.index({ userId: 1, userType: 1 });
 WithdrawRequestSchema.index({ status: 1 });
 WithdrawRequestSchema.index({ createdAt: -1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+WithdrawRequestSchema.plugin(townScopePlugin, byWalletOwner);
 
 const WithdrawRequest = mongoose.models.WithdrawRequest || mongoose.model<IWithdrawRequest>('WithdrawRequest', WithdrawRequestSchema);
 

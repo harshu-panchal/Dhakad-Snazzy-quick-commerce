@@ -47,6 +47,9 @@ export const getMe = asyncHandler(async (req: Request, res: Response) => {
                 isSuperAdmin: ctx.isSuperAdmin,
             },
             permissions: serializePermissions(ctx),
+            // Which towns this admin may see. {all:true} for Super Admin and for
+            // an admin granted every town.
+            cityScope: ctx.scope,
         },
     });
 });

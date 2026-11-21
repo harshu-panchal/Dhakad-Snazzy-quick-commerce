@@ -6,8 +6,14 @@ import {
   Notification as NotificationType,
   CreateNotificationData,
 } from '../../../services/api/admin/adminNotificationService';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export default function AdminNotification() {
+  const { isSuperAdmin, cityScope, permissionsLoading } = usePermissions();
+  // Limited to some towns: Delivery partners and "All" cannot be narrowed to a town, so the
+  // server refuses them. Offer only what will work.
+  const townLimited = !permissionsLoading && !isSuperAdmin && !cityScope.all;
+
   const [formData, setFormData] = useState({
     recipientType: 'All' as 'All' | 'Admin' | 'Seller' | 'Customer' | 'Delivery',
     title: '',
@@ -26,6 +32,17 @@ export default function AdminNotification() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const [filterRecipientType, setFilterRecipientType] = useState<string>('All');
+
+  // The default is "All"; a limited admin cannot send to it, so start on Seller instead.
+  useEffect(() => {
+    if (townLimited) {
+      setFormData((prev) =>
+        prev.recipientType === 'All' || prev.recipientType === 'Delivery'
+          ? { ...prev, recipientType: 'Seller' }
+          : prev,
+      );
+    }
+  }, [townLimited]);
 
   // Debounce search term
   useEffect(() => {
@@ -294,12 +311,18 @@ export default function AdminNotification() {
                     disabled={loading}
                     className="w-full px-3 py-2 border border-neutral-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-white"
                   >
-                    <option value="All">All Users</option>
+                    <option value="All" disabled={townLimited}>All Users</option>
                     <option value="Admin">Admin</option>
                     <option value="Seller">Seller</option>
                     <option value="Customer">Customer</option>
-                    <option value="Delivery">Delivery</option>
+                    <option value="Delivery" disabled={townLimited}>Delivery</option>
                   </select>
+                  {townLimited ? (
+                    <p className="mt-1.5 text-xs text-neutral-500">
+                      You are limited to specific towns, so Sellers and Customers reach only those
+                      towns, and Delivery and All Users are not available.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div>

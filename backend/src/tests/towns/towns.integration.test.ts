@@ -79,7 +79,7 @@ test("seedCities creates the six towns", async () => {
   assert.equal(result.created.length, TOWN_SEEDS.length);
   assert.equal(await City.countDocuments(), 6);
 
-  const biaora = await City.findOne({ slug: "biaora" });
+  const biaora = await City.findOne({ name: "Biaora" });
   assert.equal(biaora!.district, "Rajgarh");
   assert.ok(biaora!.aliases.includes("biaora rajgarh"));
 });
@@ -93,7 +93,7 @@ test("seedCities is idempotent", async () => {
 });
 
 test("seedCities never discards manual edits", async () => {
-  const khujner = await City.findOne({ slug: "khujner" });
+  const khujner = await City.findOne({ name: "Khujner" });
   khujner!.district = "Edited District";
   khujner!.aliases = [...khujner!.aliases, "khujner local spelling"];
   khujner!.isActive = false;
@@ -101,7 +101,7 @@ test("seedCities never discards manual edits", async () => {
 
   await seedCities();
 
-  const after = await City.findOne({ slug: "khujner" });
+  const after = await City.findOne({ name: "Khujner" });
   assert.equal(after!.district, "Edited District");
   assert.ok(after!.aliases.includes("khujner local spelling"), "manual alias was dropped");
   assert.equal(after!.isActive, false, "a deactivated town must stay deactivated");
@@ -113,7 +113,7 @@ test("seedCities never discards manual edits", async () => {
 });
 
 test("seedCities adds a seed alias that was removed", async () => {
-  const biaora = await City.findOne({ slug: "biaora" });
+  const biaora = await City.findOne({ name: "Biaora" });
   biaora!.aliases = biaora!.aliases.filter((a) => a !== "biaora rajgarh");
   await biaora!.save();
 
@@ -144,7 +144,7 @@ test("apply assigns towns to clean matches only", async () => {
   const report = await mapSellers({ apply: true });
   assert.equal(report.written, 2);
 
-  const biaora = await City.findOne({ slug: "biaora" });
+  const biaora = await City.findOne({ name: "Biaora" });
   const mapped = await Seller.collection.find({ cityId: biaora!._id }).toArray();
   assert.equal(mapped.length, 2, "both Biaora spellings should map to the one town");
 
@@ -164,7 +164,7 @@ test("a second apply changes nothing", async () => {
 });
 
 test("an existing cityId is never overwritten, even if the text disagrees", async () => {
-  const khujner = await City.findOne({ slug: "khujner" });
+  const khujner = await City.findOne({ name: "Khujner" });
   const id = await insertSeller("Hand assigned", "Biaora");
   await Seller.collection.updateOne({ _id: id }, { $set: { cityId: khujner!._id } });
 
@@ -176,7 +176,7 @@ test("an existing cityId is never overwritten, even if the text disagrees", asyn
 });
 
 test("an inactive town is not a mapping target", async () => {
-  const pachore = await City.findOne({ slug: "pachore" });
+  const pachore = await City.findOne({ name: "Pachore" });
   pachore!.isActive = false;
   await pachore!.save();
 
@@ -256,9 +256,9 @@ test("an unauthenticated request is refused", async () => {
 });
 
 test("a view-only role cannot create a town", async () => {
-  const result = await call("POST", "/admin/cities", viewerToken, { name: "Newtown" });
+  const result = await call("POST", "/admin/cities", viewerToken, { name: "Newtown", state: "Madhya Pradesh" });
   assert.equal(result.status, 403);
-  assert.equal(await City.countDocuments({ slug: "newtown" }), 0);
+  assert.equal(await City.countDocuments({ name: "Newtown", state: "Madhya Pradesh" }), 0);
 });
 
 test("a role without the Towns page cannot read the mapping report", async () => {
@@ -273,6 +273,7 @@ test("a viewer can read the mapping report but not apply it", async () => {
 test("a manager can create, edit and delete a town", async () => {
   const created = await call("POST", "/admin/cities", managerToken, {
     name: "Newtown",
+    state: "Madhya Pradesh",
     district: "Somewhere",
     aliases: ["  New Town  ", "NEWTOWN LOCAL"],
   });
@@ -293,20 +294,21 @@ test("a manager can create, edit and delete a town", async () => {
 test("an alias that already belongs to another town is refused", async () => {
   const result = await call("POST", "/admin/cities", managerToken, {
     name: "Another Place",
+    state: "Madhya Pradesh",
     aliases: ["biaora"],
   });
   assert.equal(result.status, 409, JSON.stringify(result.body));
   assert.equal(result.body.code, "TOWN_NAME_CLASH");
-  assert.equal(await City.countDocuments({ slug: "another-place" }), 0);
+  assert.equal(await City.countDocuments({ name: "Another Place" }), 0);
 });
 
 test("a town name that matches an existing alias is refused", async () => {
-  const result = await call("POST", "/admin/cities", managerToken, { name: "Biaora Rajgarh" });
+  const result = await call("POST", "/admin/cities", managerToken, { name: "Biaora Rajgarh", state: "Madhya Pradesh" });
   assert.equal(result.status, 409);
 });
 
 test("an edit cannot steal another town's alias", async () => {
-  const khujner = await City.findOne({ slug: "khujner" });
+  const khujner = await City.findOne({ name: "Khujner" });
   const result = await call("PUT", `/admin/cities/${khujner!._id}`, managerToken, {
     aliases: ["sarangpur"],
   });
@@ -315,7 +317,7 @@ test("an edit cannot steal another town's alias", async () => {
 });
 
 test("a town with sellers cannot be deleted", async () => {
-  const biaora = await City.findOne({ slug: "biaora" });
+  const biaora = await City.findOne({ name: "Biaora" });
   const result = await call("DELETE", `/admin/cities/${biaora!._id}`, managerToken);
 
   assert.equal(result.status, 409, JSON.stringify(result.body));
@@ -325,7 +327,7 @@ test("a town with sellers cannot be deleted", async () => {
 });
 
 test("a name with no latin letters is refused with a useful message", async () => {
-  const result = await call("POST", "/admin/cities", managerToken, { name: "ब्यावरा" });
+  const result = await call("POST", "/admin/cities", managerToken, { name: "ब्यावरा", state: "Madhya Pradesh" });
   assert.equal(result.status, 400);
   assert.match(result.body.message, /alias/i);
 });

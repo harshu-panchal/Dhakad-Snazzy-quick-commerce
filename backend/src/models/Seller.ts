@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
-import City, { normalizeCityText } from './City';
+import City, { normalizeCityText, pickTown } from './City';
+import { townScopePlugin, byTown } from "../services/townScope";
 
 export interface ISeller extends Document {
   // Authentication
@@ -438,17 +439,23 @@ SellerSchema.pre('save', async function (next) {
 // city that matches no town clears the old cityId rather than leaving a
 // stale one. The free-text city is never modified.
 // ---------------------------------------------------------------------------
-export async function findTownIdForText(text: unknown): Promise<mongoose.Types.ObjectId | null> {
+export async function findTownIdForText(
+  text: unknown,
+  state?: unknown,
+): Promise<mongoose.Types.ObjectId | null> {
   const key = normalizeCityText(text);
   if (!key) return null;
 
-  const towns = await City.find({ isActive: { $ne: false } }).select('name aliases').lean();
+  const towns = await City.find({ isActive: { $ne: false } }).select('name aliases state').lean();
   const hits = towns.filter(
     (t) => normalizeCityText(t.name) === key || (t.aliases ?? []).includes(key),
   );
 
-  // Zero matches: no town. Several: ambiguous, so do not guess.
-  return hits.length === 1 ? (hits[0]._id as mongoose.Types.ObjectId) : null;
+  // No match, an ambiguous one, or a city that exists only in another state: no town.
+  // Never guess. shortcut: an edit that changes only the city does not know the
+  // state, so a name shared by two states stays unassigned until the mapping runs.
+  const pick = pickTown(hits, state);
+  return pick.kind === 'matched' ? (pick.town._id as mongoose.Types.ObjectId) : null;
 }
 
 SellerSchema.pre('save', async function (next) {
@@ -456,7 +463,7 @@ SellerSchema.pre('save', async function (next) {
     if (!this.isNew && !this.isModified('city')) return next();
     if (this.isModified('cityId') && this.cityId) return next();
 
-    const townId = await findTownIdForText(this.city);
+    const townId = await findTownIdForText(this.city, this.state);
     this.cityId = townId ?? undefined;
     next();
   } catch (error: any) {
@@ -480,7 +487,7 @@ SellerSchema.pre(['findOneAndUpdate', 'updateOne'], async function (next) {
     if (effective.city === undefined) return next();
     if (effective.cityId !== undefined || update.$unset?.cityId !== undefined) return next();
 
-    const townId = await findTownIdForText(effective.city);
+    const townId = await findTownIdForText(effective.city, effective.state);
     if (townId) {
       update.$set = { ...(update.$set ?? {}), cityId: townId };
     } else {
@@ -505,6 +512,9 @@ SellerSchema.methods.comparePassword = async function (
 SellerSchema.index({ location: '2dsphere' });
 SellerSchema.index({ status: 1 }); // Compound index for status + location queries
 SellerSchema.index({ cityId: 1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+SellerSchema.plugin(townScopePlugin, byTown());
 
 const Seller = (mongoose.models.Seller as mongoose.Model<ISeller>) || mongoose.model<ISeller>('Seller', SellerSchema);
 

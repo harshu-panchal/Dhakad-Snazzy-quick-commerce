@@ -1257,10 +1257,12 @@ export const bulkUpdateProducts = asyncHandler(
       { $set: updateData }
     );
 
-    // Update inventory if stock is being updated
+    // Update inventory if stock is being updated. Inventory is not town-scoped, so
+    // limit it to the products this admin can actually see (Product is).
     if (updateData.stock !== undefined) {
+      const visibleProductIds = await Product.find({ _id: { $in: productIds } }).distinct("_id");
       await Inventory.updateMany(
-        { product: { $in: productIds } },
+        { product: { $in: visibleProductIds } },
         {
           currentStock: updateData.stock,
           availableStock: updateData.stock,

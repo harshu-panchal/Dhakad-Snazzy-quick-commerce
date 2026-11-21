@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { townScopePlugin, byWalletOwner } from "../services/townScope";
 
 export interface IWalletTransaction extends Document {
     userId: mongoose.Types.ObjectId; // Generic user reference (seller or delivery boy)
@@ -68,6 +69,9 @@ const WalletTransactionSchema = new Schema<IWalletTransaction>(
 WalletTransactionSchema.index({ userId: 1, userType: 1 });
 WalletTransactionSchema.index({ createdAt: -1 });
 WalletTransactionSchema.index({ relatedOrder: 1 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+WalletTransactionSchema.plugin(townScopePlugin, byWalletOwner);
 
 const WalletTransaction = mongoose.models.WalletTransaction || mongoose.model<IWalletTransaction>('WalletTransaction', WalletTransactionSchema);
 

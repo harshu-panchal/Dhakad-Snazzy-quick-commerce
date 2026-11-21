@@ -9,6 +9,7 @@ import {
 } from "../modules/seller/controllers/sellerController";
 import { authenticate, requireUserType } from "../middleware/auth";
 import { requireTiered } from "../middleware/permissions";
+import { townScoped } from "../services/townScope";
 
 const router = Router();
 
@@ -24,6 +25,8 @@ router.use(
     manage: ["sellers.list"],
   }),
 );
+// A town-limited admin only sees sellers in their towns.
+router.use(townScoped);
 
 // Get all sellers
 router.get("/", getAllSellers);

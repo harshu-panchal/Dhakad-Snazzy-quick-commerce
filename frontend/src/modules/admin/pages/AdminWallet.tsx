@@ -10,6 +10,7 @@ import {
   AdminEarning,
 } from "../../../services/api/admin/adminWalletService";
 import AdminWithdrawals from "./AdminWithdrawals";
+import { getApiErrorCode } from "../../../utils/apiError";
 
 // Icons
 const WalletIcon = ({ className }: { className?: string }) => (
@@ -132,6 +133,8 @@ export default function AdminWallet() {
   >("transactions");
   const [stats, setStats] = useState<WalletStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  // True when the server refused the platform totals because this admin is limited to some towns.
+  const [statsRestricted, setStatsRestricted] = useState(false);
 
   // Transactions State
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -162,6 +165,7 @@ export default function AdminWallet() {
         setStats(response.data);
       }
     } catch (error) {
+      if (getApiErrorCode(error) === "ALL_TOWNS_REQUIRED") setStatsRestricted(true);
       console.error("Failed to fetch stats", error);
     } finally {
       setLoadingStats(false);
@@ -220,7 +224,12 @@ export default function AdminWallet() {
       </div>
 
       {/* Stats Grid */}
-      {/* Stats Grid */}
+      {statsRestricted ? (
+        <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-600">
+          Platform-wide totals are only available to admins with access to every town. You can
+          still see the wallet transactions and withdrawals for your towns below.
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatsCard
           title="Total Platform Earning"
@@ -265,6 +274,7 @@ export default function AdminWallet() {
           bg="bg-amber-50"
         />
       </div>
+      )}
 
       {/* Tabs & Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[500px]">

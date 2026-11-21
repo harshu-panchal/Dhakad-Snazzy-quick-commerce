@@ -7,6 +7,7 @@ import {
   SELF_SERVICE_ENDPOINTS,
   PAGE_KEYS,
 } from "../../config/permissions";
+import { TOWN_GLOBAL_PREFIXES } from "../../services/townScope";
 
 /**
  * The most important test in this suite.
@@ -175,3 +176,63 @@ test("self-service paths correspond to real registered routes", () => {
     `SELF_SERVICE_ENDPOINTS entries with no matching route: ${missing.join(", ")}`,
   );
 });
+
+/* ------------------------------------------------------------------------ */
+/*                     Town scope: no endpoint left undecided               */
+/* ------------------------------------------------------------------------ */
+
+const underPrefix = (path: string, prefix: string) => path === prefix || path.startsWith(prefix + "/");
+
+test("every admin endpoint is town-scoped, or sits under a prefix declared global", () => {
+  // Phase D: a town-limited admin must never reach an endpoint whose scoping
+  // nobody decided. Add a new endpoint to a scoped prefix, or declare its prefix
+  // in TOWN_GLOBAL_PREFIXES (services/townScope.ts) with the reason.
+  const undecided: string[] = [];
+
+  for (const route of routes) {
+    if (TOWN_GLOBAL_PREFIXES.some((prefix) => underPrefix(route.path, prefix))) continue;
+
+    const target = concrete(route.path);
+    const scoped = guards.some(
+      (guard) =>
+        guard.index < route.index &&
+        (guard.kind === "town-scoped" || guard.kind === "all-towns") &&
+        guard.regexp.test(target),
+    );
+
+    if (!scoped) undecided.push(`${route.methods.join("/")} ${route.path}`);
+  }
+
+  assert.deepEqual(
+    undecided,
+    [],
+    "These admin endpoints are neither town-scoped nor declared global. Mount townScoped on " +
+      "their prefix in routes/adminRoutes.ts, or add the prefix to TOWN_GLOBAL_PREFIXES:\n  " +
+      undecided.join("\n  "),
+  );
+});
+
+test("every prefix declared global matches a real route, so the list cannot go stale", () => {
+  const stale = TOWN_GLOBAL_PREFIXES.filter(
+    (prefix) => !routes.some((route) => underPrefix(route.path, prefix)),
+  );
+  assert.deepEqual(stale, [], `TOWN_GLOBAL_PREFIXES entries matching no route: ${stale.join(", ")}`);
+});
+
+test("a prefix is never both scoped and declared global", () => {
+  const scopedPrefixes = routes
+    .map((r) => r.path)
+    .filter((path) => guards.some((g) => g.kind === "town-scoped" && g.regexp.test(concrete(path))));
+
+  const both = [...new Set(scopedPrefixes)].filter((path) =>
+    TOWN_GLOBAL_PREFIXES.some((prefix) => underPrefix(path, prefix)),
+  );
+  assert.deepEqual(both, [], `routes that are scoped AND declared global: ${both.join(", ")}`);
+});
+
+test("platform-wide money is refused to a limited admin by an all-towns guard", () => {
+  const allTowns = guards.filter((g) => g.kind === "all-towns");
+  assert.ok(allTowns.some((g) => g.regexp.test("/financial/dashboard")), "/financial is not guarded");
+  assert.ok(allTowns.some((g) => g.regexp.test("/wallet/transfer")), "/wallet/transfer is not guarded");
+});
+

@@ -28,6 +28,8 @@ export interface AdminSessionPayload {
   user: AdminUser;
   /** `<pageKey>:<tier>` strings, or ["*"] for Super Admin. */
   permissions: string[];
+  /** Which towns this admin may see. `all` is every town. */
+  cityScope?: { all: boolean; cityIds: string[] };
 }
 
 export interface AdminSessionResponse {
@@ -55,6 +57,9 @@ function persist(payload: AdminSessionPayload): void {
   );
   if (payload.permissions) {
     localStorage.setItem('adminPermissions', JSON.stringify(payload.permissions));
+  }
+  if (payload.cityScope) {
+    localStorage.setItem('adminCityScope', JSON.stringify(payload.cityScope));
   }
 }
 
@@ -131,6 +136,7 @@ export const logout = async (): Promise<void> => {
   } finally {
     removeAuthToken();
     localStorage.removeItem('adminPermissions');
+    localStorage.removeItem('adminCityScope');
   }
 };
 
@@ -141,6 +147,7 @@ export const logoutAllDevices = async (): Promise<SimpleResponse> => {
   const response = await api.post<SimpleResponse>('/auth/admin/logout-all');
   removeAuthToken();
   localStorage.removeItem('adminPermissions');
+  localStorage.removeItem('adminCityScope');
   return response.data;
 };
 

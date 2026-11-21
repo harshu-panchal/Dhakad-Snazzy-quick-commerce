@@ -350,6 +350,7 @@ ProductSchema.virtual("mrp").get(function () {
 });
 
 import { ensureAbsoluteImageUrl } from "../services/localStorageService";
+import { townScopePlugin, bySeller } from "../services/townScope";
 
 // Calculate discount and sync stock/price/images from variations before saving
 ProductSchema.pre("save", function (next) {
@@ -416,6 +417,9 @@ ProductSchema.index({
   tags: "text",
   pack: "text",
 });
+
+// Town scope: a town-limited admin only ever sees records in their towns.
+ProductSchema.plugin(townScopePlugin, bySeller());
 
 const Product = (mongoose.models.Product as mongoose.Model<IProduct>) || mongoose.model<IProduct>("Product", ProductSchema);
 

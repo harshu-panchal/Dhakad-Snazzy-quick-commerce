@@ -35,6 +35,19 @@ export interface IAdmin extends Document {
    */
   role: string;
   password: string;
+  /**
+   * Which towns this admin may see (see RBAC_CITY_SCOPE_PLAN.md). Separate
+   * from the role: the role says WHAT, this says WHERE.
+   *
+   *   mode "all"                     every town
+   *   mode "selected" + cityIds       only those towns
+   *   mode "selected" + []            no town-specific data (the default)
+   *
+   * Super Admin is never limited, whatever is stored here. A missing value
+   * (an account created before this field existed) means "selected" with no
+   * towns, so an unset scope fails closed.
+   */
+  cityScope?: { mode: 'all' | 'selected'; cityIds: mongoose.Types.ObjectId[] };
   /** false blocks login and invalidates existing access tokens. */
   isActive: boolean;
   /** Bump to invalidate every issued access token for this admin. */
@@ -116,6 +129,10 @@ const AdminSchema = new Schema<IAdmin>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    cityScope: {
+      mode: { type: String, enum: ['all', 'selected'], default: 'selected' },
+      cityIds: [{ type: Schema.Types.ObjectId, ref: 'City' }],
     },
     tokenVersion: {
       type: Number,

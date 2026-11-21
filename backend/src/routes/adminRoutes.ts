@@ -3,10 +3,10 @@ import { authenticate, requireUserType } from "../middleware/auth";
 import {
   requirePages,
   requireTiered,
-  requireSuperAdmin,
   allowSelfServiceAndLookups,
 } from "../middleware/permissions";
 import { auditAdminRequests } from "../middleware/auditLog";
+import { townScoped, requireAllTowns } from "../services/townScope";
 import { ORDER_PAGES, groupPages } from "../config/permissions";
 
 // Dashboard Controllers
@@ -209,6 +209,25 @@ router.use("/audit-logs", requirePages(["settings.audit_log"]));
 // GET /cities is on the lookup allowlist (pickers need it); writes and the
 // mapping report require the Towns page.
 router.use("/cities", requirePages(["settings.cities"]));
+
+// ==================== Town scope ====================
+//
+// A town-limited admin's requests on these prefixes only ever see records in
+// their towns (see services/townScope.ts). Anything not listed here must be
+// declared in TOWN_GLOBAL_PREFIXES, or routeCoverage.test.ts fails. This runs
+// for lookups too: /sellers and /products are open to every admin, but only
+// within their towns.
+for (const prefix of [
+  "/dashboard", "/products", "/sellers", "/orders", "/shipping", "/settlement",
+  "/return-requests", "/returns", "/customers", "/wallet", "/withdrawals", "/notifications",
+]) {
+  router.use(prefix, townScoped);
+}
+
+// Platform-wide money cannot be split by town, so a town-limited admin is
+// refused rather than shown partial numbers.
+router.use("/financial", requireAllTowns());
+router.use("/wallet/transfer", requireAllTowns());
 
 // ==================== Profile Routes ====================
 // Self-service: allowlisted above, so available to every admin regardless of
@@ -477,10 +496,6 @@ router.post("/cities", cityController.createCity);
 router.put("/cities/:id", cityController.updateCity);
 router.delete("/cities/:id", cityController.deleteCity);
 
-// ==================== Maintenance (Super Admin only) ====================
-// Mounted here rather than in migrationRoutes so the Super Admin requirement
-// sits next to the rest of the admin surface.
-router.use("/maintenance", requireSuperAdmin());
 
 // ==================== Policy Routes ====================
 router.post("/policies", policyController.createPolicy);

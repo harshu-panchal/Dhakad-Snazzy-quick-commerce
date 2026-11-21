@@ -14,6 +14,11 @@ import {
 } from "../services/api/config";
 import { hasPermission, WILDCARD, type Tier } from "../modules/admin/permissions/catalog";
 
+export interface CityScope {
+  all: boolean;
+  cityIds: string[];
+}
+
 interface User {
   id: string;
   userType?: "Admin" | "Seller" | "Customer" | "Delivery";
@@ -24,7 +29,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (token: string, userData: User, permissions?: string[]) => void;
+  login: (
+    token: string,
+    userData: User,
+    permissions?: string[],
+    cityScope?: CityScope,
+  ) => void;
   logout: () => void;
   updateUser: (userData: User) => void;
   /**
@@ -36,6 +46,12 @@ interface AuthContextType {
    * menu draws and nothing else, because every endpoint re-checks.
    */
   permissions: string[];
+  /**
+   * The towns this admin may see. `all` for Super Admin and for an admin
+   * granted every town; otherwise the listed town ids (possibly none).
+   * Like permissions, the server is the authority; this only shapes the UI.
+   */
+  cityScope: CityScope;
   isSuperAdmin: boolean;
   /** True while the authoritative permission fetch is still in flight. */
   permissionsLoading: boolean;
@@ -124,6 +140,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  // Fail closed until the server says otherwise: no towns.
+  const [cityScope, setCityScope] = useState<CityScope>(() => {
+    try {
+      const stored = localStorage.getItem("adminCityScope");
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && typeof parsed.all === "boolean" && Array.isArray(parsed.cityIds)) {
+        return parsed as CityScope;
+      }
+    } catch {
+      // fall through to the closed default
+    }
+    return { all: false, cityIds: [] };
+  });
+
   const [permissionsLoading, setPermissionsLoading] = useState<boolean>(false);
 
   // Effect to sync state if localStorage changes externally or on mount validation
@@ -185,6 +215,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("adminPermissions", JSON.stringify(next.permissions));
       }
 
+      if (next?.cityScope) {
+        setCityScope(next.cityScope);
+        localStorage.setItem("adminCityScope", JSON.stringify(next.cityScope));
+      }
+
       if (next?.user) {
         setUser((current) => {
           const merged = { ...(current || {}), ...next.user, userType: "Admin" as const };
@@ -217,7 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // edit does not refetch.
   }, [isAuthenticated, user?.id, refreshPermissions]);
 
-  const login = useCallback((newToken: string, userData: User, newPermissions?: string[]) => {
+  const login = useCallback((newToken: string, userData: User, newPermissions?: string[], newCityScope?: CityScope) => {
     const inferredUserType = inferLegacyUserType(userData);
     const normalizedUserData = inferredUserType && !userData.userType
       ? { ...userData, userType: inferredUserType }
@@ -231,6 +266,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (newPermissions) {
       setPermissions(newPermissions);
       localStorage.setItem("adminPermissions", JSON.stringify(newPermissions));
+    }
+
+    if (newCityScope) {
+      setCityScope(newCityScope);
+      localStorage.setItem("adminCityScope", JSON.stringify(newCityScope));
     }
 
     // Customer browser permission is requested only from the explicit Account
@@ -280,7 +320,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setIsAuthenticated(false);
     setPermissions([]);
+    setCityScope({ all: false, cityIds: [] });
     localStorage.removeItem("adminPermissions");
+    localStorage.removeItem("adminCityScope");
     removeAuthToken();
 
   }, [token]);
@@ -312,6 +354,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       updateUser,
       permissions,
+      cityScope,
       isSuperAdmin,
       permissionsLoading,
       can,
@@ -325,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       updateUser,
       permissions,
+      cityScope,
       isSuperAdmin,
       permissionsLoading,
       can,
