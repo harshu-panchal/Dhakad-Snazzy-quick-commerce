@@ -14,7 +14,7 @@ Extension of the role based access system in [RBAC_IMPLEMENTATION_PLAN.md](RBAC_
 | # | Decision |
 |---|---|
 | 1 | **Anchor = the seller's city.** An order belongs to the city of the seller it was bought from. The customer's delivery city is *not* used. |
-| 2 | **One order, one town.** A cart may not mix sellers from different towns. Same-town multi-seller orders stay allowed. |
+| 2 | **One order, one seller, so one town.** The cart already allows only one seller (since 2026-08-16), so no separate town rule is needed. |
 | 3 | **An admin can cover several cities.** |
 | 4 | **Admins can see customers** — defined as customers who have ordered from a seller in the admin's cities (§5.3). |
 | 5 | **"Biaora" and "Biaora rajgarh" are one city.** "Narasingarh" and "Narsinghgarh" are one city. |
@@ -26,9 +26,8 @@ Extension of the role based access system in [RBAC_IMPLEMENTATION_PLAN.md](RBAC_
 
 ### Corrections to earlier assumptions
 
-- **Decision 2 is not "already implemented."** `createOrder` only checks the delivery address has a city; nothing compares seller towns. The distance limits do not prevent it: with the live `instantDeliveryRadiusKm = 15`, **85 of 333** cross-town seller pairs can both be in range of one address. This plan builds the rule (Phase B). **It will block some carts that work today** (§6).
-- **Multi-seller orders are not blocked today.** 61 orders contain two sellers, the latest on 2026-08-15. All 61 are within a single town, so none of the orders placed so far would have been blocked by decision 2.
-
+- **Decision 2 was already implemented, and an earlier version of this plan said otherwise.** The cart allows a single seller (`customerCartController.addToCart`, added 2026-08-16) and offers to replace the cart on a conflict. The earlier claim came from reading only `createOrder`, which takes its items from the request body and never looked at the cart. The 61 multi-seller orders in the data all predate that change (the last was 2026-08-15). Because a cart has one seller, an order always has one town, so the cross-town cart rule once planned here is **not needed** and the warning that it would block carts such as Khujner + Bhayana was wrong: those carts were already blocked.
+- **What the cart does not cover** is `createOrder` itself, which reads its items from the request. An old app build or a direct API call could still send a mixed order, so Phase B adds the same one-seller check on the server (§6).
 ---
 
 ## 2. What the live data looks like
@@ -167,24 +166,13 @@ Like `routeCoverage.test.ts`, which stops unguarded endpoints: a test walks the 
 
 ---
 
-## 6. Cart rule (customer-facing)
+## 6. One seller per order
 
-Reject a cart or order containing sellers from more than one **town**, in both the cart endpoint and `createOrder`.
+**Already true in the app.** Since 2026-08-16 the cart allows one seller at a time. Adding an item from another seller returns a conflict and offers to replace the cart, so every order placed through the app has one seller and therefore one town. No cross-town rule is needed.
 
-**What it blocks that works today.** Towns here are close together, so a customer between two of them can currently order from both. With the live 15 km instant radius, **85 of 333 cross-town seller pairs** can be in range of one address. The closest:
+**The gap:** `createOrder` reads its items from the request body, not from the cart, so the cart's rule is not enforced where the order is created.
 
-| Pair | Distance |
-|---|---|
-| Khujner (Apna cafe) + Bhayana (Super Abhi Stores) | 6.9 km |
-| Khujner (Hotel Anand palace) + Pachore (Chetak collection) | 11.0 km |
-| Khujner (Yume home 3) + Pachore | 14.4 km |
-
-A customer in that overlap can no longer put shops from both towns in one cart. The data suggests this is rare: **none of the 61 multi-seller orders placed so far crossed towns**, so no order that exists would have been refused.
-
-- The message names the towns, e.g. *"Items from Khujner and Bhayana can't be ordered together. Please order them separately."*
-- Same-town multi-seller carts stay allowed.
-- This is the only part of the plan that changes what customers can do, so it needs its own testing and a decision on the wording.
-- **The alternative that was not chosen:** let such a cart through and give the order a *list* of towns, shown to every town manager involved. It avoids blocking customers but means two managers share one order and its status changes. If the block turns out to hurt, this is the fallback, and it is a change to the order model, not a setting.
+**What Phase B adds:** a server-side check in `createOrder`, before any stock is decremented. It looks up the sellers behind the products in the request (not what the client says) and rejects an order with more than one, with the code `MULTI_SELLER_ORDER`. A normal order is unaffected. No order placed since the cart rule has had two sellers, so no real traffic is refused.
 
 ---
 
@@ -195,8 +183,8 @@ Each phase ships on its own and leaves the app working.
 ### Phase A — City list and mapping *(no behaviour change)*
 `City` model, seeded with the six towns · admin page to manage towns (new permission `settings.cities`) · mapping script, **dry run first**, that sets `Seller.cityId` from the seller's own city text and aliases · report of anything unmatched, and of sellers located outside Rajgarh (test data) · `getServiceableCities` reads `City`.
 
-### Phase B — Order city and the cart rule
-`Order.cityId` set at creation · backfill of existing orders from their seller where the seller still exists (≈1,260 of 3,143); **orders from deleted sellers keep `cityId = null`** · cross-town cart rejection · **sellers are soft-deleted from now on** (`DELETE /sellers/:id` marks the seller deleted and inactive instead of removing it; deleted sellers disappear from customer-facing and admin lists but their orders, products and wallet history stay intact).
+### Phase B — Order town, soft delete, and the server-side one-seller check
+`Order.cityId` set at creation · backfill of existing orders from their seller where the seller still exists (≈1,260 of 3,143); **orders from deleted sellers keep `cityId = null`** · server-side one-seller check in `createOrder` · **sellers are soft-deleted from now on** (`DELETE /sellers/:id` marks the seller deleted and inactive instead of removing it; deleted sellers disappear from customer-facing and admin lists but their orders, products and wallet history stay intact).
 
 ### Phase C — Admin scope
 `Admin.cityScope` · resolved into `adminContext` · returned by `GET /admin/me` · city picker on the System User form · audit log records the scope in force.
@@ -219,7 +207,7 @@ Backfill on a **restored copy** first · run dry-run reports and review unmatche
 3. A scoped admin's **lists, dashboard totals, lookups and CSV export** exclude other cities.
 4. **Fail closed:** a scoped admin with no cities sees nothing; Super Admin and scope "all" see everything.
 5. **Orders with `cityId = null`** are invisible to every scoped admin.
-6. **Cart rule:** a Biaora + Biaora cart is allowed; Khujner + Bhayana and Khujner + Pachore carts are rejected with both towns named.
+6. **One seller per order:** a two-seller checkout is rejected before any stock changes; a single-seller one is not.
 7. **Delivery is untouched:** a scoped admin can still assign any delivery boy to an order in their towns, exactly as before; `assign-delivery` on an order in another town returns 404.
 8. **Backfill:** idempotent; dry run writes nothing; unmatched rows are reported, not guessed.
 9. A scope change applies on the admin's next request.
@@ -231,7 +219,7 @@ Backfill on a **restored copy** first · run dry-run reports and review unmatche
 | Phase | Size | Note |
 |---|---|---|
 | A | S | Six towns to seed and 31 sellers to map; delivery boys are out of scope |
-| B | M | Cart rule touches customer flow |
+| B | M | Soft delete reaches many queries; the order and seller changes are small |
 | C | S | |
 | D | **L** | ~15 admin files plus ~16 aggregations; the bulk of the work and of the risk |
 | E | M | |
@@ -241,7 +229,7 @@ Backfill on a **restored copy** first · run dry-run reports and review unmatche
 
 ## 10. Open decisions
 
-1. ~~Town or district as the scope unit~~ **Resolved: town.** Consequences accepted: the cart rule (§6) blocks cross-town carts, and a district-wide manager is made by giving an admin all six towns (the "select all in Rajgarh" shortcut).
+1. ~~Town or district as the scope unit~~ **Resolved: town.** A district-wide manager is made by giving an admin all six towns (the "select all in Rajgarh" shortcut). Because a cart already has one seller (§6), an order always has one town, so town scope needs no extra cart rule.
 2. ~~Marketing and content pages stay global in this version~~ **Confirmed.** Grant those pages only to HQ roles until they are scoped in a later version.
 3. ~~Platform wallet hidden from scoped admins~~ **Confirmed** (§5.4).
 4. ~~Stop hard-deleting sellers~~ **Confirmed:** sellers are soft-deleted (Phase B). Orders keep their own town, so existing and future history stays correct either way.
@@ -306,4 +294,50 @@ All decisions are now closed. Nothing in this plan is waiting on an answer.
 **Found while building, affects Phase B:** the customer home page matches a Lowest Prices section's city against the sellers' **raw `city` text** (`customerHomeController.ts`, `detectedCities`). So `Seller.city` must keep its current text, and the Lowest Prices city dropdown was made **additive** (town names added, nothing removed) rather than replaced as §4.1 first said. Moving that matching onto `cityId` is a change to what customers see, and belongs with Phase B or later, not before.
 
 **Deliberately not done in Phase A:** making `cityId` required when a seller is created or edited. Seller sign-up is public, so a required field would break it; that waits until the seller forms have a town picker.
+
+---
+
+## 15. Phase B: built
+
+**Orders**
+- `Order.cityId` is saved when an order is placed, from the seller's town (a snapshot; left unset when the seller has no town).
+- `createOrder` rejects an order with items from more than one seller, before touching stock.
+- `npm run orders:backfill-towns` fills in existing orders (dry run unless `--apply`; never overwrites; leaves `updatedAt` alone).
+
+**Sellers**
+- A seller's town now follows their city text automatically: on sign-up, on a profile edit, and when an admin edits the city. A hand-set town survives unrelated edits, and a city that matches no town clears the old one instead of leaving it stale.
+- **Soft delete.** `DELETE /sellers/:id` marks the seller deleted instead of removing it. The seller's status becomes `Deleted`, which every customer query already excludes (they all require `Approved`), so customers stop seeing them without editing those queries. Their email and mobile are released (the originals are kept in `deletedSnapshot`) so the same person can register again, and a deleted seller's login token stops working immediately.
+- Deleted sellers are hidden from the admin seller list and picker (shown with `?includeDeleted=true`), from broadcasts, from delivery-partner order discovery, from Shiprocket pickup syncing, and cannot be re-approved or edited through the admin API.
+- An edit can no longer set `isDeleted`, `deletedAt` or the other lifecycle fields through the update body.
+
+**Two things the tests caught**
+- `Order.cityId` was declared on the TypeScript interface and indexed but missing from the Mongoose schema, so strict mode would have dropped it on every save and the order town would never have been stored.
+- Mongoose's timestamps plugin hands a hook a *mixed* update (the caller's fields at the top level, only `updatedAt` inside `$set`), so the first version of the city hook never saw the city.
+
+**Not done, deliberately**
+- Orders and wallet history of an already deleted seller cannot be recovered: those 1,829 orders stay without a town.
+- Open orders of a seller who is deleted are left as they are (as with the old hard delete). Nothing cancels or reassigns them.
+- No "restore seller" button. `deletedSnapshot` and `statusBeforeDelete` keep what a restore needs.
+- A deleted seller's products are not unpublished; they are hidden because the seller fails every `Approved` check, and the shop is marked closed.
+
+**Live data, projected (read-only):** once the 31 sellers are mapped, the backfill would give **936 of 3,146 orders** a town (Biaora 738, Khujner 119, Narsinghgarh 70, Sarangpur 9). 1,829 stay without one (deleted seller) and 379 belong to the test sellers. Pachore and Bhayana have no orders yet.
+
+---
+
+## 16. Applied to the live database (2026-11-21)
+
+| Step | Result |
+|---|---|
+| `npm run seed:rbac` | 7 roles created (Super Admin, Admin, five presets) |
+| `npm run seed:cities` | 6 towns created |
+| `npm run towns:map-sellers -- --apply` | **31 sellers** given a town: Biaora 15, Khujner 6, Narsinghgarh 4, Sarangpur 4, Pachore 1, Bhayana 1. The 10 left over are the test accounts. |
+| `npm run orders:backfill-towns -- --apply` | **936 of 3,146 orders** given a town: Biaora 738, Khujner 119, Narsinghgarh 70, Sarangpur 9 |
+
+Checked afterwards directly in the database: every order's town agrees with its seller's town, the free-text `Seller.city` is untouched, and re-running either command finds nothing left to do.
+
+**`updatedAt` was not disturbed.** A check shortly afterwards showed 23 sellers with a recent `updatedAt`. That is not these writes: all 23 are sellers whose Shiprocket pickup sync is in the `Failed` state, which the application's own background sync retries on a timer. The 18 sellers in the `Synced` state, 17 of them freshly mapped, show no recent `updatedAt`.
+
+**Not yet true until Phase B is deployed.** The backend now running does not save a town on new orders, so orders placed before the deploy have none. Re-run `npm run orders:backfill-towns -- --apply` after deploying; it is safe to repeat.
+
+**Side finding, not part of this work.** 23 sellers are stuck in Shiprocket pickup `Failed` with errors such as *"Seller pickup is missing: state, pincode"*. 14 of them are real, mapped sellers (for example "Chetak collection"), so they cannot ship through Shiprocket until the missing address fields are filled in.
 
