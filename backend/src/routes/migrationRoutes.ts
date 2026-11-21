@@ -1,10 +1,23 @@
 import { Router, Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler";
 import { runMigration } from "../scripts/migrateCloudinaryToLocal";
+import { authenticate, requireUserType } from "../middleware/auth";
+import { requireSuperAdmin } from "../middleware/permissions";
 
 const router = Router();
 
 import { updateImageUrlsDomain } from "../scripts/fixImageDomain";
+
+/**
+ * One-off maintenance endpoints.
+ *
+ * Both routes rewrite image URLs across the entire database. They were
+ * previously mounted at /admin with NO authentication of any kind, making them
+ * callable by anyone on the internet. They are now Super Admin only.
+ */
+router.use(authenticate);
+router.use(requireUserType("Admin"));
+router.use(requireSuperAdmin());
 
 /**
  * GET /api/v1/admin/migrate-images

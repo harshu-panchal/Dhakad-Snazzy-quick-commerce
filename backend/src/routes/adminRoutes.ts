@@ -1,5 +1,13 @@
 import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
+import {
+  requirePages,
+  requireTiered,
+  requireSuperAdmin,
+  allowSelfServiceAndLookups,
+} from "../middleware/permissions";
+import { auditAdminRequests } from "../middleware/auditLog";
+import { ORDER_PAGES, groupPages } from "../config/permissions";
 
 // Dashboard Controllers
 import * as dashboardController from "../modules/admin/controllers/adminDashboardController";
@@ -42,8 +50,14 @@ import * as cashCollectionController from "../modules/admin/controllers/adminCas
 // FAQ Controllers
 import * as faqController from "../modules/admin/controllers/adminFAQController";
 
-// Role Controllers - Manage Roles functionality removed
-// import * as roleController from "../modules/admin/controllers/adminRoleController";
+// Role Controllers
+import * as roleController from "../modules/admin/controllers/adminRoleController";
+
+// Audit Log Controllers
+import * as auditLogController from "../modules/admin/controllers/adminAuditLogController";
+
+// Town (city) Controllers
+import * as cityController from "../modules/admin/controllers/adminCityController";
 
 import * as paymentController from "../modules/admin/controllers/adminPaymentController";
 import * as policyController from "../modules/admin/controllers/adminPolicyController";
@@ -81,13 +95,128 @@ import * as reelController from "../modules/admin/controllers/adminReelControlle
 
 const router = Router();
 
-// All routes require admin authentication
+// All routes require admin authentication. `authenticate` also resolves the
+// account's current role and permissions into req.adminContext.
 router.use(authenticate);
 router.use(requireUserType("Admin"));
 
+// Records every mutating request. Mounted before the permission guards so a
+// denied attempt (403) is logged too, not just successful ones.
+router.use(auditAdminRequests);
+
+// ==================== Permission guards ====================
+//
+// Page-level enforcement. Express applies `router.use(path, mw)` to every
+// method under that prefix, so one line guards a whole section below.
+//
+// The tier is derived from the HTTP method by requirePages:
+//   GET/HEAD -> `<page>:view`,  POST/PUT/PATCH/DELETE -> `<page>:manage`
+//
+// Several endpoint groups are shared by multiple pages (the eight order
+// status pages are one component against different filters, and the five
+// delivery pages share the /delivery endpoints), hence the "any of these
+// pages" lists.
+//
+// IMPORTANT: when adding an endpoint below, add or extend a guard here too.
+// src/tests/rbac/routeCoverage.test.ts fails the build if a route ends up
+// neither guarded nor explicitly allowlisted.
+
+// Self-service (own profile) and the read-only lookup endpoints that unrelated
+// pages need for dropdowns and pickers. Must come first.
+router.use(allowSelfServiceAndLookups);
+
+// More specific prefixes first — Express matches in registration order.
+router.use("/settings/sms-gateway", requirePages(["settings.sms_gateway"]));
+router.use("/settings/features", requirePages(["catalog.header_category"]));
+router.use("/delivery/:id/collect-cash", requirePages(["delivery.cash_collection"]));
+
+router.use("/dashboard", requirePages(["dashboard"]));
+
+// Catalog
+router.use("/categories", requirePages(["catalog.category", "catalog.header_category"]));
+router.use("/subcategories", requirePages(["catalog.subcategory", "catalog.subcategory_order"]));
+router.use("/brands", requirePages(["catalog.brand"]));
+router.use("/products", requirePages(["catalog.product_list"]));
+router.use("/taxes", requirePages(["catalog.taxes"]));
+
+// Sellers — three pages read these; only Manage Seller List writes.
+router.use(
+  "/sellers",
+  requireTiered({
+    view: ["sellers.list", "sellers.transaction", "sellers.location"],
+    manage: ["sellers.list"],
+  }),
+);
+
+// Delivery — five pages share these endpoints
+router.use("/delivery", requirePages(groupPages("delivery")));
+router.use("/cash-collections", requirePages(["delivery.cash_collection"]));
+
+// Orders — all order pages share these endpoints
+router.use("/orders", requirePages(ORDER_PAGES));
+router.use("/shipping", requirePages(ORDER_PAGES));
+router.use("/settlement", requirePages(["orders.settlement"]));
+router.use("/return-requests", requirePages(["orders.returns"]));
+router.use("/returns", requirePages(["orders.returns"]));
+
+// Customers
+router.use("/customers", requirePages(["customers.list", "customers.users"]));
+
+// Finance
+router.use("/financial", requirePages(["finance.wallet"]));
+// /wallet carries both the earnings views and the manual-transfer and
+// withdrawal-processing writes, so reads are open to either page while writes
+// require the page that owns them.
+router.use(
+  "/wallet",
+  requireTiered({
+    view: ["finance.wallet", "finance.withdrawals"],
+    manage: ["finance.wallet", "finance.withdrawals"],
+  }),
+);
+router.use("/withdrawals", requirePages(["finance.withdrawals"]));
+router.use(
+  "/payment-methods",
+  requireTiered({
+    view: ["finance.payment_list", "finance.payments", "settings.billing"],
+    manage: ["finance.payment_list", "finance.payments"],
+  }),
+);
+
+// Marketing
+router.use("/coupons", requirePages(["marketing.coupon"]));
+router.use("/notifications", requirePages(["marketing.notification"]));
+router.use("/notification-templates", requirePages(["marketing.notification_templates"]));
+router.use("/home-sections", requirePages(["marketing.home_section"]));
+router.use("/bestseller-cards", requirePages(["marketing.bestseller_cards"]));
+router.use("/promo-strips", requirePages(["marketing.promo_strip"]));
+router.use("/lowest-prices-sections", requirePages(["marketing.lowest_prices"]));
+router.use("/lowest-prices-products", requirePages(["marketing.lowest_prices"]));
+router.use("/shop", requirePages(["marketing.shop_by_store"]));
+router.use("/shops", requirePages(["marketing.shop_by_store"]));
+router.use("/shop-by-stores", requirePages(["marketing.shop_by_store"]));
+router.use("/reels", requirePages(["marketing.reels"]));
+
+// Content
+router.use("/faqs", requirePages(["content.faq"]));
+router.use("/policies", requirePages(["content.customer_app_policy", "content.delivery_app_policy"]));
+
+// Settings
+router.use("/settings", requirePages(["settings.billing", "settings.sms_gateway"]));
+router.use("/system-users", requirePages(["settings.system_user"]));
+router.use("/roles", requirePages(["settings.roles"]));
+router.use("/audit-logs", requirePages(["settings.audit_log"]));
+// GET /cities is on the lookup allowlist (pickers need it); writes and the
+// mapping report require the Towns page.
+router.use("/cities", requirePages(["settings.cities"]));
+
 // ==================== Profile Routes ====================
+// Self-service: allowlisted above, so available to every admin regardless of
+// role.
+router.get("/me", profileController.getMe);
 router.get("/profile", profileController.getProfile);
 router.put("/profile", profileController.updateProfile);
+router.post("/profile/change-password", profileController.changePassword);
 
 // ==================== Reel Routes ====================
 router.get("/reels/stats", reelController.reelStats);
@@ -227,6 +356,10 @@ router.patch(
 // ==================== Settings Routes ====================
 router.get("/settings", settingsController.getAppSettings);
 router.put("/settings", settingsController.updateAppSettings);
+// Feature flags only, no credentials. Lets the Header Category page toggle its
+// display switch without needing the Billing & Charges page.
+router.get("/settings/features", settingsController.getFeatureSettings);
+router.put("/settings/features", settingsController.updateFeatureSettings);
 router.get("/settings/payment-methods", settingsController.getPaymentMethods);
 router.put(
   "/settings/payment-methods",
@@ -321,13 +454,33 @@ router.delete("/faqs/:id", faqController.deleteFAQ);
 router.put("/faqs/order", faqController.updateFAQOrder);
 
 // ==================== Role Routes ====================
-// Manage Roles functionality removed from admin panel
-// router.get("/roles/permissions", roleController.getPermissions);
-// router.get("/roles", roleController.getRoles);
-// router.get("/roles/:id", roleController.getRoleById);
-// router.post("/roles", roleController.createRole);
-// router.put("/roles/:id", roleController.updateRole);
-// router.delete("/roles/:id", roleController.deleteRole);
+// "permissions" must be registered before "/:id" or it is read as an id.
+router.get("/roles/permissions", roleController.getPermissions);
+router.get("/roles", roleController.getRoles);
+router.get("/roles/:id", roleController.getRoleById);
+router.post("/roles", roleController.createRole);
+router.put("/roles/:id", roleController.updateRole);
+router.delete("/roles/:id", roleController.deleteRole);
+
+// ==================== Audit Log Routes ====================
+// Read-only by design: records are written by middleware/auditLog.ts and there
+// is no endpoint that edits or deletes one.
+router.get("/audit-logs/actors", auditLogController.getAuditLogActors);
+router.get("/audit-logs", auditLogController.getAuditLogs);
+
+// ==================== Town (City) Routes ====================
+// "mapping-report" and "map-sellers" must be registered before "/:id".
+router.get("/cities/mapping-report", cityController.getMappingReport);
+router.post("/cities/map-sellers", cityController.applySellerMapping);
+router.get("/cities", cityController.getCities);
+router.post("/cities", cityController.createCity);
+router.put("/cities/:id", cityController.updateCity);
+router.delete("/cities/:id", cityController.deleteCity);
+
+// ==================== Maintenance (Super Admin only) ====================
+// Mounted here rather than in migrationRoutes so the Super Admin requirement
+// sits next to the rest of the admin surface.
+router.use("/maintenance", requireSuperAdmin());
 
 // ==================== Policy Routes ====================
 router.post("/policies", policyController.createPolicy);

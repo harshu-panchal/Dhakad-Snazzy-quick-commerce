@@ -4,20 +4,29 @@ import LowestPricesProduct from "../../../models/LowestPricesProduct";
 import Product from "../../../models/Product";
 import Seller from "../../../models/Seller";
 import DeliveryArea from "../../../models/DeliveryArea";
+import City from "../../../models/City";
 import mongoose from "mongoose";
 
 /**
- * Get all serviceable cities from Sellers, Delivery Areas, and existing sections
+ * Get all serviceable cities from Sellers, Delivery Areas, existing sections
+ * and the managed town list.
+ *
+ * ADDITIVE ON PURPOSE. The customer home page matches a section's city against
+ * the sellers' raw `city` text (customerHomeController, detectedCities), so the
+ * raw spellings must stay selectable or an admin loses the ability to target a
+ * section at them. Town names are added alongside; nothing is removed. Moving
+ * this matching onto Seller.cityId is a later phase, not part of Phase A.
  */
 export const getServiceableCities = async (_req: Request, res: Response) => {
     try {
-        const [sellerCities, deliveryCities, sectionCities] = await Promise.all([
+        const [sellerCities, deliveryCities, sectionCities, townNames] = await Promise.all([
             Seller.distinct("city"),
             DeliveryArea.distinct("city"),
             LowestPricesSection.distinct("city"),
+            City.distinct("name", { isActive: { $ne: false } }),
         ]);
 
-        const rawCities = [...sellerCities, ...deliveryCities, ...sectionCities];
+        const rawCities = [...sellerCities, ...deliveryCities, ...sectionCities, ...townNames];
         const citySet = new Set<string>();
 
         // Always include "All Cities" as the global option

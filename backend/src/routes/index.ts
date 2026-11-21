@@ -8,6 +8,7 @@ import deliveryAuthRoutes from "./deliveryAuthRoutes";
 
 // ... (other imports)
 import { authenticate, requireUserType } from "../middleware/auth";
+import { requirePages } from "../middleware/permissions";
 import customerRoutes from "./customerRoutes";
 import sellerRoutes from "./sellerRoutes";
 import uploadRoutes from "./uploadRoutes";
@@ -205,7 +206,7 @@ router.use("/seller/wallet-new", authenticate, requireUserType("Seller"), seller
 router.use("/delivery/wallet", authenticate, requireUserType("Delivery"), deliveryWalletRoutes);
 
 // Admin withdrawal management routes (protected, admin only)
-router.use("/admin/withdrawals", authenticate, requireUserType("Admin"), adminWithdrawalRoutes);
+router.use("/admin/withdrawals", authenticate, requireUserType("Admin"), requirePages(["finance.withdrawals"]), adminWithdrawalRoutes);
 
 // Admin commission management routes (protected, admin only)
 

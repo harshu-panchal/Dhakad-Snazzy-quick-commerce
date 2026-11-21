@@ -94,7 +94,9 @@ const CategorySchema = new Schema<ICategory>(
 
 // Index for faster queries
 CategorySchema.index({ order: 1 });
-CategorySchema.index({ name: 1 });
+// name is already indexed (unique) via the field definition above. A second,
+// non-unique declaration here produced the same index name with a different
+// spec, which MongoDB rejects (IndexKeySpecsConflict) on every boot.
 CategorySchema.index({ slug: 1 });
 CategorySchema.index({ parentId: 1 });
 CategorySchema.index({ status: 1 });

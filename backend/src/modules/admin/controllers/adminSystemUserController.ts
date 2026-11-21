@@ -1,6 +1,38 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import Admin from "../../../models/Admin";
+import Admin, { validatePasswordStrength } from "../../../models/Admin";
+import AdminSession from "../../../models/AdminSession";
+import Role from "../../../models/Role";
+import { SUPER_ADMIN_ROLE } from "../../../config/permissions";
+
+/**
+ * Admin ("system user") account management.
+ *
+ * Privilege-escalation guards here are hard checks, independent of
+ * permissions: holding settings.system_user:manage must not be a path to
+ * becoming Super Admin.
+ */
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const serialize = (admin: any) => ({
+  id: admin._id,
+  firstName: admin.firstName,
+  lastName: admin.lastName,
+  mobile: admin.mobile,
+  email: admin.email,
+  role: admin.role,
+  isActive: admin.isActive !== false,
+  lastLoginAt: admin.lastLoginAt,
+  createdAt: admin.createdAt,
+  updatedAt: admin.updatedAt,
+});
+
+/** Only Super Admin may create or promote to Super Admin. */
+function blocksSuperAdminAssignment(req: Request, role?: string): boolean {
+  return role === SUPER_ADMIN_ROLE && !req.adminContext?.isSuperAdmin;
+}
 
 /**
  * Get all system users (admins) with filters and pagination
@@ -12,18 +44,21 @@ export const getAllSystemUsers = asyncHandler(
       limit = 10,
       search,
       role,
+      isActive,
       sortBy = "createdAt",
       sortOrder = "desc",
     } = req.query;
 
     const query: any = {};
 
-    // Filter by role
-    if (role && (role === "Super Admin" || role === "Admin")) {
+    // Any existing role name is a valid filter now that roles are dynamic.
+    if (role && typeof role === "string") {
       query.role = role;
     }
 
-    // Search filter
+    if (isActive === "true") query.isActive = { $ne: false };
+    if (isActive === "false") query.isActive = false;
+
     if (search) {
       query.$or = [
         { firstName: { $regex: search as string, $options: "i" } },
@@ -33,39 +68,27 @@ export const getAllSystemUsers = asyncHandler(
       ];
     }
 
-    // Sort options
     const sort: any = {};
     sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit as string) || 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const [admins, total] = await Promise.all([
-      Admin.find(query)
-        .select("-password") // Don't return password
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit as string)),
+      Admin.find(query).select("-password").sort(sort).skip(skip).limit(limitNum).lean(),
       Admin.countDocuments(query),
     ]);
 
     return res.status(200).json({
       success: true,
       message: "System users fetched successfully",
-      data: admins.map((admin) => ({
-        id: admin._id,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        mobile: admin.mobile,
-        email: admin.email,
-        role: admin.role,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      })),
+      data: admins.map(serialize),
       pagination: {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / parseInt(limit as string)),
+        pages: Math.ceil(total / limitNum),
       },
     });
   }
@@ -78,7 +101,11 @@ export const getSystemUserById = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const admin = await Admin.findById(id).select("-password");
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+
+    const admin = await Admin.findById(id).select("-password").lean();
 
     if (!admin) {
       return res.status(404).json({
@@ -90,16 +117,7 @@ export const getSystemUserById = asyncHandler(
     return res.status(200).json({
       success: true,
       message: "System user fetched successfully",
-      data: {
-        id: admin._id,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        mobile: admin.mobile,
-        email: admin.email,
-        role: admin.role,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      },
+      data: serialize(admin),
     });
   }
 );
@@ -109,25 +127,34 @@ export const getSystemUserById = asyncHandler(
  */
 export const createSystemUser = asyncHandler(
   async (req: Request, res: Response) => {
-    const { firstName, lastName, mobile, email, password, role } = req.body;
+    const { firstName, lastName, mobile, email, password, role } = req.body ?? {};
 
-    // Validation
-    if (!firstName || !lastName || !mobile || !email || !password) {
+    if (!firstName || !lastName || !mobile || !email || !password || !role) {
       return res.status(400).json({
         success: false,
-        message: "All fields are required",
+        message: "First name, last name, mobile, email, password and role are all required",
       });
     }
 
-    // Validate role
-    if (role && role !== "Admin" && role !== "Super Admin") {
-      return res.status(400).json({
+    if (blocksSuperAdminAssignment(req, role)) {
+      return res.status(403).json({
         success: false,
-        message: "Role must be either 'Admin' or 'Super Admin'",
+        code: "SUPER_ADMIN_REQUIRED",
+        message: "Only a Super Admin can create another Super Admin.",
       });
     }
 
-    // Validate mobile number format
+    // Roles are dynamic, so validate against the collection rather than a
+    // hardcoded list. (Admin's pre-save hook checks this too; checking here
+    // produces a clearer message.)
+    const roleDoc = await Role.findOne({ name: role });
+    if (!roleDoc) {
+      return res.status(400).json({
+        success: false,
+        message: `Role "${role}" does not exist`,
+      });
+    }
+
     if (!/^[0-9]{10}$/.test(mobile)) {
       return res.status(400).json({
         success: false,
@@ -135,57 +162,42 @@ export const createSystemUser = asyncHandler(
       });
     }
 
-    // Validate email format
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!EMAIL_RE.test(email)) {
       return res.status(400).json({
         success: false,
         message: "Please enter a valid email address",
       });
     }
 
-    // Validate password length
-    if (password.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "Password must be at least 6 characters",
-      });
+    const policyError = validatePasswordStrength(password);
+    if (policyError) {
+      return res.status(400).json({ success: false, message: policyError });
     }
 
-    // Check if admin already exists
     const existingAdmin = await Admin.findOne({
-      $or: [{ mobile }, { email }],
+      $or: [{ mobile }, { email: String(email).toLowerCase().trim() }],
     });
 
     if (existingAdmin) {
       return res.status(409).json({
         success: false,
-        message: "Admin already exists with this mobile or email",
+        message: "An admin already exists with this mobile or email",
       });
     }
 
-    // Create new admin
     const admin = await Admin.create({
       firstName,
       lastName,
       mobile,
       email,
       password,
-      role: role || "Admin", // Default to "Admin" if not provided
+      role,
     });
 
     return res.status(201).json({
       success: true,
       message: "System user created successfully",
-      data: {
-        id: admin._id,
-        firstName: admin.firstName,
-        lastName: admin.lastName,
-        mobile: admin.mobile,
-        email: admin.email,
-        role: admin.role,
-        createdAt: admin.createdAt,
-        updatedAt: admin.updatedAt,
-      },
+      data: serialize(admin),
     });
   }
 );
@@ -196,9 +208,12 @@ export const createSystemUser = asyncHandler(
 export const updateSystemUser = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { firstName, lastName, mobile, email, password, role } = req.body;
+    const { firstName, lastName, mobile, email, password, role, isActive } = req.body ?? {};
 
-    // Find the admin
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+
     const admin = await Admin.findById(id);
 
     if (!admin) {
@@ -208,35 +223,101 @@ export const updateSystemUser = asyncHandler(
       });
     }
 
-    // Validate role if provided
-    if (role && role !== "Admin" && role !== "Super Admin") {
-      return res.status(400).json({
+    const isSelf = String(admin._id) === req.adminContext?.adminId;
+
+    // Promoting anyone (including yourself) to Super Admin is Super Admin only.
+    if (role && role !== admin.role && blocksSuperAdminAssignment(req, role)) {
+      return res.status(403).json({
         success: false,
-        message: "Role must be either 'Admin' or 'Super Admin'",
+        code: "SUPER_ADMIN_REQUIRED",
+        message: "Only a Super Admin can grant the Super Admin role.",
       });
     }
 
-    // Check if email is being changed and if it's already in use
+    // Demoting or disabling a Super Admin is likewise Super Admin only,
+    // otherwise settings.system_user:manage could neutralise them.
+    if (
+      admin.role === SUPER_ADMIN_ROLE &&
+      !req.adminContext?.isSuperAdmin &&
+      ((role && role !== SUPER_ADMIN_ROLE) || isActive === false || password)
+    ) {
+      return res.status(403).json({
+        success: false,
+        code: "SUPER_ADMIN_REQUIRED",
+        message: "Only a Super Admin can modify a Super Admin account.",
+      });
+    }
+
+    if (role && role !== admin.role) {
+      const roleDoc = await Role.findOne({ name: role });
+      if (!roleDoc) {
+        return res.status(400).json({
+          success: false,
+          message: `Role "${role}" does not exist`,
+        });
+      }
+
+      // Protect the last Super Admin from being demoted.
+      if (admin.role === SUPER_ADMIN_ROLE) {
+        const count = await Admin.countDocuments({ role: SUPER_ADMIN_ROLE });
+        if (count === 1) {
+          return res.status(400).json({
+            success: false,
+            message: "Cannot change the role of the last Super Admin",
+          });
+        }
+      }
+    }
+
+    if (isActive === false) {
+      if (isSelf) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot deactivate your own account",
+        });
+      }
+      if (admin.role === SUPER_ADMIN_ROLE) {
+        const activeSupers = await Admin.countDocuments({
+          role: SUPER_ADMIN_ROLE,
+          isActive: { $ne: false },
+        });
+        if (activeSupers <= 1) {
+          return res.status(400).json({
+            success: false,
+            message: "Cannot deactivate the last active Super Admin",
+          });
+        }
+      }
+    }
+
     if (email && email !== admin.email) {
-      const existingAdmin = await Admin.findOne({
-        email,
+      const clash = await Admin.findOne({
+        email: String(email).toLowerCase().trim(),
         _id: { $ne: id },
       });
-      if (existingAdmin) {
+      if (clash) {
         return res.status(409).json({
           success: false,
           message: "Email already in use by another admin",
         });
       }
+      if (!EMAIL_RE.test(email)) {
+        return res.status(400).json({
+          success: false,
+          message: "Please enter a valid email address",
+        });
+      }
     }
 
-    // Check if mobile is being changed and if it's already in use
     if (mobile && mobile !== admin.mobile) {
-      const existingAdmin = await Admin.findOne({
-        mobile,
-        _id: { $ne: id },
-      });
-      if (existingAdmin) {
+      if (!/^[0-9]{10}$/.test(mobile)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid 10-digit mobile number is required",
+        });
+      }
+      const clash = await Admin.findOne({ mobile, _id: { $ne: id } });
+      if (clash) {
         return res.status(409).json({
           success: false,
           message: "Mobile number already in use by another admin",
@@ -244,55 +325,49 @@ export const updateSystemUser = asyncHandler(
       }
     }
 
-    // Validate mobile number format if provided
-    if (mobile && !/^[0-9]{10}$/.test(mobile)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid 10-digit mobile number is required",
-      });
+    if (password) {
+      const policyError = validatePasswordStrength(password);
+      if (policyError) {
+        return res.status(400).json({ success: false, message: policyError });
+      }
     }
 
-    // Validate email format if provided
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({
-        success: false,
-        message: "Please enter a valid email address",
-      });
-    }
+    // Captured before the assignments below, so the comparison is against the
+    // stored role rather than the one just written.
+    const roleChanged = Boolean(role) && role !== admin.role;
 
-    // Update fields
     if (firstName) admin.firstName = firstName;
     if (lastName) admin.lastName = lastName;
     if (email) admin.email = email;
     if (mobile) admin.mobile = mobile;
-    if (role) admin.role = role as "Admin" | "Super Admin";
+    if (role) admin.role = role;
+    if (isActive !== undefined) admin.isActive = Boolean(isActive);
+
+    // A role change, a password reset or a deactivation must take effect
+    // immediately rather than when the target's token happens to expire.
+    const invalidateSessions = Boolean(password) || isActive === false || roleChanged;
+
     if (password) {
-      if (password.length < 6) {
-        return res.status(400).json({
-          success: false,
-          message: "Password must be at least 6 characters",
-        });
-      }
-      admin.password = password; // Will be hashed by pre-save hook
+      admin.password = password; // hashed by the pre-save hook
+    }
+
+    if (invalidateSessions) {
+      admin.tokenVersion = (admin.tokenVersion ?? 0) + 1;
     }
 
     await admin.save();
 
-    // Return updated admin without password
-    const updatedAdmin = await Admin.findById(id).select("-password");
+    if (invalidateSessions) {
+      await AdminSession.updateMany(
+        { adminId: admin._id, revokedAt: { $exists: false } },
+        { revokedAt: new Date(), revokedReason: "logout-all" },
+      );
+    }
 
     return res.status(200).json({
       success: true,
       message: "System user updated successfully",
-      data: {
-        id: updatedAdmin!._id,
-        firstName: updatedAdmin!.firstName,
-        lastName: updatedAdmin!.lastName,
-        mobile: updatedAdmin!.mobile,
-        email: updatedAdmin!.email,
-        role: updatedAdmin!.role,
-        updatedAt: updatedAdmin!.updatedAt,
-      },
+      data: serialize(admin),
     });
   }
 );
@@ -304,9 +379,11 @@ export const deleteSystemUser = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    // Prevent deleting yourself
-    const currentUserId = req.user!.userId;
-    if (id === currentUserId) {
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+
+    if (id === req.user!.userId) {
       return res.status(400).json({
         success: false,
         message: "You cannot delete your own account",
@@ -322,9 +399,16 @@ export const deleteSystemUser = asyncHandler(
       });
     }
 
-    // Prevent deleting the last Super Admin
-    if (admin.role === "Super Admin") {
-      const superAdminCount = await Admin.countDocuments({ role: "Super Admin" });
+    if (admin.role === SUPER_ADMIN_ROLE) {
+      if (!req.adminContext?.isSuperAdmin) {
+        return res.status(403).json({
+          success: false,
+          code: "SUPER_ADMIN_REQUIRED",
+          message: "Only a Super Admin can delete a Super Admin account.",
+        });
+      }
+
+      const superAdminCount = await Admin.countDocuments({ role: SUPER_ADMIN_ROLE });
       if (superAdminCount === 1) {
         return res.status(400).json({
           success: false,
@@ -333,7 +417,10 @@ export const deleteSystemUser = asyncHandler(
       }
     }
 
-    await Admin.findByIdAndDelete(id);
+    await Promise.all([
+      Admin.findByIdAndDelete(id),
+      AdminSession.deleteMany({ adminId: id }),
+    ]);
 
     return res.status(200).json({
       success: true,
@@ -341,4 +428,3 @@ export const deleteSystemUser = asyncHandler(
     });
   }
 );
-

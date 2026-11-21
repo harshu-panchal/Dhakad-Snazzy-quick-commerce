@@ -31,6 +31,13 @@ export interface ISeller extends Document {
 
   // Store Location Info
   city: string;
+  /**
+   * The town this seller belongs to (see models/City.ts). Separate from the
+   * free-text `city` above, which is left untouched: customer-facing code
+   * (Lowest Prices matching) still compares against that text.
+   * Backfilled by scripts/mapSellerTowns.ts; optional until then.
+   */
+  cityId?: mongoose.Types.ObjectId;
   state: string;
   pincode: string;
   country: string;
@@ -190,6 +197,11 @@ const SellerSchema = new Schema<ISeller>(
       type: String,
       required: false,
       trim: true,
+    },
+    cityId: {
+      type: Schema.Types.ObjectId,
+      ref: 'City',
+      required: false,
     },
     state: {
       type: String,
@@ -406,6 +418,7 @@ SellerSchema.methods.comparePassword = async function (
 // Create geospatial index on location field for efficient queries
 SellerSchema.index({ location: '2dsphere' });
 SellerSchema.index({ status: 1 }); // Compound index for status + location queries
+SellerSchema.index({ cityId: 1 });
 
 const Seller = (mongoose.models.Seller as mongoose.Model<ISeller>) || mongoose.model<ISeller>('Seller', SellerSchema);
 

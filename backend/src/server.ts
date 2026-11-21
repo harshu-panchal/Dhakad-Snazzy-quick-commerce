@@ -17,6 +17,10 @@ import { runProductReminderWorker } from "./services/productReminderService";
 import { runRazorpayPaymentWorkers } from "./services/paymentService";
 import { razorpayWebhookHandler } from "./routes/razorpayWebhookRoute";
 import { seedProductReminderTemplates } from "./utils/seedProductReminderTemplates";
+import cookieParser from "cookie-parser";
+import { seedRbac } from "./scripts/seedRbac";
+import { seedCities } from "./scripts/seedCities";
+import { verifyEmailTransport } from "./services/emailService";
 
 
 // Load environment variables
@@ -102,6 +106,16 @@ app.post(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Admin refresh tokens travel in an httpOnly cookie.
+app.use(cookieParser());
+
+// Behind the production reverse proxy, req.ip must reflect the real client
+// or every rate limiter keys to the proxy and becomes global instead of
+// per-client. Adjust the hop count if more than one proxy is in front.
+if (process.env.NODE_ENV === "production" || process.env.TRUST_PROXY === "true") {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
+}
+
 // Serve local uploaded files statically.
 // Every upload (images, videos, reels) gets a unique timestamp+random
 // filename and is never overwritten (see localStorageService), so it's safe
@@ -155,9 +169,17 @@ const PORT = process.env.PORT || 5000;
 async function startServer() {
   // Connect DB then ensure default admin exists
   await connectDB();
+  // seedRbac must run BEFORE ensureDefaultAdmin: Admin.role is now validated
+  // against the Role collection, so the roles have to exist first.
+  await seedRbac();
+  await seedCities();
   await ensureDefaultAdmin();
   await seedHeaderCategories();
   await seedProductReminderTemplates();
+
+  // Surfaces SMTP misconfiguration at deploy time rather than when an admin
+  // first needs a password reset. Never blocks startup.
+  void verifyEmailTransport();
 
   // Initialize Firebase Admin SDK for push notifications
   initializeFirebaseAdmin();

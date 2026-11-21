@@ -15,7 +15,22 @@ dotenv.config();
 // syncIndexes(), it never drops an index it doesn't recognize, so it's safe
 // to run on every boot even against a DB that already has extra indexes.
 const ensureCustomerFacingIndexes = async (): Promise<void> => {
-  const modelNames = ['Seller', 'Shop', 'Product', 'Category', 'SubCategory', 'Commission'];
+  // Role, AdminSession and AuditLog carry indexes the admin RBAC system relies
+  // on: unique role names, the unique refresh-token hash, and the TTL indexes
+  // that expire sessions and (optionally) audit records. With autoIndex off
+  // they would otherwise never be created.
+  const modelNames = [
+    'Seller',
+    'Shop',
+    'Product',
+    'Category',
+    'SubCategory',
+    'Commission',
+    'Role',
+    'AdminSession',
+    'AuditLog',
+    'City',
+  ];
   for (const name of modelNames) {
     try {
       const model = mongoose.models[name];

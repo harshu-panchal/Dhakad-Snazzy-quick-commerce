@@ -8,12 +8,22 @@ import {
   updateSellerCategoryCommissions,
 } from "../modules/seller/controllers/sellerController";
 import { authenticate, requireUserType } from "../middleware/auth";
+import { requireTiered } from "../middleware/permissions";
 
 const router = Router();
 
 // All routes require authentication and admin user type
 router.use(authenticate);
 router.use(requireUserType("Admin"));
+// Three admin pages read these endpoints - Manage Seller List, Seller
+// Transaction and Seller Location - but only Manage Seller List should be
+// able to edit or delete a seller, so view and manage differ here.
+router.use(
+  requireTiered({
+    view: ["sellers.list", "sellers.transaction", "sellers.location"],
+    manage: ["sellers.list"],
+  }),
+);
 
 // Get all sellers
 router.get("/", getAllSellers);
