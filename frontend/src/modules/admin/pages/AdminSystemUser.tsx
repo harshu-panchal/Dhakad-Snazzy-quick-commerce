@@ -8,10 +8,15 @@ import {
   CreateSystemUserData,
   UpdateSystemUserData,
 } from '../../../services/api/admin/adminSystemUserService';
+import { getRoles, type Role } from '../../../services/api/admin/adminRoleService';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export default function AdminSystemUser() {
+  const { canManage, isSuperAdmin } = usePermissions();
+  const canEdit = canManage('settings.system_user');
+
   const [formData, setFormData] = useState({
-    role: '' as '' | 'Admin' | 'Super Admin',
+    role: '' as string,
     firstName: '',
     lastName: '',
     mobile: '',
@@ -32,8 +37,21 @@ export default function AdminSystemUser() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
 
-  // Only Admin and Super Admin roles
-  const roles: ('Admin' | 'Super Admin')[] = ['Admin', 'Super Admin'];
+  // Roles come from the Role collection now, not a hardcoded pair, so a
+  // custom role is assignable the moment it is created.
+  const [roles, setRoles] = useState<Role[]>([]);
+
+  useEffect(() => {
+    getRoles({ limit: 200 })
+      .then((res) => setRoles(res.data || []))
+      .catch(() => setError('Could not load the list of roles.'));
+  }, []);
+
+  // Only a Super Admin may create or promote another Super Admin; the server
+  // enforces this too, so hiding the option just avoids a pointless 403.
+  const assignableRoles = roles.filter(
+    (role) => isSuperAdmin || role.name !== 'Super Admin'
+  );
 
   // Debounce search term
   useEffect(() => {
@@ -133,8 +151,17 @@ export default function AdminSystemUser() {
       setError('Please enter password');
       return;
     }
-    if (formData.password.trim() && formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    // Mirrors the server policy (backend/src/models/Admin.ts).
+    if (
+      formData.password.trim() &&
+      (formData.password.length < 8 ||
+        !/[a-z]/.test(formData.password) ||
+        !/[A-Z]/.test(formData.password) ||
+        !/[0-9]/.test(formData.password))
+    ) {
+      setError(
+        'Password must be at least 8 characters and include an uppercase letter, a lowercase letter and a number'
+      );
       return;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -363,9 +390,10 @@ export default function AdminSystemUser() {
                       className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
                     >
                       <option value="">Select role</option>
-                      {roles.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
+                      {assignableRoles.map((role) => (
+                        <option key={role._id} value={role.name}>
+                          {role.name}
+                          {role.type === 'System' ? ' (system)' : ''}
                         </option>
                       ))}
                     </select>
@@ -424,6 +452,7 @@ export default function AdminSystemUser() {
                     <input
                       type="email"
                       name="email"
+                      autoComplete="off"
                       value={formData.email}
                       onChange={handleInputChange}
                       placeholder="Enter Email"
@@ -439,9 +468,10 @@ export default function AdminSystemUser() {
                     <input
                       type="password"
                       name="password"
+                      autoComplete="new-password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      placeholder={editingId === null ? "Enter Password" : "Leave blank to keep current"}
+                      placeholder={editingId === null ? "Min 8 chars, upper + lower + number" : "Leave blank to keep current"}
                       disabled={loading}
                       className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                     />
@@ -454,6 +484,7 @@ export default function AdminSystemUser() {
                     <input
                       type="password"
                       name="confirmPassword"
+                      autoComplete="new-password"
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
                       placeholder={editingId === null ? "Enter Confirm Password" : "Leave blank to keep current"}

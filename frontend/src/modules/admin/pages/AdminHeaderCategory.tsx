@@ -8,7 +8,7 @@ import {
   getHeaderCategoryDisplaySettings,
   HeaderCategory
 } from '../../../services/api/headerCategoryService';
-import { getAppSettings, updateAppSettings } from '../../../services/api/admin/adminSettingsService';
+import { updateFeatureSettings } from '../../../services/api/admin/adminSettingsService';
 import { uploadImage } from '../../../services/api/uploadService';
 import { themes } from '../../../utils/themes';
 import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary';
@@ -80,7 +80,7 @@ export default function AdminHeaderCategory() {
       setUploadingAllCategoryImage(true);
       const result = await uploadImage(file, 'dhakadsnazzy/header-categories');
       const url = result.secureUrl || result.url;
-      await updateAppSettings({ allCategoryImageUrl: url });
+      await updateFeatureSettings({ allCategoryImageUrl: url });
       setAllCategoryImageUrl(url);
     } catch (error: any) {
       console.error('Failed to upload "All" category image', error);
@@ -94,7 +94,7 @@ export default function AdminHeaderCategory() {
   const handleRemoveAllCategoryImage = async () => {
     try {
       setUploadingAllCategoryImage(true);
-      await updateAppSettings({ allCategoryImageUrl: '' });
+      await updateFeatureSettings({ allCategoryImageUrl: '' });
       setAllCategoryImageUrl('');
     } catch (error: any) {
       console.error('Failed to remove "All" category image', error);
@@ -108,13 +108,10 @@ export default function AdminHeaderCategory() {
     const newValue = !showHeaderCategoryRow;
     setToggleSaving(true);
     try {
-      const current = await getAppSettings();
-      await updateAppSettings({
-        features: {
-          ...(current.data?.features || {}),
-          showHeaderCategoryRow: newValue,
-        },
-      });
+      // The narrow display-settings endpoint merges `features` server-side, so
+      // there is no need to read the current object first — and it avoids
+      // needing the Billing page just to flip this switch.
+      await updateFeatureSettings({ features: { showHeaderCategoryRow: newValue } });
       setShowHeaderCategoryRow(newValue);
     } catch (error) {
       console.error('Failed to update display setting', error);

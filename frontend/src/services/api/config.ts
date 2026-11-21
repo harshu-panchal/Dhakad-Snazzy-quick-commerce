@@ -28,6 +28,10 @@ const api: AxiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // The admin refresh token travels in an httpOnly cookie. The panel and the
+  // API are on different subdomains, so the cookie is cross-site and only
+  // sent when credentials are enabled.
+  withCredentials: true,
 });
 
 // Request interceptor - Add token to requests
@@ -44,14 +48,100 @@ api.interceptors.request.use(
   }
 );
 
+/**
+ * Admin access tokens are short-lived (15 min) and renewed from the httpOnly
+ * refresh cookie.
+ *
+ * Concurrent 401s must share one refresh call: the server rotates refresh
+ * tokens and treats a replayed one as theft, so six parallel requests firing
+ * six refreshes would revoke the whole session. Everything queues behind
+ * `refreshInFlight`.
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
+const isAdminRequest = (url?: string): boolean => {
+  if (!url) return false;
+  return url.includes("/admin") || url.includes("/auth/admin");
+};
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        // Bare axios, not `api`: going through the instance would recurse into
+        // this interceptor if the refresh itself returns 401.
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/admin/refresh`,
+          {},
+          { withCredentials: true },
+        );
+
+        const payload = response.data?.data;
+        if (payload?.token) {
+          localStorage.setItem("authToken", payload.token);
+          if (payload.user) {
+            localStorage.setItem(
+              "userData",
+              JSON.stringify({ ...payload.user, userType: "Admin" }),
+            );
+          }
+          if (payload.permissions) {
+            localStorage.setItem(
+              "adminPermissions",
+              JSON.stringify(payload.permissions),
+            );
+          }
+          return payload.token as string;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        // Cleared on the next tick so callers awaiting this promise all see
+        // the same result before a new attempt can start.
+        setTimeout(() => {
+          refreshInFlight = null;
+        }, 0);
+      }
+    })();
+  }
+
+  return refreshInFlight;
+}
+
 // Response interceptor - Handle errors
 api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error: any) => {
+  async (error: any) => {
     // Only handle 401 (Unauthorized) for auto-logout
     // 403 (Forbidden) means user is authenticated but doesn't have permission - DO NOT LOGOUT
+    if (error.response?.status === 401) {
+      const original = error.config || {};
+      const isAuthEndpointEarly = original.url?.includes("/auth/");
+
+      // One silent refresh attempt per request, for admin endpoints only.
+      // `_retried` stops an infinite loop if the renewed token is also
+      // rejected.
+      if (
+        !original._retried &&
+        !isAuthEndpointEarly &&
+        isAdminRequest(original.url) &&
+        localStorage.getItem("authToken")
+      ) {
+        original._retried = true;
+        const token = await refreshAccessToken();
+
+        if (token) {
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${token}`;
+          return api(original);
+        }
+        // Refresh failed: fall through to the redirect logic below.
+      }
+    }
+
     if (error.response?.status === 401) {
       // Check if this is an authentication endpoint (OTP verification, etc.)
       // Don't redirect for auth endpoints - let the component handle the error
@@ -94,6 +184,7 @@ api.interceptors.response.use(
 
         localStorage.removeItem("authToken");
         localStorage.removeItem("userData");
+        localStorage.removeItem("adminPermissions");
         window.location.href = redirectPath;
       }
       // If no token was present, user is just browsing as guest - don't redirect
@@ -116,6 +207,7 @@ export const getAuthToken = (): string | null => {
 export const removeAuthToken = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userData");
+  localStorage.removeItem("adminPermissions");
 };
 
 export default api;

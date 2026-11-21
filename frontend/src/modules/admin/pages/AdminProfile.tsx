@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getProfile, updateProfile, type AdminProfile as AdminProfileType } from '../../../services/api/admin/adminProfileService';
 import { useAuth } from '../../../context/AuthContext';
+import ChangePasswordCard from '../components/ChangePasswordCard';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export default function AdminProfile() {
+    const { isSuperAdmin } = usePermissions();
     const { isAuthenticated } = useAuth();
     const [profile, setProfile] = useState<AdminProfileType | null>(null);
     const [loading, setLoading] = useState(true);
@@ -320,6 +323,11 @@ export default function AdminProfile() {
                             )}
                         </div>
                     </div>
+                </div>
+
+                {/* Security: change your own password. */}
+                <div className="mt-6">
+                    <ChangePasswordCard isOtpOnly={isSuperAdmin} />
                 </div>
             </div>
         </div>

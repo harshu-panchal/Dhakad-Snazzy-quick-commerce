@@ -1,6 +1,5 @@
 import api from "../config";
 
-
 import { ApiResponse } from "./types";
 
 export interface Role {
@@ -9,6 +8,12 @@ export interface Role {
   type: "System" | "Custom";
   permissions: string[];
   description?: string;
+  isActive?: boolean;
+  /** Number of admin accounts currently holding this role. */
+  userCount?: number;
+  /** True for Super Admin, whose permission list is reported as the full set. */
+  isWildcard?: boolean;
+  permissionsUpdatedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -23,6 +28,7 @@ export interface UpdateRoleData {
   name?: string;
   permissions?: string[];
   description?: string;
+  isActive?: boolean;
 }
 
 export interface GetRolesParams {
@@ -32,6 +38,26 @@ export interface GetRolesParams {
   type?: "System" | "Custom";
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+}
+
+/** One page in the permission catalog, with its two tier permission strings. */
+export interface PermissionCatalogPage {
+  key: string;
+  label: string;
+  path: string;
+  view: string;
+  manage: string;
+}
+
+export interface PermissionCatalogGroup {
+  group: string;
+  groupLabel: string;
+  pages: PermissionCatalogPage[];
+}
+
+export interface PermissionCatalog {
+  groups: PermissionCatalogGroup[];
+  all: string[];
 }
 
 /**
@@ -65,7 +91,7 @@ export const createRole = async (
 };
 
 /**
- * Update role
+ * Update role. Renaming cascades to every admin account holding the old name.
  */
 export const updateRole = async (
   id: string,
@@ -76,7 +102,7 @@ export const updateRole = async (
 };
 
 /**
- * Delete role (only custom roles can be deleted)
+ * Delete role. Refused with 409 while any admin account holds it.
  */
 export const deleteRole = async (id: string): Promise<ApiResponse<void>> => {
   const response = await api.delete<ApiResponse<void>>(`/admin/roles/${id}`);
@@ -84,10 +110,12 @@ export const deleteRole = async (id: string): Promise<ApiResponse<void>> => {
 };
 
 /**
- * Get role permissions
+ * The permission catalog, grouped for the role editor. This is the
+ * authoritative list — the frontend catalog module exists only so the sidebar
+ * and route table have keys at build time.
  */
-export const getRolePermissions = async (): Promise<ApiResponse<string[]>> => {
-  const response = await api.get<ApiResponse<string[]>>(
+export const getRolePermissions = async (): Promise<ApiResponse<PermissionCatalog>> => {
+  const response = await api.get<ApiResponse<PermissionCatalog>>(
     "/admin/roles/permissions"
   );
   return response.data;

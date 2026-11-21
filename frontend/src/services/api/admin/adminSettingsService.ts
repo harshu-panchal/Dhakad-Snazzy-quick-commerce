@@ -207,3 +207,43 @@ export const updateSMSGatewaySettings = async (
   );
   return response.data;
 };
+
+export interface FeatureSettings {
+    [key: string]: any;
+}
+
+/**
+ * Feature flags only, with no gateway credentials.
+ *
+ * A separate endpoint from getAppSettings because GET /admin/settings returns
+ * payment and SMS secrets and is therefore gated behind the Billing & SMS
+ * Gateway pages. Pages that only need to read or flip a display flag use this
+ * instead, so e.g. a catalog editor does not need the billing page.
+ */
+export const getFeatureSettings = async (): Promise<
+    ApiResponse<{ features: FeatureSettings; allCategoryImageUrl?: string }>
+> => {
+    const response = await api.get<
+        ApiResponse<{ features: FeatureSettings; allCategoryImageUrl?: string }>
+    >("/admin/settings/features");
+    return response.data;
+};
+
+/**
+ * Fields this endpoint accepts. `features` is merged server-side, so sending
+ * one flag does not clear the others. Anything outside this shape is ignored
+ * by the server.
+ */
+export interface DisplaySettingsPayload {
+    features?: FeatureSettings;
+    allCategoryImageUrl?: string;
+}
+
+export const updateFeatureSettings = async (
+    payload: DisplaySettingsPayload,
+): Promise<ApiResponse<{ features: FeatureSettings; allCategoryImageUrl?: string }>> => {
+    const response = await api.put<
+        ApiResponse<{ features: FeatureSettings; allCategoryImageUrl?: string }>
+    >("/admin/settings/features", payload);
+    return response.data;
+};

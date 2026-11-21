@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { usePermissions } from "../../../hooks/usePermissions";
 
 interface SubMenuItem {
   label: string;
   path: string;
+  /** Page key required to see this entry. */
+  permission: string;
   icon: JSX.Element;
   badge?: string;
   badgeColor?: string;
@@ -12,6 +15,12 @@ interface SubMenuItem {
 interface MenuItem {
   label: string;
   path: string;
+  /**
+   * Page key required to see this entry. Omitted on items that only expand a
+   * submenu — their visibility is derived from whether any child survives
+   * filtering.
+   */
+  permission?: string;
   hasSubmenu?: boolean;
   submenuItems?: SubMenuItem[];
   icon?: JSX.Element;
@@ -39,6 +48,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Category",
             path: "/admin/category",
+            permission: "catalog.category",
             icon: (
               <svg
                 width="18"
@@ -63,6 +73,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Header Category",
             path: "/admin/category/header",
+            permission: "catalog.header_category",
             icon: (
               <svg
                 width="18"
@@ -109,6 +120,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Brand",
         path: "/admin/brand",
+        permission: "catalog.brand",
         icon: (
           <svg
             width="18"
@@ -145,6 +157,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Product List",
             path: "/admin/product/list",
+            permission: "catalog.product_list",
             icon: (
               <svg
                 width="18"
@@ -165,6 +178,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Taxes",
             path: "/admin/product/taxes",
+            permission: "catalog.taxes",
             icon: (
               <svg
                 width="18"
@@ -211,6 +225,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Manage Seller List",
             path: "/admin/manage-seller/list",
+            permission: "sellers.list",
             icon: (
               <svg
                 width="18"
@@ -233,6 +248,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Seller Transaction",
             path: "/admin/manage-seller/transaction",
+            permission: "sellers.transaction",
             icon: (
               <svg
                 width="18"
@@ -282,6 +298,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Seller Location",
             path: "/admin/manage-location/seller-location",
+            permission: "sellers.location",
             icon: (
               <svg
                 width="18"
@@ -304,6 +321,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Coupon",
         path: "/admin/coupon",
+        permission: "marketing.coupon",
         icon: (
           <svg
             width="18"
@@ -345,6 +363,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Manage Delivery Boy",
             path: "/admin/delivery-boy/manage",
+            permission: "delivery.manage",
             icon: (
               <svg
                 width="18"
@@ -368,6 +387,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Manual Assignment",
             path: "/admin/delivery-boy/manual-assign",
+            permission: "delivery.manual_assign",
             icon: (
               <svg
                 width="18"
@@ -387,6 +407,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Fund Transfer",
             path: "/admin/delivery-boy/fund-transfer",
+            permission: "delivery.fund_transfer",
             icon: (
               <svg
                 width="18"
@@ -410,6 +431,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Cash Collection",
             path: "/admin/delivery-boy/cash-collection",
+            permission: "delivery.cash_collection",
             icon: (
               <svg
                 width="18"
@@ -432,6 +454,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Delivery Tracking",
             path: "/admin/delivery-tracking",
+            permission: "delivery.tracking",
             icon: (
               <svg
                 width="18"
@@ -458,6 +481,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Users",
         path: "/admin/users",
+        permission: "customers.users",
         icon: (
           <svg
             width="18"
@@ -478,6 +502,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Notification",
         path: "/admin/notification",
+        permission: "marketing.notification",
         icon: (
           <svg
             width="18"
@@ -497,12 +522,14 @@ const menuSections: MenuSection[] = [
       {
         label: "Reminder Templates",
         path: "/admin/notification-templates",
+        permission: "marketing.notification_templates",
       },
 
 
       {
         label: "FAQ",
         path: "/admin/faq",
+        permission: "content.faq",
         icon: (
           <svg
             width="18"
@@ -555,6 +582,7 @@ const menuSections: MenuSection[] = [
           {
             label: "All Order",
             path: "/admin/orders/all",
+            permission: "orders.all",
             icon: (
               <svg
                 width="18"
@@ -574,6 +602,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Pending Order",
             path: "/admin/orders/pending",
+            permission: "orders.pending",
             icon: (
               <svg
                 width="18"
@@ -592,6 +621,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Received Order",
             path: "/admin/orders/received",
+            permission: "orders.received",
             icon: (
               <svg
                 width="18"
@@ -610,6 +640,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Processed Order",
             path: "/admin/orders/processed",
+            permission: "orders.processed",
             icon: (
               <svg
                 width="18"
@@ -631,6 +662,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Shipped Order",
             path: "/admin/orders/shipped",
+            permission: "orders.shipped",
             icon: (
               <svg
                 width="18"
@@ -649,6 +681,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Out For Delivery",
             path: "/admin/orders/out-for-delivery",
+            permission: "orders.out_for_delivery",
             icon: (
               <svg
                 width="18"
@@ -669,6 +702,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Delivered Order",
             path: "/admin/orders/delivered",
+            permission: "orders.delivered",
             icon: (
               <svg
                 width="18"
@@ -687,6 +721,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Cancelled Order",
             path: "/admin/orders/cancelled",
+            permission: "orders.cancelled",
             icon: (
               <svg
                 width="18"
@@ -706,6 +741,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Settlement",
             path: "/admin/settlement",
+            permission: "orders.settlement",
             icon: (
               <svg
                 width="18"
@@ -724,6 +760,7 @@ const menuSections: MenuSection[] = [
           {
             label: "Return",
             path: "/admin/return",
+            permission: "orders.returns",
             icon: (
               <svg
                 width="18"
@@ -750,6 +787,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Wallet & Earnings",
         path: "/admin/wallet",
+        permission: "finance.wallet",
         icon: (
           <svg
             width="18"
@@ -774,6 +812,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Home Section",
         path: "/admin/home-section",
+        permission: "marketing.home_section",
         icon: (
           <svg
             width="18"
@@ -793,6 +832,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Bestseller Cards",
         path: "/admin/bestseller-cards",
+        permission: "marketing.bestseller_cards",
         icon: (
           <svg
             width="18"
@@ -811,6 +851,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Banners & Videos",
         path: "/admin/promo-strip",
+        permission: "marketing.promo_strip",
         icon: (
           <svg
             width="18"
@@ -829,6 +870,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Lowest Prices",
         path: "/admin/lowest-prices",
+        permission: "marketing.lowest_prices",
         icon: (
           <svg
             width="18"
@@ -849,6 +891,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Shop by Store",
         path: "/admin/shop-by-store",
+        permission: "marketing.shop_by_store",
         icon: (
           <svg
             width="18"
@@ -874,6 +917,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Reels",
         path: "/admin/reels",
+        permission: "marketing.reels",
         icon: (
           <svg
             width="18"
@@ -895,6 +939,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Billing & Charges",
         path: "/admin/billing-settings",
+        permission: "settings.billing",
         icon: (
           <svg
             width="18"
@@ -914,6 +959,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Payment List",
         path: "/admin/payment-list",
+        permission: "finance.payment_list",
         icon: (
           <svg
             width="18"
@@ -934,6 +980,7 @@ const menuSections: MenuSection[] = [
       {
         label: "SMS Gateway",
         path: "/admin/sms-gateway",
+        permission: "settings.sms_gateway",
         icon: (
           <svg
             width="18"
@@ -952,6 +999,7 @@ const menuSections: MenuSection[] = [
       {
         label: "System User",
         path: "/admin/system-user",
+        permission: "settings.system_user",
         icon: (
           <svg
             width="18"
@@ -970,8 +1018,69 @@ const menuSections: MenuSection[] = [
         ),
       },
       {
+        label: "Manage Roles",
+        path: "/admin/roles",
+        permission: "settings.roles",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7A5 5 0 0 1 17 7V11"></path>
+            <circle cx="12" cy="16" r="1"></circle>
+          </svg>
+        ),
+      },
+      {
+        label: "Audit Log",
+        path: "/admin/audit-log",
+        permission: "settings.audit_log",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M14 2H6A2 2 0 0 0 4 4V20A2 2 0 0 0 6 22H18A2 2 0 0 0 20 20V8Z"></path>
+            <path d="M14 2V8H20"></path>
+            <path d="M12 18V12"></path>
+            <path d="M9 15L12 12L15 15"></path>
+          </svg>
+        ),
+      },
+      {
+        label: "Towns",
+        path: "/admin/cities",
+        permission: "settings.cities",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M12 21C16 17 19 13.9 19 10A7 7 0 0 0 5 10C5 13.9 8 17 12 21Z"></path>
+            <circle cx="12" cy="10" r="2.5"></circle>
+          </svg>
+        ),
+      },
+      {
         label: "Customer App Policy",
         path: "/admin/customer-app-policy",
+        permission: "content.customer_app_policy",
         icon: (
           <svg
             width="18"
@@ -991,6 +1100,7 @@ const menuSections: MenuSection[] = [
       {
         label: "Delivery App Policy",
         path: "/admin/delivery-app-policy",
+        permission: "content.delivery_app_policy",
         icon: (
           <svg
             width="18"
@@ -1014,8 +1124,43 @@ const menuSections: MenuSection[] = [
 export default function AdminSidebar({ onClose }: AdminSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { canView } = usePermissions();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+
+  /**
+   * Menu filtered to what this role can view.
+   *
+   * A parent whose children are all filtered out disappears, as does a
+   * section left with no items — so the sidebar never shows a heading that
+   * leads nowhere.
+   */
+  const permittedSections = useMemo(
+    () =>
+      menuSections
+        .map((section) => ({
+          ...section,
+          items: section.items
+            .map((item) => {
+              if (!item.submenuItems) return item;
+              return {
+                ...item,
+                submenuItems: item.submenuItems.filter((sub) =>
+                  canView(sub.permission)
+                ),
+              };
+            })
+            .filter((item) =>
+              item.submenuItems
+                ? item.submenuItems.length > 0
+                : item.permission
+                  ? canView(item.permission)
+                  : false
+            ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [canView]
+  );
 
   const isActive = (path: string) => {
     if (path === "/admin") {
@@ -1053,7 +1198,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
   };
 
   const isExpanded = (path: string) => {
-    const menuItem = menuSections
+    const menuItem = permittedSections
       .flatMap((section) => section.items)
       .find((item) => item.path === path);
     return (
@@ -1062,8 +1207,9 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
     );
   };
 
-  // Filter menu items based on search query
-  const filteredSections = menuSections
+  // Search narrows what permissions already allow — it never reveals a page
+  // the role cannot view.
+  const filteredSections = permittedSections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) =>
@@ -1101,7 +1247,12 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
       <div className="p-4 border-b border-teal-600">
         <div className="relative">
           <input
-            type="text"
+            type="search"
+            name="admin-menu-search"
+            // Not a credential field. Without this, Chrome fills the saved
+            // login email into the nearest text box above a password field.
+            autoComplete="off"
+            data-lpignore="true"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search Menu Ctrl + F"
@@ -1121,7 +1272,8 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
         </div>
       </div>
 
-      {/* Dashboard Link */}
+      {/* Dashboard Link - only for roles that can view the dashboard */}
+      {canView("dashboard") && (
       <div className="px-4 py-2 border-b border-teal-600">
         <button
           onClick={() => handleNavigation("/admin")}
@@ -1148,6 +1300,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
           <span className="text-sm font-medium">Dashboard</span>
         </button>
       </div>
+      )}
 
       {/* Navigation Menu */}
       <nav

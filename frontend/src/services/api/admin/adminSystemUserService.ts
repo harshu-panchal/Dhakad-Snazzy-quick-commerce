@@ -7,7 +7,11 @@ export interface SystemUser {
   lastName: string;
   mobile: string;
   email: string;
-  role: "Admin" | "Super Admin";
+  /** Role name, matching a Role document. Any role is assignable. */
+  role: string;
+  /** false blocks sign-in and revokes existing sessions. */
+  isActive?: boolean;
+  lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -16,7 +20,9 @@ export interface GetSystemUsersParams {
   page?: number;
   limit?: number;
   search?: string;
-  role?: "Admin" | "Super Admin";
+  role?: string;
+  /** "true" / "false" as strings, matching the query parameter. */
+  isActive?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }
@@ -27,7 +33,7 @@ export interface CreateSystemUserData {
   mobile: string;
   email: string;
   password: string;
-  role?: "Admin" | "Super Admin";
+  role?: string;
 }
 
 export interface UpdateSystemUserData {
@@ -36,7 +42,8 @@ export interface UpdateSystemUserData {
   mobile?: string;
   email?: string;
   password?: string;
-  role?: "Admin" | "Super Admin";
+  role?: string;
+  isActive?: boolean;
 }
 
 /**

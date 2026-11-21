@@ -20,6 +20,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import RouteTransition from "./components/RouteTransition";
 import { useEffect } from "react";
 import lazyWithRetry from "./utils/lazyWithRetry";
+import { ADMIN_ROUTES } from "./modules/admin/adminRoutes.config";
+import AdminPageGuard from "./modules/admin/components/AdminPageGuard";
+import AdminNoAccess from "./modules/admin/pages/AdminNoAccess";
 
 // Only Home is required for the initial customer render. Cart is route-level
 // code and should not inflate the home bundle.
@@ -183,137 +186,11 @@ const SellerSignUp = lazyWithRetry(() => import("./modules/seller/pages/SellerSi
 const AdminLayout = lazyWithRetry(
   () => import("./modules/admin/components/AdminLayout"), "AdminLayout"
 );
-const AdminDashboard = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminDashboard"), "AdminDashboard"
-);
 const AdminLogin = lazyWithRetry(() => import("./modules/admin/pages/AdminLogin"), "AdminLogin");
-const AdminCategory = lazyWithRetry(() => import("./modules/admin/pages/AdminCategory"), "AdminCategory");
-const AdminHeaderCategory = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminHeaderCategory"), "AdminHeaderCategory"
-);
-const AdminSubCategory = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSubCategory"), "AdminSubCategory"
-);
-const AdminBrand = lazyWithRetry(() => import("./modules/admin/pages/AdminBrand"), "AdminBrand");
-const AdminTaxes = lazyWithRetry(() => import("./modules/admin/pages/AdminTaxes"), "AdminTaxes");
-const AdminSellerTransaction = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSellerTransaction"), "AdminSellerTransaction"
-);
-const AdminStockManagement = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminStockManagement"), "AdminStockManagement"
-);
-const AdminSubcategoryOrder = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSubcategoryOrder"), "AdminSubcategoryOrder"
-);
-const AdminManageSellerList = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminManageSellerList"), "AdminManageSellerList"
-);
-const AdminCoupon = lazyWithRetry(() => import("./modules/admin/pages/AdminCoupon"), "AdminCoupon");
-const AdminNotification = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminNotification"), "AdminNotification"
-);
-const AdminNotificationTemplates = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminNotificationTemplates"), "AdminNotificationTemplates"
-);
-const AdminSellerLocation = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSellerLocation"), "AdminSellerLocation"
-);
+const AdminForgotPassword = lazyWithRetry(() => import("./modules/admin/pages/AdminForgotPassword"), "AdminForgotPassword");
+const AdminResetPassword = lazyWithRetry(() => import("./modules/admin/pages/AdminResetPassword"), "AdminResetPassword");
 
-const AdminManageDeliveryBoy = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminManageDeliveryBoy"), "AdminManageDeliveryBoy"
-);
-const AdminAssignDeliveryBoy = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminAssignDeliveryBoy"), "AdminAssignDeliveryBoy"
-);
-const AdminDeliveryTracking = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminDeliveryTracking"), "AdminDeliveryTracking"
-);
-const AdminFundTransfer = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminFundTransfer"), "AdminFundTransfer"
-);
-const AdminCashCollection = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminCashCollection"), "AdminCashCollection"
-);
-const AdminReturnRequest = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminReturnRequest"), "AdminReturnRequest"
-);
-const AdminPaymentList = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminPaymentList"), "AdminPaymentList"
-);
-const AdminSmsGateway = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSmsGateway"), "AdminSmsGateway"
-);
-const AdminSystemUser = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSystemUser"), "AdminSystemUser"
-);
-const AdminUsers = lazyWithRetry(() => import("./modules/admin/pages/AdminUsers"), "AdminUsers");
-const AdminFAQ = lazyWithRetry(() => import("./modules/admin/pages/AdminFAQ"), "AdminFAQ");
-const AdminHomeSection = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminHomeSection"), "AdminHomeSection"
-);
-const AdminBestsellerCards = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminBestsellerCards"), "AdminBestsellerCards"
-);
-const AdminPromoStrip = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminPromoStrip"), "AdminPromoStrip"
-);
-const AdminLowestPrices = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminLowestPrices"), "AdminLowestPrices"
-);
-const AdminShopByStore = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminShopByStore"), "AdminShopByStore"
-);
-const AdminAllOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminAllOrders"), "AdminAllOrders"
-);
-const AdminPendingOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminPendingOrders"), "AdminPendingOrders"
-);
-const AdminReceivedOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminReceivedOrders"), "AdminReceivedOrders"
-);
-const AdminProcessedOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminProcessedOrders"), "AdminProcessedOrders"
-);
-const AdminShippedOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminShippedOrders"), "AdminShippedOrders"
-);
-const AdminOutForDeliveryOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminOutForDeliveryOrders"), "AdminOutForDeliveryOrders"
-);
-const AdminDeliveredOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminDeliveredOrders"), "AdminDeliveredOrders"
-);
-const AdminCancelledOrders = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminCancelledOrders"), "AdminCancelledOrders"
-);
-const AdminCustomerAppPolicy = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminCustomerAppPolicy"), "AdminCustomerAppPolicy"
-);
-const AdminDeliveryAppPolicy = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminDeliveryAppPolicy"), "AdminDeliveryAppPolicy"
-);
-const AdminOrders = lazyWithRetry(() => import("./modules/admin/pages/AdminOrders"), "AdminOrders");
-const AdminOrderDetail = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminOrderDetail"), "AdminOrderDetail"
-);
-const AdminSettlement = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminSettlement"), "AdminSettlement"
-);
-const AdminManageCustomer = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminManageCustomer"), "AdminManageCustomer"
-);
-const AdminProfile = lazyWithRetry(() => import("./modules/admin/pages/AdminProfile"), "AdminProfile");
 
-const AdminWithdrawals = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminWithdrawals"), "AdminWithdrawals"
-);
-const AdminPayments = lazyWithRetry(() => import("./modules/admin/pages/AdminPayments"), "AdminPayments");
-const AdminWallet = lazyWithRetry(() => import("./modules/admin/pages/AdminWallet"), "AdminWallet");
-const AdminBillingSettings = lazyWithRetry(
-  () => import("./modules/admin/pages/AdminBillingSettings"), "AdminBillingSettings"
-);
-const AdminReels = lazyWithRetry(() => import("./modules/admin/pages/AdminReels"), "AdminReels");
 
 function App() {
   useEffect(() => {
@@ -465,6 +342,28 @@ function App() {
                                   <AdminLogin />
                                 </Suspense>
                               </PublicRoute>
+                            }
+                          />
+                          {/*
+                            Password reset is reachable while signed out and
+                            must stay reachable while signed in too, since the
+                            reset revokes every session. PublicRoute would
+                            bounce a signed-in admin away from it.
+                          */}
+                          <Route
+                            path="/admin/forgot-password"
+                            element={
+                              <Suspense fallback={<IconLoader forceShow />}>
+                                <AdminForgotPassword />
+                              </Suspense>
+                            }
+                          />
+                          <Route
+                            path="/admin/reset-password"
+                            element={
+                              <Suspense fallback={<IconLoader forceShow />}>
+                                <AdminResetPassword />
+                              </Suspense>
                             }
                           />
 
@@ -692,6 +591,13 @@ function App() {
                           />
 
                           {/* Admin App Routes */}
+                          {/*
+                            Routes come from modules/admin/adminRoutes.config,
+                            and each is wrapped in AdminPageGuard so a page the
+                            role does not include renders "no access" instead
+                            of filling with 403s. The outer ProtectedRoute
+                            still handles authentication and user type.
+                          */}
                           <Route
                             path="/admin/*"
                             element={
@@ -701,211 +607,21 @@ function App() {
                                 <Suspense fallback={<IconLoader forceShow />}>
                                   <AdminLayout>
                                     <Routes>
+                                      {ADMIN_ROUTES.map((route) => (
+                                        <Route
+                                          key={route.path || "index"}
+                                          path={route.path}
+                                          element={
+                                            <AdminPageGuard
+                                              permission={route.permission}>
+                                              {route.element}
+                                            </AdminPageGuard>
+                                          }
+                                        />
+                                      ))}
                                       <Route
-                                        path=""
-                                        element={<AdminDashboard />}
-                                      />
-                                      <Route
-                                        path="profile"
-                                        element={<AdminProfile />}
-                                      />
-                                      <Route
-                                        path="category"
-                                        element={<AdminCategory />}
-                                      />
-                                      <Route
-                                        path="category/header"
-                                        element={<AdminHeaderCategory />}
-                                      />
-                                      <Route
-                                        path="subcategory"
-                                        element={<AdminSubCategory />}
-                                      />
-                                      <Route
-                                        path="subcategory-order"
-                                        element={<AdminSubcategoryOrder />}
-                                      />
-                                      <Route
-                                        path="brand"
-                                        element={<AdminBrand />}
-                                      />
-                                      <Route
-                                        path="product/taxes"
-                                        element={<AdminTaxes />}
-                                      />
-                                      <Route
-                                        path="product/list"
-                                        element={<AdminStockManagement />}
-                                      />
-                                      <Route
-                                        path="manage-seller/list"
-                                        element={<AdminManageSellerList />}
-                                      />
-                                      <Route
-                                        path="manage-seller/transaction"
-                                        element={<AdminSellerTransaction />}
-                                      />
-                                      <Route
-                                        path="delivery-boy/manage"
-                                        element={<AdminManageDeliveryBoy />}
-                                      />
-                                      <Route
-                                        path="delivery-boy/manual-assign"
-                                        element={<AdminAssignDeliveryBoy />}
-                                      />
-                                      <Route
-                                        path="delivery-boy/fund-transfer"
-                                        element={<AdminFundTransfer />}
-                                      />
-                                      <Route
-                                        path="delivery-boy/cash-collection"
-                                        element={<AdminCashCollection />}
-                                      />
-                                      <Route
-                                        path="manage-location/seller-location"
-                                        element={<AdminSellerLocation />}
-                                      />
-
-                                      <Route
-                                        path="coupon"
-                                        element={<AdminCoupon />}
-                                      />
-                                      <Route
-                                        path="return"
-                                        element={<AdminReturnRequest />}
-                                      />
-                                      <Route
-                                        path="notification"
-                                        element={<AdminNotification />}
-                                      />
-                                      <Route
-                                        path="notification-templates"
-                                        element={<AdminNotificationTemplates />}
-                                      />
-                                      <Route
-                                        path="orders"
-                                        element={<AdminOrders />}
-                                      />
-                                      <Route
-                                        path="customers"
-                                        element={<AdminManageCustomer />}
-                                      />
-                                      <Route
-                                        path="collect-cash"
-                                        element={<AdminCashCollection />}
-                                      />
-                                      <Route
-                                        path="payment-list"
-                                        element={<AdminPaymentList />}
-                                      />
-                                      <Route
-                                        path="sms-gateway"
-                                        element={<AdminSmsGateway />}
-                                      />
-                                      <Route
-                                        path="system-user"
-                                        element={<AdminSystemUser />}
-                                      />
-                                      <Route
-                                        path="customer-app-policy"
-                                        element={<AdminCustomerAppPolicy />}
-                                      />
-                                      <Route
-                                        path="delivery-app-policy"
-                                        element={<AdminDeliveryAppPolicy />}
-                                      />
-                                      <Route
-                                        path="users"
-                                        element={<AdminUsers />}
-                                      />
-                                      <Route
-                                        path="faq"
-                                        element={<AdminFAQ />}
-                                      />
-                                      <Route
-                                        path="home-section"
-                                        element={<AdminHomeSection />}
-                                      />
-                                      <Route
-                                        path="bestseller-cards"
-                                        element={<AdminBestsellerCards />}
-                                      />
-                                      <Route
-                                        path="promo-strip"
-                                        element={<AdminPromoStrip />}
-                                      />
-                                      <Route
-                                        path="lowest-prices"
-                                        element={<AdminLowestPrices />}
-                                      />
-                                      <Route
-                                        path="shop-by-store"
-                                        element={<AdminShopByStore />}
-                                      />
-                                      <Route
-                                        path="delivery-tracking"
-                                        element={<AdminDeliveryTracking />}
-                                      />
-                                      <Route
-                                        path="settlement"
-                                        element={<AdminSettlement />}
-                                      />
-                                      <Route
-                                        path="orders/all"
-                                        element={<AdminAllOrders />}
-                                      />
-                                      <Route
-                                        path="orders/pending"
-                                        element={<AdminPendingOrders />}
-                                      />
-                                      <Route
-                                        path="orders/received"
-                                        element={<AdminReceivedOrders />}
-                                      />
-                                      <Route
-                                        path="orders/processed"
-                                        element={<AdminProcessedOrders />}
-                                      />
-                                      <Route
-                                        path="orders/shipped"
-                                        element={<AdminShippedOrders />}
-                                      />
-                                      <Route
-                                        path="orders/out-for-delivery"
-                                        element={<AdminOutForDeliveryOrders />}
-                                      />
-                                      <Route
-                                        path="orders/delivered"
-                                        element={<AdminDeliveredOrders />}
-                                      />
-                                      <Route
-                                        path="orders/cancelled"
-                                        element={<AdminCancelledOrders />}
-                                      />
-                                      <Route
-                                        path="orders/:id"
-                                        element={<AdminOrderDetail />}
-                                      />
-
-                                      <Route
-                                        path="withdrawals"
-                                        element={<AdminWithdrawals />}
-                                      />
-                                      <Route
-                                        path="payments"
-                                        element={<AdminPayments />}
-                                      />
-                                      <Route
-                                        path="wallet"
-                                        element={<AdminWallet />}
-                                      />
-                                      <Route
-                                        path="billing-settings"
-                                        element={<AdminBillingSettings />}
-                                      />
-                                      <Route
-                                        path="reels"
-                                        element={<AdminReels />}
+                                        path="*"
+                                        element={<AdminNoAccess />}
                                       />
                                     </Routes>
                                   </AdminLayout>

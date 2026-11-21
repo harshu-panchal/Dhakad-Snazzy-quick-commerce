@@ -12,6 +12,7 @@ import {
   removeAuthToken,
   setAuthToken,
 } from "../services/api/config";
+import { hasPermission, WILDCARD, type Tier } from "../modules/admin/permissions/catalog";
 
 interface User {
   id: string;
@@ -23,9 +24,23 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   token: string | null;
-  login: (token: string, userData: User) => void;
+  login: (token: string, userData: User, permissions?: string[]) => void;
   logout: () => void;
   updateUser: (userData: User) => void;
+  /**
+   * Admin page permissions, as `<pageKey>:<tier>` strings. ["*"] for Super
+   * Admin. Empty for non-admin user types.
+   *
+   * Authoritative copy comes from GET /admin/me on mount; the localStorage
+   * copy only avoids a blank first paint. Tampering with it changes what the
+   * menu draws and nothing else, because every endpoint re-checks.
+   */
+  permissions: string[];
+  isSuperAdmin: boolean;
+  /** True while the authoritative permission fetch is still in flight. */
+  permissionsLoading: boolean;
+  can: (pageKey: string, tier?: Tier) => boolean;
+  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -97,6 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getAuthToken();
   });
 
+  // Seeded from localStorage so the sidebar can render on first paint, then
+  // replaced by the authoritative GET /admin/me response below.
+  const [permissions, setPermissions] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("adminPermissions");
+      const parsed = stored ? JSON.parse(stored) : null;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [permissionsLoading, setPermissionsLoading] = useState<boolean>(false);
+
   // Effect to sync state if localStorage changes externally or on mount validation
   useEffect(() => {
     const storedToken = getAuthToken();
@@ -137,7 +166,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [isAuthenticated, user?.id, user?.userType]);
 
-  const login = useCallback((newToken: string, userData: User) => {
+  /**
+   * Re-read identity and permissions from the server. Called on mount for an
+   * admin session, and available to callers that change the current user's
+   * role or need to pick up a role edit without a reload.
+   */
+  const refreshPermissions = useCallback(async () => {
+    if (!getAuthToken()) return;
+
+    setPermissionsLoading(true);
+    try {
+      const { getMe } = await import("../services/api/admin/adminProfileService");
+      const response = await getMe();
+      const next = response?.data;
+
+      if (next?.permissions) {
+        setPermissions(next.permissions);
+        localStorage.setItem("adminPermissions", JSON.stringify(next.permissions));
+      }
+
+      if (next?.user) {
+        setUser((current) => {
+          const merged = { ...(current || {}), ...next.user, userType: "Admin" as const };
+          localStorage.setItem("userData", JSON.stringify(merged));
+          return merged;
+        });
+      }
+    } catch (error) {
+      // A 401 is handled by the axios interceptor (refresh, then redirect).
+      // Anything else leaves the cached permissions in place rather than
+      // locking the user out of a panel they can legitimately use.
+      console.error("Failed to refresh admin permissions", error);
+    } finally {
+      setPermissionsLoading(false);
+    }
+  }, []);
+
+  // Admin sessions always confirm their permissions against the server.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const userType = user?.userType || (user as any)?.role;
+    const isAdmin =
+      userType === "Admin" || userType === "Super Admin" || user?.userType === "Admin";
+
+    if (!isAdmin) return;
+
+    void refreshPermissions();
+    // Intentionally keyed on identity, not on `user`, so an unrelated profile
+    // edit does not refetch.
+  }, [isAuthenticated, user?.id, refreshPermissions]);
+
+  const login = useCallback((newToken: string, userData: User, newPermissions?: string[]) => {
     const inferredUserType = inferLegacyUserType(userData);
     const normalizedUserData = inferredUserType && !userData.userType
       ? { ...userData, userType: inferredUserType }
@@ -147,6 +227,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthenticated(true);
     setAuthToken(newToken);
     localStorage.setItem("userData", JSON.stringify(normalizedUserData));
+
+    if (newPermissions) {
+      setPermissions(newPermissions);
+      localStorage.setItem("adminPermissions", JSON.stringify(newPermissions));
+    }
 
     // Customer browser permission is requested only from the explicit Account
     // setting. Operational seller/delivery/admin apps retain login registration.
@@ -194,6 +279,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
+    setPermissions([]);
+    localStorage.removeItem("adminPermissions");
     removeAuthToken();
 
   }, [token]);
@@ -203,6 +290,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("userData", JSON.stringify(userData));
   }, []);
 
+  const isSuperAdmin = useMemo(
+    () => permissions.includes(WILDCARD),
+    [permissions]
+  );
+
+  const permissionSet = useMemo(() => new Set(permissions), [permissions]);
+
+  const can = useCallback(
+    (pageKey: string, tier: Tier = "view") =>
+      hasPermission(permissionSet, pageKey, tier),
+    [permissionSet]
+  );
+
   const value = useMemo(
     () => ({
       isAuthenticated,
@@ -211,8 +311,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       updateUser,
+      permissions,
+      isSuperAdmin,
+      permissionsLoading,
+      can,
+      refreshPermissions,
     }),
-    [isAuthenticated, user, token, login, logout, updateUser]
+    [
+      isAuthenticated,
+      user,
+      token,
+      login,
+      logout,
+      updateUser,
+      permissions,
+      isSuperAdmin,
+      permissionsLoading,
+      can,
+      refreshPermissions,
+    ]
   );
 
   return (

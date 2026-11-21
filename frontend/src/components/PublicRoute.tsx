@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getPostLoginRedirect } from "../utils/authRedirect";
+import { resolveAdminLanding } from "../utils/adminLanding";
 
 interface PublicRouteProps {
     children?: React.ReactNode;
@@ -8,7 +9,7 @@ interface PublicRouteProps {
 }
 
 export default function PublicRoute({ children, userType: allowedUserType }: PublicRouteProps) {
-    const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, user, permissions } = useAuth();
     const location = useLocation();
 
     if (isAuthenticated && user) {
@@ -23,7 +24,9 @@ export default function PublicRoute({ children, userType: allowedUserType }: Pub
         }
 
         if (currentUserType === 'Admin' || currentUserType === 'Super Admin') {
-            return <Navigate to="/admin" replace />;
+            // Not always "/admin": a role without dashboard access has to land
+            // on the first page it can actually view.
+            return <Navigate to={resolveAdminLanding(permissions)} replace />;
         }
 
         if (currentUserType === 'Seller') {
