@@ -243,7 +243,8 @@ export async function mapSellers({ apply = false }: { apply?: boolean } = {}): P
     if (ops.length > 0) {
       // bulkWrite goes straight to MongoDB and skips Seller's save hooks, which
       // is what we want: this must not touch passwords or sync side effects.
-      const result = await Seller.bulkWrite(ops, { ordered: false });
+      // timestamps:false so a seller's updatedAt is not changed by bookkeeping.
+      const result = await Seller.bulkWrite(ops, { ordered: false, timestamps: false });
       written = result.modifiedCount;
     }
   }

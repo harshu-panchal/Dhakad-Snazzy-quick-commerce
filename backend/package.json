@@ -41,7 +41,8 @@
     "test:rbac": "tsx --test --test-force-exit src/tests/rbac/*.test.ts",
     "seed:cities": "tsx src/scripts/seedCitiesCli.ts",
     "towns:map-sellers": "tsx src/scripts/mapSellerTowns.ts",
-    "test:towns": "tsx --test --test-force-exit src/tests/towns/*.test.ts"
+    "test:towns": "tsx --test --test-force-exit src/tests/towns/*.test.ts",
+    "orders:backfill-towns": "tsx src/scripts/backfillOrderTowns.ts"
   },
   "keywords": [
     "express",

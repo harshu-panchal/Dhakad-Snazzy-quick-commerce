@@ -29,6 +29,7 @@ const sendError = (res: Response, error: unknown) => {
 
 export const getShippingConfiguration = asyncHandler(async (_req: Request, res: Response) => {
   const pickupCounts = await Seller.aggregate([
+    { $match: { isDeleted: { $ne: true } } },
     { $group: { _id: "$shiprocketPickupSyncStatus", count: { $sum: 1 } } },
   ]);
   return res.json({

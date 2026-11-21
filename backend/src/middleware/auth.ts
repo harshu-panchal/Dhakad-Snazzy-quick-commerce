@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, TokenPayload } from '../services/jwtService';
 import { resolveAdminContext, AdminContext } from '../services/adminPermissionService';
+import { isSellerActive } from '../services/sellerAccessService';
 
 export type AuthUserType = 'Admin' | 'Seller' | 'Customer' | 'Delivery';
 
@@ -89,6 +90,17 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       // Keep req.user.role in step with the database so anything still reading
       // it sees the current role rather than the one baked into the token.
       req.user.role = ctx.roleName;
+    }
+
+    // A soft-deleted seller keeps its document, so unlike a hard delete the
+    // handlers no longer 404 for it. Stop its token here.
+    if (decoded.userType === 'Seller' && !(await isSellerActive(decoded.userId))) {
+      res.status(401).json({
+        success: false,
+        code: 'ACCOUNT_DELETED',
+        message: 'This seller account is no longer active.',
+      });
+      return;
     }
 
     next();

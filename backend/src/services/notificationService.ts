@@ -202,7 +202,8 @@ export const sendBroadcastNotification = async (
       userIds = admins.map((a) => a._id.toString());
       break;
     case "Seller":
-      const sellers = await Seller.find().select("_id");
+      // Deleted sellers are not notification recipients.
+      const sellers = await Seller.find({ isDeleted: { $ne: true } }).select("_id");
       userIds = sellers.map((s) => s._id.toString());
       break;
     case "Customer":

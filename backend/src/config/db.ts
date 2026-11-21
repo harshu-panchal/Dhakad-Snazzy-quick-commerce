@@ -43,6 +43,20 @@ const ensureCustomerFacingIndexes = async (): Promise<void> => {
   }
 };
 
+// Town-scope indexes on Order. Created individually rather than through
+// Order.createIndexes(), which would try to build every index the Order schema
+// declares, including any that production has never had. Idempotent and
+// non-fatal: a failure here only means a slower query, not a broken boot.
+const ensureOrderTownIndexes = async (): Promise<void> => {
+  try {
+    const orders = mongoose.connection.collection('orders');
+    await orders.createIndex({ cityId: 1, orderDate: -1 }, { name: 'cityId_1_orderDate_-1' });
+    await orders.createIndex({ customer: 1, cityId: 1 }, { name: 'customer_1_cityId_1' });
+  } catch (error) {
+    console.error('   [33m![0m Failed to ensure Order town indexes:', error);
+  }
+};
+
 // Financial idempotency depends on these unique indexes. Unlike performance
 // indexes, they must exist before the API accepts payments or webhooks.
 const ensurePaymentIntegrityIndexes = async (): Promise<void> => {
@@ -77,6 +91,7 @@ const connectDB = async (): Promise<void> => {
 
     // Fire-and-forget: don't block server startup on index creation.
     void ensureCustomerFacingIndexes();
+    void ensureOrderTownIndexes();
   } catch (error) {
     console.error('\n\x1b[31m✗\x1b[0m \x1b[1mMongoDB Connection Error\x1b[0m');
     if (error instanceof Error) {

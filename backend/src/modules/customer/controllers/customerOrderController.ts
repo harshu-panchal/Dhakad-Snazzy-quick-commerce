@@ -20,6 +20,7 @@ import Shipment from "../../../models/Shipment";
 import { calculateDeliveryPartnerEarning } from "../../../services/deliveryPartnerEarningService";
 import { calculateProductUnitPrice } from "../../../utils/productPricing";
 import { calculateDeliveryCharge } from "../../../utils/deliveryPricing";
+import { distinctSellerIdsForItems, townForSellers } from "../../../services/orderTownService";
 
 /**
  * Check if the given paymentMethod string represents Cash on Delivery
@@ -261,6 +262,20 @@ export const createOrder = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         message: "Order must have at least one item",
+      });
+    }
+
+    // One seller per order. The cart enforces this (since 2026-08-16) but this
+    // endpoint reads its items from the request body, so an old app build or a
+    // direct call could still send a mixed order. Checked here, before any stock
+    // is decremented, so a rejection leaves nothing to roll back.
+    const itemSellerIds = await distinctSellerIdsForItems(items);
+    if (itemSellerIds.length > 1) {
+      if (session) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        code: "MULTI_SELLER_ORDER",
+        message: "An order can only contain items from one store. Please order from each store separately.",
       });
     }
 
@@ -666,6 +681,11 @@ export const createOrder = async (req: Request, res: Response) => {
         status: "Approved",
         location: { $exists: true, $ne: null },
       });
+
+      // Save the seller's town on the order. A snapshot: it must outlive the
+      // seller being edited or deleted. Left unset when the seller has no town.
+      const orderTown = townForSellers(sellers);
+      if (orderTown) newOrder.cityId = orderTown;
 
       const sellersWithLocations = sellers.map((seller) => {
         const coordinates = seller.location?.coordinates;

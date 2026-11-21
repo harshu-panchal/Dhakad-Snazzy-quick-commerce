@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Seller from "../../../models/Seller";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { softDeleteSeller, NOT_DELETED } from "../../../services/sellerLifecycleService";
 
 /**
  * Get all sellers (Admin only)
@@ -9,8 +10,9 @@ export const getAllSellers = asyncHandler(
   async (req: Request, res: Response) => {
     const { status, search } = req.query;
 
-    // Build query
+    // Build query. Deleted sellers are hidden unless asked for.
     const query: any = {};
+    if (req.query.includeDeleted !== "true") query.isDeleted = { $ne: true };
     if (status) {
       query.status = status;
     }
@@ -74,8 +76,10 @@ export const updateSellerStatus = asyncHandler(
       });
     }
 
-    const seller = await Seller.findByIdAndUpdate(
-      id,
+    // A deleted seller cannot be re-approved: that would make it visible to
+    // customers again (every customer query keys on status Approved).
+    const seller = await Seller.findOneAndUpdate(
+      { _id: id, ...NOT_DELETED },
       { status },
       { new: true, runValidators: true }
     ).select("-password");
@@ -105,6 +109,11 @@ export const updateSeller = asyncHandler(
 
     // Remove password from update data if present
     delete updateData.password;
+    // Lifecycle fields are set only by the delete flow, never through an edit.
+    for (const field of ["isDeleted", "deletedAt", "deletedBy", "statusBeforeDelete", "deletedSnapshot"]) {
+      delete updateData[field];
+    }
+    if (updateData.status === "Deleted") delete updateData.status;
     for (const field of [
       "shiprocketPickupCode", "shiprocketPickupLocationId", "shiprocketPickupSyncStatus",
       "shiprocketPickupSyncError", "shiprocketPickupSyncedAt", "shiprocketPickupAddressHash",
@@ -161,7 +170,7 @@ export const updateSeller = asyncHandler(
       delete updateData.serviceRadiusKm;
     }
 
-    let seller = await Seller.findByIdAndUpdate(id, updateData, {
+    let seller = await Seller.findOneAndUpdate({ _id: id, ...NOT_DELETED }, updateData, {
       new: true,
       runValidators: true,
     }).select("-password");
@@ -198,12 +207,21 @@ export const deleteSeller = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
 
-    const seller = await Seller.findByIdAndDelete(id);
+    // Soft delete: the seller is hidden and locked out, but the record stays so
+    // order and wallet history keep resolving. See sellerLifecycleService.
+    const outcome = await softDeleteSeller(id, req.user?.userId);
 
-    if (!seller) {
+    if (outcome === "not-found") {
       return res.status(404).json({
         success: false,
         message: "Seller not found",
+      });
+    }
+
+    if (outcome === "already-deleted") {
+      return res.status(409).json({
+        success: false,
+        message: "This seller has already been deleted",
       });
     }
 
@@ -250,8 +268,8 @@ export const updateSellerCategoryCommissions = asyncHandler(
       }
     }
 
-    const seller = await Seller.findByIdAndUpdate(
-      id,
+    const seller = await Seller.findOneAndUpdate(
+      { _id: id, ...NOT_DELETED },
       { categoryCommissions },
       { new: true, runValidators: true }
     ).select("-password");

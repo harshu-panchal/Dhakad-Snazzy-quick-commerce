@@ -6,7 +6,8 @@ import Seller from "../../../models/Seller";
  * Get all sellers (for dropdowns/lists)
  */
 export const getAllSellers = asyncHandler(async (_req: Request, res: Response) => {
-    const sellers = await Seller.find({})
+    // Deleted sellers are not offered in pickers.
+    const sellers = await Seller.find({ isDeleted: { $ne: true } })
         .select("sellerName storeName profile status")
         .sort({ storeName: 1 });
 

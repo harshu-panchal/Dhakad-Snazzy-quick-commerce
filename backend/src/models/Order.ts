@@ -26,6 +26,13 @@ export interface IOrder extends Document {
 
   // Order Items
   items: mongoose.Types.ObjectId[]; // References to OrderItem
+  /**
+   * The seller's town, saved when the order is placed and never recomputed.
+   * A snapshot on purpose: history must keep its town after a seller is
+   * deleted or moved. Absent for orders whose seller had no town (or is
+   * gone), which only Super Admin can see once town scope is enforced.
+   */
+  cityId?: mongoose.Types.ObjectId;
 
   // Pricing
   subtotal: number;
@@ -224,6 +231,13 @@ const OrderSchema = new Schema<IOrder>(
         ref: "OrderItem",
       },
     ],
+
+    // The seller's town, saved when the order is placed (see the interface).
+    // Without this entry strict mode silently drops the field on every write.
+    cityId: {
+      type: Schema.Types.ObjectId,
+      ref: "City",
+    },
 
     // Pricing
     subtotal: {
@@ -519,6 +533,8 @@ OrderSchema.index({ status: 1 });
 OrderSchema.index({ orderDate: -1 });
 OrderSchema.index({ sellerConfirmationStatus: 1, deliveryAssignmentStatus: 1 });
 OrderSchema.index({ deliveryBoy: 1 });
+OrderSchema.index({ cityId: 1, orderDate: -1 });
+OrderSchema.index({ customer: 1, cityId: 1 });
 
 const Order =
   (mongoose.models.Order as mongoose.Model<IOrder>) ||

@@ -349,6 +349,8 @@ export const getSellersInRadius = asyncHandler(
           distanceField: "distanceFromDeliveryBoy", // in meters
           spherical: true,
           key: "location",
+          // Deleted sellers must not surface orders to delivery partners.
+          query: { isDeleted: { $ne: true } },
           // We can't filter by a field's value in $geoNear directly for maxDistance
           // so we'll filter in the next stage
         },

@@ -20,7 +20,7 @@ import mongoose from "mongoose";
 export const getServiceableCities = async (_req: Request, res: Response) => {
     try {
         const [sellerCities, deliveryCities, sectionCities, townNames] = await Promise.all([
-            Seller.distinct("city"),
+            Seller.distinct("city", { isDeleted: { $ne: true } }),
             DeliveryArea.distinct("city"),
             LowestPricesSection.distinct("city"),
             City.distinct("name", { isActive: { $ne: false } }),

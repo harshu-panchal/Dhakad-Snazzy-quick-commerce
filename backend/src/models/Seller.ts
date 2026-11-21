@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
+import City, { normalizeCityText } from './City';
 
 export interface ISeller extends Document {
   // Authentication
@@ -86,7 +87,19 @@ export interface ISeller extends Document {
   }>;
 
   // Status
-  status: 'Approved' | 'Pending' | 'Rejected';
+  status: 'Approved' | 'Pending' | 'Rejected' | 'Deleted';
+  /**
+   * Soft delete. A deleted seller keeps its document so order and wallet
+   * history still resolve, but status is 'Deleted' (so every existing
+   * `status: 'Approved'` filter excludes it) and its unique email and
+   * mobile are released. See services/sellerLifecycleService.ts.
+   */
+  isDeleted?: boolean;
+  deletedAt?: Date;
+  deletedBy?: mongoose.Types.ObjectId;
+  statusBeforeDelete?: string;
+  /** The original contact details, kept so a deletion can be reversed. */
+  deletedSnapshot?: { email?: string; mobile?: string };
   balance: number;
   categories: string[];
   logo?: string;
@@ -353,8 +366,16 @@ const SellerSchema = new Schema<ISeller>(
     // Status
     status: {
       type: String,
-      enum: ['Approved', 'Pending', 'Rejected'],
+      enum: ['Approved', 'Pending', 'Rejected', 'Deleted'],
       default: 'Pending',
+    },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date },
+    deletedBy: { type: Schema.Types.ObjectId },
+    statusBeforeDelete: { type: String },
+    deletedSnapshot: {
+      email: { type: String },
+      mobile: { type: String },
     },
     balance: {
       type: Number,
@@ -402,6 +423,71 @@ SellerSchema.pre('save', async function (next) {
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Town assignment
+//
+// Keeps Seller.cityId in step with the free-text Seller.city, so a seller who
+// registers or changes their city gets a town without an admin running the
+// mapping script. An explicit cityId in the same write always wins, and a
+// city that matches no town clears the old cityId rather than leaving a
+// stale one. The free-text city is never modified.
+// ---------------------------------------------------------------------------
+export async function findTownIdForText(text: unknown): Promise<mongoose.Types.ObjectId | null> {
+  const key = normalizeCityText(text);
+  if (!key) return null;
+
+  const towns = await City.find({ isActive: { $ne: false } }).select('name aliases').lean();
+  const hits = towns.filter(
+    (t) => normalizeCityText(t.name) === key || (t.aliases ?? []).includes(key),
+  );
+
+  // Zero matches: no town. Several: ambiguous, so do not guess.
+  return hits.length === 1 ? (hits[0]._id as mongoose.Types.ObjectId) : null;
+}
+
+SellerSchema.pre('save', async function (next) {
+  try {
+    if (!this.isNew && !this.isModified('city')) return next();
+    if (this.isModified('cityId') && this.cityId) return next();
+
+    const townId = await findTownIdForText(this.city);
+    this.cityId = townId ?? undefined;
+    next();
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+SellerSchema.pre(['findOneAndUpdate', 'updateOne'], async function (next) {
+  try {
+    const update: Record<string, any> = (this.getUpdate() as Record<string, any>) || {};
+
+    // Mongoose's timestamps plugin runs before this hook and leaves a MIXED
+    // update: fields the caller passed stay at the top level while only
+    // updatedAt goes into $set. So the effective fields are both together, with
+    // $set taking precedence.
+    const topLevel = Object.fromEntries(
+      Object.entries(update).filter(([key]) => !key.startsWith('$')),
+    );
+    const effective: Record<string, any> = { ...topLevel, ...(update.$set ?? {}) };
+
+    if (effective.city === undefined) return next();
+    if (effective.cityId !== undefined || update.$unset?.cityId !== undefined) return next();
+
+    const townId = await findTownIdForText(effective.city);
+    if (townId) {
+      update.$set = { ...(update.$set ?? {}), cityId: townId };
+    } else {
+      update.$unset = { ...(update.$unset ?? {}), cityId: 1 };
+    }
+
+    this.setUpdate(update);
     next();
   } catch (error: any) {
     next(error);

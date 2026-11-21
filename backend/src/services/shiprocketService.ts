@@ -217,13 +217,14 @@ export const syncSellerPickup = async (sellerId: string) => {
 
 export const syncPendingSellerPickups = async (limit = 25) => {
   if (!isShiprocketConfigured()) return { attempted: 0, synced: 0, failed: 0 };
-  const pending = await Seller.find({ shiprocketPickupSyncStatus: "Pending" })
+  // Deleted sellers are never synced: it would retry a Shiprocket call forever.
+  const pending = await Seller.find({ shiprocketPickupSyncStatus: "Pending", isDeleted: { $ne: true } })
     .select("_id")
     .sort({ updatedAt: 1 })
     .limit(limit)
     .lean();
   const failed = pending.length < limit
-    ? await Seller.find({ shiprocketPickupSyncStatus: "Failed" })
+    ? await Seller.find({ shiprocketPickupSyncStatus: "Failed", isDeleted: { $ne: true } })
         .select("_id")
         .sort({ updatedAt: 1 })
         .limit(limit - pending.length)
