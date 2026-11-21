@@ -518,7 +518,12 @@ export default function AdminManageSellerList() {
         const sellerId = typeof id === 'number' ? sellers.find(s => s.id === id)?._id : id;
         if (!sellerId) return;
 
-        if (window.confirm('Are you sure you want to delete this seller?')) {
+        if (window.confirm(
+            'Delete this seller?\n\n' +
+            'They will be hidden from customers and can no longer sign in. ' +
+            'Their orders and wallet history are kept, and the same email and ' +
+            'mobile number can be registered again.'
+        )) {
             try {
                 const response = await deleteSeller(sellerId);
                 if (response.success) {
