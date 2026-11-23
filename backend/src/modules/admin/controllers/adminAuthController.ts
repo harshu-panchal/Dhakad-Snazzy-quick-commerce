@@ -34,6 +34,8 @@ const REFRESH_COOKIE = "adminRefreshToken";
 const REFRESH_COOKIE_PATH = "/api/v1/auth/admin";
 const RESET_TOKEN_TTL_MINUTES = Number(process.env.ADMIN_RESET_TOKEN_TTL_MINUTES || 30);
 
+const ROTATION_GRACE_MS = 15_000;
+
 const isProduction = () => process.env.NODE_ENV === "production";
 
 /**
@@ -323,7 +325,13 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 
   // A token that was already rotated is being replayed. Treat it as theft:
   // revoke every session for the account and force a fresh sign-in.
-  if (session.revokedAt) {
+  // A token rotated seconds ago is a concurrent tab or a lost response, not theft.
+  const isRecentRotation =
+    session.revokedReason === "rotated" &&
+    !!session.revokedAt &&
+    Date.now() - session.revokedAt.getTime() < ROTATION_GRACE_MS;
+
+  if (session.revokedAt && !isRecentRotation) {
     await AdminSession.updateMany(
       { adminId: session.adminId, revokedAt: { $exists: false } },
       { revokedAt: new Date(), revokedReason: "reuse-detected" },
@@ -367,10 +375,12 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Rotate: mark the presented token used, issue a new one.
-  session.revokedAt = new Date();
-  session.revokedReason = "rotated";
-  session.lastUsedAt = new Date();
-  await session.save();
+  if (!session.revokedAt) {
+    session.revokedAt = new Date();
+    session.revokedReason = "rotated";
+    session.lastUsedAt = new Date();
+    await session.save();
+  }
 
   const next = await buildSession(req, res, admin as any);
 

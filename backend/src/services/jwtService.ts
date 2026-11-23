@@ -25,7 +25,7 @@ export const ADMIN_ACCESS_TOKEN_EXPIRES_IN =
   process.env.ADMIN_ACCESS_TOKEN_EXPIRES_IN || '15m';
 
 export const ADMIN_REFRESH_TOKEN_TTL_DAYS = Number(
-  process.env.ADMIN_REFRESH_TOKEN_TTL_DAYS || 7,
+  process.env.ADMIN_REFRESH_TOKEN_TTL_DAYS || 30,
 );
 
 export interface GenerateTokenOptions {

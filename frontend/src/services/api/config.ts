@@ -70,11 +70,15 @@ async function refreshAccessToken(): Promise<string | null> {
       try {
         // Bare axios, not `api`: going through the instance would recurse into
         // this interceptor if the refresh itself returns 401.
-        const response = await axios.post(
-          `${API_BASE_URL}/auth/admin/refresh`,
-          {},
-          { withCredentials: true },
-        );
+        // Retry once on network errors / 5xx so a blip doesn't end the session;
+        // a real 401 means the session is gone and must not be retried.
+        const post = () =>
+          axios.post(`${API_BASE_URL}/auth/admin/refresh`, {}, { withCredentials: true });
+        const response = await post().catch(async (err) => {
+          if (err.response && err.response.status < 500) throw err;
+          await new Promise((r) => setTimeout(r, 1000));
+          return post();
+        });
 
         const payload = response.data?.data;
         if (payload?.token) {
