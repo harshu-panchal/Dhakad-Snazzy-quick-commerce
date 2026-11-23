@@ -87,6 +87,10 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
         return notification;
       }
 
+      // Same order can be emitted twice (payment webhook + verify); don't re-queue what's on screen.
+      if (current.orderId === notification.orderId && current.type === notification.type) {
+        return current;
+      }
       setNotificationQueue((queue) => mergeUniqueNotifications(queue, [notification]));
       return current;
     });
@@ -107,7 +111,8 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
 
       setActiveNotification((current) => {
         if (current) {
-          setNotificationQueue((queue) => mergeUniqueNotifications(queue, alerts));
+          setNotificationQueue((queue) =>
+            mergeUniqueNotifications(queue, alerts.filter((a) => a.orderId !== current.orderId)));
           return current;
         }
 
